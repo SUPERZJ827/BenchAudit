@@ -11,6 +11,35 @@ from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
 
+DIRECT_AUDIT_SYSTEM_PROMPT = """You are a benchmark quality auditor.
+Given a multiple-choice benchmark item with its declared gold answer, determine whether the item contains any quality defects.
+
+Return only JSON:
+{
+  "has_defect": true | false,
+  "defect_types": [],
+  "confidence": 0.0,
+  "needs_expert": false,
+  "rationale": "under 100 words"
+}
+
+Defect types to assess (list all that apply, or empty list if none):
+- "wrong_gold_answer"         – declared gold is incorrect
+- "no_correct_answer"         – no supplied option is correct
+- "multiple_correct_answers"  – more than one option is correct
+- "bad_options_clarity"       – options are unclear, ambiguous, or uninterpretable
+- "ambiguous_goal"            – question has multiple interpretations that change the answer
+- "missing_condition"         – task requires unstated information to determine the answer
+- "missing_context"           – task references external material not provided
+
+Rules:
+- Evaluate all choices, not just the gold.
+- Only report defects that materially affect evaluation validity.
+- Factual difficulty alone is not a defect.
+- Use needs_expert=true when the conclusion depends on professional, textbook, or jurisdictional conventions.
+"""
+
+
 GOLD_SYSTEM_PROMPT = """You are the Gold Auditor in a benchmark quality audit system.
 Evaluate whether the declared gold answer is supported by the task, context, and choices.
 
@@ -59,7 +88,17 @@ Rules:
 - The answer choices and declared benchmark gold are deliberately hidden. Do not infer them.
 - Preserve notation and definitions introduced by the task.
 - Solve the task in open-ended form and state the most precise answer justified by the question.
+- Before calculating, build a consistency ledger over entities, quantities, events, and time points.
+- Check that quantities remain feasible: counts cannot become negative, consumed or removed subsets cannot
+  exceed the available total, and stated subtotals must be compatible with stated totals.
+- Resolve pronouns and repeated entity names literally. A self-comparison, wrong subject, or impossible
+  event history is a task defect, not an invitation to silently repair the wording.
+- Answer the exact temporal or action question asked. Distinguish brought from later bought, initial from
+  final, and rate-duration statements from already-produced quantities.
+- Irrelevant numbers are allowed and should simply be ignored when the task remains internally consistent.
 - If the question itself has multiple genuinely different answers, return ambiguous.
+- If the premises are internally contradictory or arithmetically impossible and no unique answer is
+  justified, return ambiguous with assumption_risk=answer_changing.
 - Put standard notation or universally conventional definitions under assumption_risk=conventional.
 - Use assumption_risk=answer_changing only for an unstated choice that could materially change the answer.
 - Expose answer-changing assumptions instead of silently selecting one.
@@ -203,6 +242,12 @@ Return only JSON:
 Rules:
 - Flag only defects that can change the answer, make the task unsolvable, or leave multiple materially different interpretations.
 - Do not flag harmless grammar, awkward wording, minor typos, or information already embedded in the task.
+- Build a consistency ledger over entities, quantities, events, and time points before declaring the task clear.
+- Treat impossible quantity histories as substantive defects: negative remaining counts, consuming or
+  removing more than exists, exceeding a stated number of distinct items, or incompatible totals and subtotals.
+- Treat a repeated or wrong entity reference that changes the unknown as a defect; do not silently repair it.
+- Distinguish the time or action named by the question, such as brought versus later bought and initial versus final.
+- Extra irrelevant quantities are not defects when the requested answer remains uniquely determined.
 - Do not assume an unstated linearity, jurisdiction, date, convention, source, population, or unit when it changes the answer.
 - Do not flag a conventional textbook default merely because it is unstated when the convention is standard in the named task and the choices make the intended interpretation unique. Flag only when a plausible alternative changes the answer.
 - A symbolic graph written in text, such as H -> U <- P, counts as provided context; do not demand an image.
@@ -513,6 +558,57 @@ class PresentationLLMAuditor(BaseLLMAuditor):
         )
 
 
+_DIRECT_AUDIT_DEFECT_TYPES = frozenset({
+    "wrong_gold_answer",
+    "no_correct_answer",
+    "multiple_correct_answers",
+    "bad_options_clarity",
+    "ambiguous_goal",
+    "missing_condition",
+    "missing_context",
+})
+
+
+class DirectLLMAuditor(BaseLLMAuditor):
+    """Single-call baseline: LLM sees the full item (including gold) and judges directly."""
+
+    name = "llm_direct_audit"
+    prompt = DIRECT_AUDIT_SYSTEM_PROMPT
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(self._violations(item, result))
+
+    def _violations(self, item: BenchmarkItem, result: dict[str, Any]) -> Iterable[Violation]:
+        if not result.get("has_defect", False):
+            return
+        confidence = _float(result.get("confidence"), 0.0)
+        needs_expert = bool(result.get("needs_expert", False))
+        if confidence < self.review_threshold:
+            return
+        defect_types = [
+            dt for dt in result.get("defect_types", [])
+            if dt in _DIRECT_AUDIT_DEFECT_TYPES
+        ]
+        if not defect_types:
+            defect_types = ["wrong_gold_answer"]
+        review_only = needs_expert or confidence < self.confirm_threshold
+        for defect_type in defect_types:
+            yield _llm_violation(
+                item,
+                defect_type,
+                confidence,
+                result,
+                review_only,
+                self.name,
+                f"Direct audit reported {defect_type}.",
+            )
+
+
 # Backward-compatible alias for callers that still request one semantic auditor.
 LLMSemanticChecker = GoldLLMAuditor
 
@@ -605,14 +701,31 @@ def common_item_payload(item: BenchmarkItem) -> dict[str, Any]:
 def strip_verified_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     blocked = {
         "_llm_observations",
+        "audit_label",
+        "cleaning_status",
         "error_type",
+        "gold_verified_disagree",
+        "human_defect",
         "verified_gold",
         "verified_answer_text",
+        "platinum_target",
         "injected_defects",
         "potential_reason",
         "source_evidence",
     }
-    return {k: v for k, v in metadata.items() if k not in blocked}
+    blocked_fragments = (
+        "ground_truth",
+        "human_label",
+        "oracle_label",
+        "verified_answer",
+        "verified_gold",
+    )
+    return {
+        key: value
+        for key, value in metadata.items()
+        if key.lower() not in blocked
+        and not any(fragment in key.lower() for fragment in blocked_fragments)
+    }
 
 
 def compact_value(value: Any, max_chars: int) -> Any:
@@ -752,6 +865,16 @@ def option_match_evidence(
         missing_assessments = expected_labels - assessed_labels
         independently_uncertain |= missing_assessments
 
+    # For open-ended tasks (no choices), compare derived answers to gold directly.
+    # This prevents every item from triggering the challenger/defender needlessly.
+    if not item.choices and not equivalent and item.gold is not None:
+        gold_norm = normalize_answer(item, item.gold)
+        for derived in blind.get("derived_answers", []):
+            derived_norm = normalize_answer(item, derived)
+            if derived_norm and derived_norm == gold_norm:
+                equivalent.add(gold_norm)
+                break
+
     accepted = equivalent | independently_acceptable
     uncertain |= independently_uncertain
     if uncertain or blind.get("solution_status") in {"ambiguous", "uncertain"}:
@@ -811,6 +934,12 @@ def option_applicability_violations(
     item: BenchmarkItem,
     option_evidence: dict[str, Any],
 ) -> Iterable[Violation]:
+    # Require non-empty option assessments when the applicability payload is present.
+    # An applicability result with no assessed options is an unsubstantiated judgment.
+    applicability_payload = option_evidence.get("option_applicability")
+    if applicability_payload is not None and not applicability_payload.get("option_assessments"):
+        return
+
     status = option_evidence.get("solution_status")
     valid_answers = option_evidence.get("valid_answers", [])
     uncertain_answers = option_evidence.get("uncertain_answers", [])

@@ -75,6 +75,15 @@ def fuse_llm_evidence(
         }
         corroborated = len(llm_methods) >= 2
         contradictions = observation_contradictions(observations)
+        # Applicability-only: substantive violations from llm_option_applicability
+        # with no other LLM or static method corroboration are exploratory signals.
+        other_substantive_llm = llm_methods - {"llm_option_applicability"}
+        applicability_only = (
+            not other_substantive_llm
+            and not non_llm_defects
+            and "llm_option_applicability" in llm_methods
+        )
+
         for violation in item_violations:
             if not violation.detection_method.startswith("llm_"):
                 continue
@@ -106,6 +115,8 @@ def fuse_llm_evidence(
                 continue
             if corroborated:
                 violation.evidence["llm_corroborated_by"] = sorted(llm_methods)
+            if applicability_only and violation.detection_method == "llm_option_applicability":
+                violation.evidence["exploratory"] = True
         if contradictions and item is not None:
             added_violations.append(
                 _violation(
