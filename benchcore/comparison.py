@@ -12,6 +12,7 @@ from .loader import load_rows
 _IGNORED_DEFECTS = {"llm_audit_failure", "auditor_contradiction"}
 _STRONG_METHODS = {
     "llm_gold_audit",
+    "llm_quantity_consistency",
     "executable_evidence",
     "executable_evidence_replay",
     "evaluator_replay",
@@ -76,6 +77,7 @@ def candidate_tier(violations: list[dict[str, Any]]) -> str:
             v.get("detection_method", "").split("+")[0] in _STRONG_METHODS
             or v.get("defect_type") in _STRONG_DEFECTS
         )
+        and v.get("detection_method") != "llm_quantity_consistency_nonmaterial"
         and float(v.get("confidence", 0.0) or 0.0) >= 0.6
         for v in substantive
     )

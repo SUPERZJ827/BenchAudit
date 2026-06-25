@@ -16,6 +16,7 @@ from .llm_auditor import (
     GoldLLMAuditor,
     OptionSetLLMAuditor,
     PresentationLLMAuditor,
+    QuantityConsistencyLLMAuditor,
     QuestionClarityLLMAuditor,
 )
 from .llm_client import LLMClient, load_llm_config
@@ -164,10 +165,11 @@ def run_audit(args: argparse.Namespace) -> int:
             "question": QuestionClarityLLMAuditor,
             "option": OptionSetLLMAuditor,
             "presentation": PresentationLLMAuditor,
+            "quantity": QuantityConsistencyLLMAuditor,
         }
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
-            requested = ["gold", "question", "option", "presentation"]
+            requested = ["gold", "question", "option", "presentation", "quantity"]
         known = {*auditor_types, "gold"}
         unknown = [name for name in requested if name not in known]
         if unknown:
