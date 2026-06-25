@@ -44,7 +44,12 @@ CONTEXT_ALIASES = {
 }
 
 AMBIGUITY_PATTERNS = (
-    re.compile(r"\b(latest|current|today|recent|now)\b", re.I),
+    re.compile(
+        r"\b(latest|most recent)\b|"
+        r"\bcurrent\s+(?:president|prime minister|leader|ceo|version|release|"
+        r"population|rate|status|law|policy)\b",
+        re.I,
+    ),
     re.compile(r"\b(best|most appropriate|most likely|typically|usually)\b", re.I),
 )
 

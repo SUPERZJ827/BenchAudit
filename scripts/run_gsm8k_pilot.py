@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+"""Run BenchCore audit on GSM8K-Platinum Pilot 100 and compare against human labels.
+
+Dataset: gsm8k_platinum_aligned_all.jsonl
+Pilot:   100 items — all 10 wrong-gold defects + 90 random clean items (seed=42)
+Truth:   metadata.gold_verified_disagree  (True = defect, False = clean)
+
+This experiment validates RQ1 (canonical schema generalises to math tasks) and
+partially validates RQ3 (wrong-gold detection without answer choices).
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,53 +17,33 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = Path(
-    "/home/zhoujun/llmdata/datasets/mmlu_redux/"
-    "mmlu_redux_all_5700_finegrained.jsonl"
+    "/home/zhoujun/llmdata/datasets/gsm8k_platinum/"
+    "gsm8k_platinum_aligned_all.jsonl"
 )
-DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/mmlu_redux_pilot200.manifest.json"
+DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/gsm8k_platinum_pilot100.manifest.json"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run MMLU-Redux Pilot audit and supervised comparison."
+        description="Run GSM8K-Platinum Pilot 100 audit and comparison."
     )
-    parser.add_argument(
-        "--tag",
-        default="mmlu_pilot200_open_match",
-        help="Prefix used for cache and report files.",
-    )
-    parser.add_argument(
-        "--model",
-        choices=("deepseek", "openrouter"),
-        default="deepseek",
-        help="LLM provider configuration.",
-    )
+    parser.add_argument("--tag", default="gsm8k_pilot100", help="Report file prefix.")
     parser.add_argument(
         "--auditors",
-        default="gold",
+        default="gold,question",
         help=(
-            "Comma-separated auditors, for example gold or "
-            "gold,question,option,presentation; use all for every core auditor."
+            "Comma-separated auditors. Recommended: gold,question "
+            "(option set not applicable — no choices)."
         ),
     )
-    parser.add_argument(
-        "--mode",
-        choices=("cascade", "full"),
-        default="cascade",
-        help="Structured Gold Auditor evidence mode.",
-    )
+    parser.add_argument("--model", choices=("deepseek", "openrouter"), default="deepseek")
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--progress-every", type=int, default=10)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    parser.add_argument(
-        "--audit-only",
-        action="store_true",
-        help="Run audit without the supervised comparison step.",
-    )
+    parser.add_argument("--audit-only", action="store_true")
     args = parser.parse_args()
 
     config = config_path(args.model)
@@ -69,57 +58,33 @@ def main() -> int:
     comparison_json = reports / f"{args.tag}_comparison.json"
     comparison_md = reports / f"{args.tag}_comparison.md"
 
-    audit_command = [
-        sys.executable,
-        "-m",
-        "benchcore.cli",
-        "audit",
+    run([
+        sys.executable, "-m", "benchcore.cli", "audit",
         str(args.input),
-        "--manifest",
-        str(args.manifest),
+        "--manifest", str(args.manifest),
         "--llm-audit",
-        "--llm-auditors",
-        args.auditors,
-        "--gold-evidence-mode",
-        args.mode,
-        "--llm-config",
-        str(config),
-        "--llm-cache",
-        str(cache),
-        "--workers",
-        str(max(args.workers, 1)),
-        "--progress-every",
-        str(max(args.progress_every, 0)),
-        "--out",
-        str(audit_json),
-        "--md",
-        str(audit_md),
+        "--llm-auditors", args.auditors,
+        "--llm-config", str(config),
+        "--llm-cache", str(cache),
+        "--workers", str(max(args.workers, 1)),
+        "--progress-every", str(max(args.progress_every, 0)),
+        "--out", str(audit_json),
+        "--md", str(audit_md),
         "--print-summary",
-    ]
-    run(audit_command)
+    ])
 
     if not args.audit_only:
-        compare_command = [
-            sys.executable,
-            "-m",
-            "benchcore.cli",
-            "compare",
+        run([
+            sys.executable, "-m", "benchcore.cli", "compare",
             str(args.input),
-            "--report",
-            str(audit_json),
-            "--truth-field",
-            "metadata.error_type",
-            "--clean-value",
-            "ok",
-            "--manifest",
-            str(args.manifest),
-            "--out",
-            str(comparison_json),
-            "--md",
-            str(comparison_md),
+            "--report", str(audit_json),
+            "--truth-field", "metadata.gold_verified_disagree",
+            "--clean-value", "False",
+            "--manifest", str(args.manifest),
+            "--out", str(comparison_json),
+            "--md", str(comparison_md),
             "--print-summary",
-        ]
-        run(compare_command)
+        ])
 
     print("\nOutputs")
     print(f"audit:      {audit_json.relative_to(PROJECT_ROOT)}")
@@ -132,15 +97,14 @@ def main() -> int:
 
 
 def config_path(model: str) -> Path:
-    filename = {
+    return PROJECT_ROOT / "configs" / {
         "deepseek": "llm_deepseek.json",
         "openrouter": "llm_openrouter_gpt55.json",
     }[model]
-    return PROJECT_ROOT / "configs" / filename
 
 
 def validate_inputs(input_path: Path, manifest: Path, config: Path) -> None:
-    missing = [path for path in (input_path, manifest, config) if not path.exists()]
+    missing = [p for p in (input_path, manifest, config) if not p.exists()]
     if missing:
         raise SystemExit("Missing required file(s): " + ", ".join(map(str, missing)))
 

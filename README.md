@@ -315,6 +315,14 @@ Answer-to-Option Matcher（分别判断语义等价）
 彼此不等价、但分别正确的选项，例如“哪个数是质数”中的 `2` 和 `3`。只有所有
 选项都完成独立判断后，程序才确认答案集合；漏评选项会进入 uncertain/review。
 
+新增或修改 LLM 阶段后应使用新的实验 tag，避免把旧 prompt 缓存与新流程混用：
+
+```bash
+python scripts/run_mmlu_pilot.py \
+  --tag option_applicability_v1 \
+  --auditors all
+```
+
 聚合置信度由“支持同一缺陷的证据阶段数 / 有效阶段数”和各阶段置信度共同计算，
 不直接采用某一次 LLM 自报的高置信度。依赖外部来源、未验证假设或专业约定的结论
 只能进入 review。

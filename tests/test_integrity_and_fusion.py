@@ -30,13 +30,28 @@ class IntegrityAndFusionTest(unittest.TestCase):
         item = BenchmarkItem(
             item_id="temporal",
             raw={},
-            task="In recent research, how many states have nuclear weapons right now?",
+            task="In the latest research, what is the current population?",
             gold="9",
         )
         violations = list(TaskIntegrityChecker().check(item))
         defects = {violation.defect_type for violation in violations}
         self.assertIn("temporal_scope_missing", defects)
         self.assertIn("source_reference_missing", defects)
+
+    def test_story_relative_time_is_not_external_temporal_scope(self) -> None:
+        item = BenchmarkItem(
+            item_id="story-time",
+            raw={},
+            task=(
+                "A machine made 12 shirts yesterday and has 5 shirts right now. "
+                "How many shirts are there altogether?"
+            ),
+        )
+        violations = list(TaskIntegrityChecker().check(item))
+        self.assertNotIn(
+            "temporal_scope_missing",
+            {violation.defect_type for violation in violations},
+        )
 
     def test_presentation_corruption(self) -> None:
         item = BenchmarkItem(
@@ -641,6 +656,13 @@ class IntegrityAndFusionTest(unittest.TestCase):
             "valid_answers": ["A", "B"],
             "uncertain_answers": [],
             "confidence": 0.95,
+            "option_applicability": {
+                "option_assessments": [
+                    {"label": "A", "status": "acceptable", "confidence": 0.95},
+                    {"label": "B", "status": "acceptable", "confidence": 0.90},
+                    {"label": "C", "status": "not_acceptable", "confidence": 0.95},
+                ]
+            },
         }
 
         violations = list(option_applicability_violations(item, evidence))
@@ -652,6 +674,10 @@ class IntegrityAndFusionTest(unittest.TestCase):
             violations[0].detection_method,
             "llm_option_applicability",
         )
+
+        # Gate: empty option_assessments prevents an unsubstantiated violation.
+        empty_evidence = {**evidence, "option_applicability": {"option_assessments": []}}
+        self.assertEqual(list(option_applicability_violations(item, empty_evidence)), [])
 
     def test_presentation_auditor_reports_silent_math_repair(self) -> None:
         item = BenchmarkItem(
