@@ -12,6 +12,7 @@ from .comparison import compare_report, write_comparison_markdown
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
     DirectLLMAuditor,
+    EventStateLLMAuditor,
     EvidenceGoldLLMAuditor,
     GoldLLMAuditor,
     OptionSetLLMAuditor,
@@ -161,6 +162,7 @@ def run_audit(args: argparse.Namespace) -> int:
         client = LLMClient(config)
         auditor_types = {
             "direct": DirectLLMAuditor,
+            "event": EventStateLLMAuditor,
             "gold-single": GoldLLMAuditor,
             "question": QuestionClarityLLMAuditor,
             "option": OptionSetLLMAuditor,
@@ -169,7 +171,7 @@ def run_audit(args: argparse.Namespace) -> int:
         }
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
-            requested = ["gold", "question", "option", "presentation", "quantity"]
+            requested = ["gold", "question", "option", "presentation", "quantity", "event"]
         known = {*auditor_types, "gold"}
         unknown = [name for name in requested if name not in known]
         if unknown:

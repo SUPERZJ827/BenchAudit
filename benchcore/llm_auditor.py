@@ -388,6 +388,69 @@ Rules:
   or makes that quantity indeterminate. An impossible event concerning an unused entity is false.
 """
 
+EVENT_STATE_SYSTEM_PROMPT = """You are an event-state parser for benchmark auditing.
+Do not judge the benchmark and do not use a declared gold answer. Extract state transitions and
+semantic-role conflicts so a program can validate them.
+
+Return only JSON:
+{
+  "state_models": [
+    {
+      "entity": "salty cookies",
+      "unit": "cookies",
+      "initial_value": 6 or null,
+      "events": [
+        {
+          "operation": "add" | "remove" | "set",
+          "amount": 3,
+          "stage": 1,
+          "evidence": "ate 3 salty cookies"
+        }
+      ],
+      "stated_final_value": 3 or null,
+      "required_limit": null,
+      "material_to_answer": true,
+      "confidence": 0.0
+    }
+  ],
+  "role_conflicts": [
+    {
+      "stated_role": "profit per item",
+      "queried_role": "customer price",
+      "same_quantity_justified": false,
+      "material_to_answer": true,
+      "confidence": 0.0,
+      "evidence": "The shop makes $X off each item, but the question asks what it costs."
+    }
+  ],
+  "confidence": 0.0,
+  "rationale": "under 100 words"
+}
+
+Rules:
+- Keep distinct entities separate, including sweet versus salty cookies and wrappers versus bottle caps.
+- Order events by their occurrence in the story.
+- add means found, received, bought, entered, produced, or otherwise increased.
+- remove means ate, gave, sold, lost, left, got off, used, or otherwise decreased.
+- set records an explicit observed state such as "now has 12".
+- required_limit is an explicit recipe requirement, capacity, depth, inventory maximum, or stated total
+  that the entity must not exceed under the described action.
+- Always emit a state model when the text contains both a required/capacity amount and an actual amount,
+  even if that entity is not used by the final arithmetic. Example: "recipe calls for 6 cups of flour;
+  already added 12" means required_limit=6 and the post-event flour state is 12.
+- Treat depth, total path length, distance already traveled, and remaining distance as distinct roles.
+  If the described travel exceeds an explicit total depth/length without explanation, emit a state model
+  with that depth/length as required_limit or a role conflict.
+- If initial is unstated but additions/removals and a final value imply it, leave initial_value null;
+  the program will infer it.
+- Phrases such as "after deleting some", "after selling some", or "some more got on" contain an unknown
+  add/remove event. Emit that event with amount=null before the observed final set.
+- Mark material_to_answer=true only when the invalid state changes the requested answer, invalidates an
+  event directly used to derive it, or makes the requested quantity impossible. Otherwise use false.
+- Do not equate profit, revenue, earnings, selling price, purchase price, and cost unless the text does.
+- Do not flag harmless irrelevant numbers or merely unrealistic magnitudes.
+"""
+
 
 class BaseLLMAuditor(Checker):
     prompt = ""
@@ -679,6 +742,49 @@ class QuantityConsistencyLLMAuditor(BaseLLMAuditor):
             return [self.failure_violation(item)] if self.last_error else []
         return list(
             quantity_consistency_violations(
+                item,
+                result,
+                self.confirm_threshold,
+                self.review_threshold,
+            )
+        )
+
+
+class EventStateLLMAuditor(BaseLLMAuditor):
+    name = "llm_event_state"
+    prompt = EVENT_STATE_SYSTEM_PROMPT
+
+    def query(self, item: BenchmarkItem) -> dict[str, Any] | None:
+        self.last_error = None
+        payload = {
+            "item_id": item.item_id,
+            "task": item.task,
+            "context": compact_value(item.context, 4000),
+            "output_contract": item.output_contract,
+            "metadata_without_verified_labels": strip_verified_metadata(item.metadata),
+        }
+        try:
+            result = self.client.chat_json(
+                self.prompt,
+                json.dumps(payload, ensure_ascii=False, indent=2),
+            )
+            item.metadata.setdefault("_llm_observations", {})[self.name] = result
+            return result
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            item.metadata.setdefault("_llm_observations", {})[self.name] = {
+                "audit_failure": str(exc)
+            }
+            return None
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(
+            event_state_violations(
                 item,
                 result,
                 self.confirm_threshold,
@@ -1517,6 +1623,197 @@ def quantity_consistency_violations(
             "llm_quantity_consistency",
             "Independently parsed numeric answer disagrees with the declared gold.",
         )
+
+
+def event_state_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    confirm_threshold: float,
+    review_threshold: float,
+) -> Iterable[Violation]:
+    material_findings: list[dict[str, Any]] = []
+    nonmaterial_findings: list[dict[str, Any]] = []
+
+    for model in result.get("state_models", []):
+        if not isinstance(model, dict):
+            continue
+        confidence = _float(model.get("confidence"), _float(result.get("confidence"), 0.0))
+        if confidence < review_threshold:
+            continue
+        findings = _validate_state_model(model)
+        target = material_findings if bool(model.get("material_to_answer", False)) else nonmaterial_findings
+        target.extend({**finding, "entity": model.get("entity")} for finding in findings)
+
+    for conflict in result.get("role_conflicts", []):
+        if not isinstance(conflict, dict):
+            continue
+        confidence = _float(conflict.get("confidence"), _float(result.get("confidence"), 0.0))
+        if (
+            confidence < review_threshold
+            or bool(conflict.get("same_quantity_justified", True))
+        ):
+            continue
+        finding = {
+            "finding_type": "semantic_role_conflict",
+            "stated_role": conflict.get("stated_role"),
+            "queried_role": conflict.get("queried_role"),
+            "evidence": conflict.get("evidence"),
+            "confidence": confidence,
+        }
+        if bool(conflict.get("material_to_answer", False)):
+            material_findings.append(finding)
+        else:
+            nonmaterial_findings.append(finding)
+
+    if material_findings:
+        confidence = max(
+            _float(finding.get("confidence"), _float(result.get("confidence"), 0.0))
+            for finding in material_findings
+        )
+        yield _llm_violation(
+            item,
+            "ambiguous_goal",
+            confidence,
+            {
+                **result,
+                "programmatic_event_state_findings": material_findings,
+                "material_to_answer": True,
+            },
+            confidence < confirm_threshold,
+            "llm_event_state",
+            "Programmatic event-state validation found an answer-relevant inconsistency.",
+        )
+
+    if nonmaterial_findings:
+        confidence = max(
+            _float(finding.get("confidence"), _float(result.get("confidence"), 0.0))
+            for finding in nonmaterial_findings
+        )
+        yield _llm_violation(
+            item,
+            "ambiguous_goal",
+            confidence,
+            {
+                **result,
+                "programmatic_event_state_findings": nonmaterial_findings,
+                "material_to_answer": False,
+            },
+            True,
+            "llm_event_state_nonmaterial",
+            (
+                "Programmatic event-state validation found an internal inconsistency "
+                "that does not change the requested answer."
+            ),
+        )
+
+
+def _validate_state_model(model: dict[str, Any]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    confidence = _float(model.get("confidence"), 0.0)
+    initial = _finite_float(model.get("initial_value"))
+    stated_final = _finite_float(model.get("stated_final_value"))
+    required_limit = _finite_float(model.get("required_limit"))
+    events = sorted(
+        (event for event in model.get("events", []) if isinstance(event, dict)),
+        key=lambda event: _float(event.get("stage"), 0.0),
+    )
+
+    current = initial
+    net_delta = 0.0
+    has_set = False
+    has_unknown_delta = False
+    for event in events:
+        operation = str(event.get("operation", "")).lower()
+        amount = _finite_float(event.get("amount"))
+        if amount is None:
+            if operation in {"add", "remove"}:
+                has_unknown_delta = True
+                current = None
+            continue
+        if amount < 0:
+            continue
+        if operation == "add":
+            net_delta += amount
+            if current is not None:
+                current += amount
+        elif operation == "remove":
+            net_delta -= amount
+            if current is not None:
+                if amount > current + 1e-9:
+                    findings.append(
+                        {
+                            "finding_type": "removal_exceeds_available",
+                            "available": current,
+                            "removed": amount,
+                            "evidence": event.get("evidence"),
+                            "confidence": confidence,
+                        }
+                    )
+                current -= amount
+        elif operation == "set":
+            has_set = True
+            evidence = str(event.get("evidence", ""))
+            implicit_unknown_event = bool(
+                re.search(
+                    r"\bafter\b.*\b(some|several|an unknown number|an unknown amount)\b",
+                    evidence,
+                    re.I,
+                )
+            )
+            if implicit_unknown_event:
+                has_unknown_delta = True
+            if current is not None and not has_unknown_delta and abs(current - amount) > 1e-9:
+                findings.append(
+                    {
+                        "finding_type": "state_transition_mismatch",
+                        "computed": current,
+                        "stated": amount,
+                        "evidence": event.get("evidence"),
+                        "confidence": confidence,
+                    }
+                )
+            current = amount
+
+    if initial is None and stated_final is not None and not has_set and not has_unknown_delta:
+        inferred_initial = stated_final - net_delta
+        if inferred_initial < -1e-9:
+            findings.append(
+                {
+                    "finding_type": "negative_inferred_initial_state",
+                    "inferred_initial": inferred_initial,
+                    "stated_final": stated_final,
+                    "net_delta": net_delta,
+                    "confidence": confidence,
+                }
+            )
+
+    if initial is not None and stated_final is not None and not has_set and not has_unknown_delta:
+        computed_final = initial + net_delta
+        if abs(computed_final - stated_final) > 1e-9:
+            findings.append(
+                {
+                    "finding_type": "final_state_mismatch",
+                    "computed_final": computed_final,
+                    "stated_final": stated_final,
+                    "confidence": confidence,
+                }
+            )
+
+    effective_final = stated_final if stated_final is not None else current
+    if (
+        required_limit is not None
+        and effective_final is not None
+        and effective_final > required_limit + 1e-9
+    ):
+        findings.append(
+            {
+                "finding_type": "state_exceeds_required_limit",
+                "state_value": effective_final,
+                "required_limit": required_limit,
+                "confidence": confidence,
+            }
+        )
+    return findings
 
 
 def _finite_float(value: Any) -> float | None:
