@@ -23,7 +23,7 @@ def main() -> int:
     )
     parser.add_argument("--tag", default="svamp_platinum_pilot100")
     parser.add_argument("--model", choices=("deepseek", "openrouter"), default="deepseek")
-    parser.add_argument("--auditors", default="gold,question")
+    parser.add_argument("--auditors", default="gold,question,quantity")
     parser.add_argument("--mode", choices=("cascade", "full"), default="cascade")
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--progress-every", type=int, default=10)

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
-from .evaluators import CHOICE_LABELS, choice_label_to_index
+from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
@@ -322,6 +322,61 @@ Rules:
 - Do not silently normalize corrupted text and return no issues.
 """
 
+QUANTITY_CONSISTENCY_SYSTEM_PROMPT = """You are a structured quantity parser for benchmark auditing.
+Do not decide whether the benchmark is defective. Convert the task into explicit, machine-checkable
+quantity constraints and identify material entity/action reference issues.
+
+Return only JSON:
+{
+  "derived_answers": ["numeric answer justified by the task"] or [],
+  "solution_status": "solved" | "contradictory" | "ambiguous" | "uncertain",
+  "checks": [
+    {
+      "check_type": "availability" | "subset_total" | "state_transition" | "rate_time" | "total_parts" | "other",
+      "left_expression": "14 + 13",
+      "left_value": 27,
+      "relation": "<=" | ">=" | "==" | "<" | ">",
+      "right_expression": "initial cookies",
+      "right_value": 17,
+      "fully_grounded": true,
+      "material_to_answer": true,
+      "confidence": 0.0,
+      "evidence": "short quote or derivation"
+    }
+  ],
+  "reference_issues": [
+    {
+      "issue_type": "wrong_entity" | "self_reference" | "action_scope" | "time_scope",
+      "material_to_answer": true | false,
+      "confidence": 0.0,
+      "evidence": "short exact explanation"
+    }
+  ],
+  "confidence": 0.0,
+  "rationale": "under 100 words"
+}
+
+Rules:
+- The declared gold answer is hidden. Solve independently.
+- Emit a check whenever the story implies a necessary numeric invariant.
+- Set fully_grounded=true only when every variable in both expressions has been substituted with a
+  concrete number. For example, after deriving 3 packages, use 13 * 3 == 39, never 13 * packages == 39.
+- Set material_to_answer=true only when failure of the constraint changes the requested answer,
+  prevents a unique answer, or makes a quantity directly used by the answer invalid.
+- Contradictions confined to an irrelevant entity or unused historical detail are not material.
+- For removal or consumption, total removed must not exceed the available amount.
+- A subset or completed count must not exceed its explicitly stated total.
+- Initial + additions - removals must equal a stated final amount.
+- Parts and subtotals must be compatible with an explicitly stated total.
+- Preserve units and entities; do not combine unrelated quantities.
+- Distinguish brought from later bought, initial from final, and yesterday from today.
+- A number may be irrelevant. Do not invent a constraint merely because two numbers coexist.
+- Use the numeric values implied by the literal text, even when they make a constraint fail.
+- Report repeated or wrong subjects and action/time mismatches only when they change what is asked.
+- For reference issues, set material_to_answer=true only when the issue changes the requested quantity
+  or makes that quantity indeterminate. An impossible event concerning an unused entity is false.
+"""
+
 
 class BaseLLMAuditor(Checker):
     prompt = ""
@@ -553,6 +608,49 @@ class PresentationLLMAuditor(BaseLLMAuditor):
             presentation_violations(
                 item,
                 result,
+                self.review_threshold,
+            )
+        )
+
+
+class QuantityConsistencyLLMAuditor(BaseLLMAuditor):
+    name = "llm_quantity_consistency"
+    prompt = QUANTITY_CONSISTENCY_SYSTEM_PROMPT
+
+    def query(self, item: BenchmarkItem) -> dict[str, Any] | None:
+        self.last_error = None
+        payload = {
+            "item_id": item.item_id,
+            "task": item.task,
+            "context": compact_value(item.context, 4000),
+            "output_contract": item.output_contract,
+            "metadata_without_verified_labels": strip_verified_metadata(item.metadata),
+        }
+        try:
+            result = self.client.chat_json(
+                self.prompt,
+                json.dumps(payload, ensure_ascii=False, indent=2),
+            )
+            item.metadata.setdefault("_llm_observations", {})[self.name] = result
+            return result
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            item.metadata.setdefault("_llm_observations", {})[self.name] = {
+                "audit_failure": str(exc)
+            }
+            return None
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(
+            quantity_consistency_violations(
+                item,
+                result,
+                self.confirm_threshold,
                 self.review_threshold,
             )
         )
@@ -1232,6 +1330,155 @@ def question_violations(
         "llm_question_clarity",
         f"Question clarity auditor reported {status}.",
     )
+
+
+def quantity_consistency_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    confirm_threshold: float,
+    review_threshold: float,
+) -> Iterable[Violation]:
+    violated_checks = []
+    nonmaterial_violated_checks = []
+    for check in result.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        confidence = _float(check.get("confidence"), _float(result.get("confidence"), 0.0))
+        if confidence < review_threshold:
+            continue
+        left = _finite_float(check.get("left_value"))
+        right = _finite_float(check.get("right_value"))
+        relation = str(check.get("relation", "")).strip()
+        if (
+            left is None
+            or right is None
+            or relation not in {"<=", ">=", "==", "<", ">"}
+            or not bool(check.get("fully_grounded", False))
+        ):
+            continue
+        if not _numeric_relation_holds(left, relation, right):
+            finding = {
+                **check,
+                "programmatic_result": False,
+                "left_value": left,
+                "right_value": right,
+            }
+            if bool(check.get("material_to_answer", False)):
+                violated_checks.append(finding)
+            else:
+                nonmaterial_violated_checks.append(finding)
+
+    if violated_checks:
+        confidence = max(
+            _float(check.get("confidence"), _float(result.get("confidence"), 0.0))
+            for check in violated_checks
+        )
+        yield _llm_violation(
+            item,
+            "ambiguous_goal",
+            confidence,
+            {
+                **result,
+                "programmatically_violated_checks": violated_checks,
+                "programmatic_violation": True,
+            },
+            confidence < confirm_threshold,
+            "llm_quantity_consistency",
+            "Programmatic validation found an impossible or contradictory quantity constraint.",
+        )
+
+    if nonmaterial_violated_checks:
+        confidence = max(
+            _float(check.get("confidence"), _float(result.get("confidence"), 0.0))
+            for check in nonmaterial_violated_checks
+        )
+        yield _llm_violation(
+            item,
+            "ambiguous_goal",
+            confidence,
+            {
+                **result,
+                "programmatically_violated_checks": nonmaterial_violated_checks,
+                "programmatic_violation": True,
+                "material_to_answer": False,
+            },
+            True,
+            "llm_quantity_consistency_nonmaterial",
+            (
+                "Programmatic validation found an internal quantity inconsistency "
+                "that does not change the requested answer."
+            ),
+        )
+
+    material_reference_issues = [
+        issue
+        for issue in result.get("reference_issues", [])
+        if isinstance(issue, dict)
+        and bool(issue.get("material_to_answer", False))
+        and _float(issue.get("confidence"), 0.0) >= review_threshold
+    ]
+    if material_reference_issues:
+        confidence = max(_float(issue.get("confidence"), 0.0) for issue in material_reference_issues)
+        yield _llm_violation(
+            item,
+            "ambiguous_goal",
+            confidence,
+            {**result, "material_reference_issues": material_reference_issues},
+            True,
+            "llm_quantity_consistency",
+            "Quantity parsing found a material entity, action, or time-scope mismatch.",
+        )
+
+    derived = [parse_number(answer) for answer in result.get("derived_answers", [])]
+    derived = [answer for answer in derived if answer is not None]
+    gold = parse_number(item.gold)
+    confidence = _float(result.get("confidence"), 0.0)
+    unique_derived = sorted(set(derived))
+    if (
+        str(result.get("solution_status", "uncertain")) == "solved"
+        and len(unique_derived) == 1
+        and gold is not None
+        and abs(unique_derived[0] - gold) > 1e-9
+        and confidence >= review_threshold
+    ):
+        yield _llm_violation(
+            item,
+            "wrong_gold_answer",
+            confidence,
+            {
+                **result,
+                "programmatic_gold_comparison": {
+                    "derived": unique_derived[0],
+                    "gold": gold,
+                    "equal": False,
+                },
+            },
+            True,
+            "llm_quantity_consistency",
+            "Independently parsed numeric answer disagrees with the declared gold.",
+        )
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    return number
+
+
+def _numeric_relation_holds(left: float, relation: str, right: float) -> bool:
+    if relation == "<=":
+        return left <= right + 1e-9
+    if relation == ">=":
+        return left + 1e-9 >= right
+    if relation == "==":
+        return abs(left - right) <= 1e-9
+    if relation == "<":
+        return left < right and abs(left - right) > 1e-9
+    return left > right and abs(left - right) > 1e-9
 
 
 def option_violations(
