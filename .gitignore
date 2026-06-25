@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+
+reports/
+datasets/
+
+experiments/*.jsonl
+experiments/*.json
+experiments/*.manifest.json

@@ -1,0 +1,10 @@
+{
+  "model": "openai/gpt-5.5",
+  "base_url": "https://openrouter.ai/api/v1",
+  "api_key_env": "OPENROUTER_API_KEY",
+  "temperature": 0.0,
+  "timeout": 180,
+  "max_tokens": 5000,
+  "cache_path": "reports/openrouter_llm_cache.jsonl",
+  "dry_run": false
+}

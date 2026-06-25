@@ -1,0 +1,196 @@
+# BenchCore 设计说明
+
+## 1. 目标
+
+本目录是一次从零开始的新实现，不依赖之前的 `benchaudit` 包。
+
+目标是支持：
+
+```text
+任意给一个 benchmark 文件 -> 自动识别核心字段 -> 检查主要 benchmark artifact 缺陷 -> 输出统一报告
+```
+
+第一阶段只关注核心组件：
+
+```text
+Task Specification
+Context / Attachments
+Expected Output / Answer Contract
+Oracle / Ground Truth
+Evaluator / Rubric / Tests
+```
+
+## 2. 代码结构
+
+```text
+benchcore/
+  adapter.py         通用 canonical adapter
+  cli.py             命令行入口
+  loader.py          JSONL / JSON / CSV 加载
+  llm_client.py      OpenAI-compatible LLM API client
+  llm_auditor.py     通用 LLM semantic auditor
+  auditor.py         checker 调度、并行执行和跨审计器证据融合
+  methods.py         replay / metamorphic / mutation / dataset checks
+  field_mapping.py   自动字段映射
+  schema.py          BenchmarkItem / Violation 数据结构
+  taxonomy.py        artifact + mechanism + defect_type 分类
+  evaluators.py      简单 evaluator 和 answer normalization
+  checkers.py        核心 artifact 检查器
+  auditor.py         运行所有 checker
+  report.py          JSON / Markdown 报告输出
+```
+
+## 3. 当前 checker
+
+当前默认启用：
+
+```text
+TaskSpecChecker
+ContextChecker
+OutputContractChecker
+OracleChecker
+EvaluatorChecker
+ContractConsistencyChecker
+EvaluatorReplayChecker
+MetamorphicAnswerChecker
+EvaluatorMutationChecker
+ExecutableEvidenceChecker
+DifferentialCandidateChecker
+DuplicateConflictChecker
+SchemaDriftChecker
+TaskIntegrityChecker
+```
+
+它们现在主要做高泛化、低成本的检查：
+
+- 任务说明缺失；
+- 题面引用 passage / figure / table / file / database 但上下文缺失；
+- 附件路径不存在；
+- 输出合同缺失；
+- gold answer 缺失；
+- choice gold 无法映射到选项；
+- 选项文本重复；
+- 简单算术 gold answer 错误；
+- evaluator 缺失；
+- declared alias 被 evaluator 拒绝；
+- exact match 过严风险；
+- evaluator 过弱风险。
+- 缺失时间范围；
+- 引用未指明的研究、报告或比较来源；
+- 明显截断的任务指令；
+- mojibake、电子表格日期转换等展示损坏。
+
+## 3.1 通用 Adapter 原则
+
+当前 adapter 不是针对某个 benchmark 写死的。它做的是：
+
+1. 从 JSONL / JSON / CSV 自动推断常见字段；
+2. 将输入统一成 canonical task package；
+3. 保留原始 raw record，避免信息丢失；
+4. 将嵌套 `metadata` 展开到统一 metadata 字段；
+5. 不使用人工标签、verified gold、error type 作为检测依据。
+
+如果自动字段推断不准，可以通过 mapping JSON 覆盖。
+
+## 3.2 多方法证据等级
+
+```text
+static evidence
+declared evaluator replay
+declared evaluator model mutation/metamorphic evidence
+executable evidence
+LLM semantic evidence
+human/expert evidence
+```
+
+其中：
+
+- 静态字段冲突和可安全执行的算术证据可以直接 confirmed；
+- 只基于 evaluator 类型模拟出的 mutation/metamorphic 结果默认进入 review；
+- 真实 evaluator/test script/SQL execution 的结果才属于 execution-backed evidence；
+- LLM 语义判断需要结合阈值、review routing 或其他方法交叉验证。
+
+## 3.3 LLM 职责分解与证据门控
+
+三个 LLM auditor 使用相同 canonical task package，但分别完成不同判断：
+
+```text
+EvidenceGoldLLMAuditor     盲解、gold 辩护、gold 挑战和程序化聚合
+QuestionClarityLLMAuditor  检查 answer-changing 的缺失条件、上下文和歧义
+OptionSetLLMAuditor        逐项判断字面真值、最佳答案资格和等价关系
+PresentationLLMAuditor     检查模型理解过程中发生的隐式 OCR/格式修复
+```
+
+Gold 验证采用风险级联：
+
+1. Blind Solver 同时看不到 choices 和 gold，只输出开放式精确答案；
+2. Matcher 分别判断开放答案与每个选项是否语义等价；
+3. Independent Option Applicability 对每个选项直接检查是否满足题干；
+4. 较弱性质、上位概念、下位概念和相关事实不算身份型问题的等价答案；
+5. 属性型问题中，彼此不等价但分别满足题干的选项都会加入答案集合；
+6. 漏评任何选项都会使答案集合进入 uncertain；
+7. 程序根据合并后的答案集合判断无正确答案、多正确答案或唯一答案；
+8. 只有唯一答案时，才将它与 gold 比较；
+9. 不一致、多解、无解、低置信或不确定匹配时启动 Challenger/Defender；
+10. 代码根据有效阶段的缺陷票数和平均置信度计算最终置信度；
+11. 外部来源、未验证假设和专业约定不会自动 confirmed；
+12. `gold-single` 保留为单次 LLM 判断的消融基线。
+
+Option Auditor 不把“字面为真”等同于“应被接受为最佳答案”。这用于处理
+最完整、最精确、最合适等常见选择题语义，同时继续检测普通单选中的真正多解。
+
+Presentation Auditor 不要求格式问题改变答案。只要模型必须把原始 artifact 从
+`raw_text` 修复为不同的 `interpreted_text` 才能理解，例如补回指数符号、合并被
+错误切开的选项或修复乱码，就输出 `presentation_corruption`。单纯的小数与百分数
+表示差异、语法风格或事实错误不属于该类。
+
+证据门控采用以下原则：
+
+1. 题干歧义的单次 LLM 判断默认是 review signal；
+2. 静态规则或执行检查提供同类证据后才升级 confirmed；
+3. 审计器结论冲突时不强行投票，相关发现降级为 review；
+4. 冲突和 API 失败属于 operational scope，不计入默认缺陷评估；
+5. substantive 与 presentation scope 可以通过 `compare --include-scope` 分开评估。
+
+人工审核标签用于实验评估，而不是检测输入。人工标签也可能有遗漏或争议，因此
+报告应保留“多个独立审计器一致、但与人工标签冲突”的案例供二次复核，不能通过
+针对具体样本的硬编码直接删除。
+
+## 4. 运行命令
+
+```bash
+python -m benchcore.cli audit \
+  examples/sample_core_benchmark.jsonl \
+  --out reports/sample_audit_report.json \
+  --md reports/sample_audit_report.md \
+  --print-summary
+```
+
+字段映射：
+
+```bash
+python -m benchcore.cli infer-mapping examples/sample_core_benchmark.jsonl
+```
+
+LLM 语义审计：
+
+```bash
+python -m benchcore.cli audit \
+  /path/to/benchmark.jsonl \
+  --limit 20 \
+  --llm-audit \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/llm_cache.jsonl \
+  --out reports/llm_audit_report.json \
+  --md reports/llm_audit_report.md \
+  --print-summary
+```
+
+## 5. 后续扩展点
+
+优先扩展：
+
+1. recommended mappings/scripts：MMLU-Redux、GSM8K-Platinum、ELT-Bench、LiveSQLBench/BIRD；
+2. execution consistency：验证合理替代解是否被 evaluator 误杀；
+3. mutation testing：验证 evaluator 是否过松；
+4. supervised comparison：如果输入里有人类 defect label，计算 precision/recall。
