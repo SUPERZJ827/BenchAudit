@@ -1,0 +1,1303 @@
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+from typing import Any, Iterable
+
+from .checkers import Checker, _violation
+from .evaluators import CHOICE_LABELS, choice_label_to_index
+from .llm_client import LLMClient
+from .schema import BenchmarkItem, Violation
+
+
+GOLD_SYSTEM_PROMPT = """You are the Gold Auditor in a benchmark quality audit system.
+Evaluate whether the declared gold answer is supported by the task, context, and choices.
+
+Return only JSON:
+{
+  "gold_status": "supported" | "contradicted" | "uncertain",
+  "defect_type": "none" | "wrong_gold_answer" | "no_correct_answer",
+  "correct_answers": ["A"] or [],
+  "confidence": 0.0,
+  "needs_expert": false,
+  "rationale": "under 80 words"
+}
+
+Rules:
+- Solve the task independently before inspecting whether the gold agrees.
+- Preserve notation and definitions introduced by the task.
+- Do not reinterpret a defined symbol with its ordinary meaning to rescue the gold.
+- For best/most complete/most specific questions, accept the unique best answer.
+- If the answer depends on a convention, source, jurisdiction, or expert knowledge, return uncertain and needs_expert=true.
+- For medicine, law, psychology, accounting, and other professional domains, mark needs_expert=true when the conclusion depends on a textbook-specific or professional convention rather than a direct formal derivation.
+- Use no_correct_answer only when none of the supplied choices/accepted forms is correct.
+"""
+
+BLIND_SOLVER_SYSTEM_PROMPT = """You are the Blind Solver in a benchmark quality audit system.
+Solve the task without access to its declared gold answer.
+
+Return only JSON:
+{
+  "solution_status": "solved" | "ambiguous" | "uncertain",
+  "derived_answers": ["the answer in open-ended form"],
+  "confidence": 0.0,
+  "needs_expert": false,
+  "assumption_risk": "none" | "conventional" | "answer_changing",
+  "required_assumptions": ["..."],
+  "claims": [
+    {
+      "claim": "short atomic claim",
+      "evidence_type": "calculation" | "definition" | "task_text" | "external_source" | "assumption",
+      "support": "short derivation or evidence"
+    }
+  ],
+  "rationale": "under 100 words"
+}
+
+Rules:
+- The answer choices and declared benchmark gold are deliberately hidden. Do not infer them.
+- Preserve notation and definitions introduced by the task.
+- Solve the task in open-ended form and state the most precise answer justified by the question.
+- If the question itself has multiple genuinely different answers, return ambiguous.
+- Put standard notation or universally conventional definitions under assumption_risk=conventional.
+- Use assumption_risk=answer_changing only for an unstated choice that could materially change the answer.
+- Expose answer-changing assumptions instead of silently selecting one.
+- Mark needs_expert=true for source-, textbook-, jurisdiction-, or professional-convention-dependent conclusions.
+"""
+
+ANSWER_OPTION_MATCHER_SYSTEM_PROMPT = """You are the Answer-to-Option Matcher in a benchmark quality audit system.
+The task was solved without seeing its choices. Compare the open-ended derived answer with every choice.
+
+Return only JSON:
+{
+  "matches": [
+    {
+      "label": "A",
+      "relation": "equivalent" | "not_equivalent" | "uncertain",
+      "confidence": 0.0,
+      "rationale": "short"
+    }
+  ],
+  "needs_expert": false,
+  "rationale": "under 80 words"
+}
+
+Rules:
+- Match semantic equivalence to the derived answer, not mere logical implication.
+- A weaker property, broader superclass, narrower special case, related fact, or partially correct statement is not equivalent.
+- Example: if the derived answer is 'Abelian group', 'commutative semigroup' is not equivalent.
+- Equivalent notation, paraphrases, numeric forms, and choice text expressing the same answer are equivalent.
+- Do not select the closest option when no option is equivalent.
+- Do not use the declared gold; it is deliberately hidden.
+- Return uncertain only when equivalence truly depends on missing context or convention.
+"""
+
+OPTION_APPLICABILITY_SYSTEM_PROMPT = """You are the Independent Option Applicability Auditor in a benchmark quality audit system.
+Evaluate whether each answer choice independently satisfies the task as written.
+Do not compare choices only to the blind solver's answer, and do not assume the declared gold is correct.
+
+Return only JSON:
+{
+  "option_assessments": [
+    {
+      "label": "A",
+      "status": "acceptable" | "not_acceptable" | "uncertain",
+      "confidence": 0.0,
+      "assumptions": ["..."],
+      "rationale": "short"
+    }
+  ],
+  "question_mode": "identity" | "property" | "best_answer" | "statement_combination" | "other",
+  "needs_expert": false,
+  "rationale": "under 80 words"
+}
+
+Rules:
+- Test each choice directly against the task, using the same task interpretation for every choice.
+- acceptable means the evaluator should accept that option as a correct answer.
+- A choice may be acceptable even when it is not semantically equivalent to another acceptable choice.
+- Example: for 'Which number is prime?', both 2 and 3 are acceptable although they are not equivalent.
+- For identity/definition questions, a weaker property, superclass, subclass, or related fact is not acceptable when it does not answer the requested identity.
+- For explicit or conventional best/most/primary questions, mark only choices that satisfy the requested best-answer criterion as acceptable.
+- Use the ordinary educational reading of the wording. If rejecting an option requires a stricter technical interpretation of an otherwise compatible qualifier, return uncertain rather than not_acceptable.
+- A partially more specific description remains acceptable when the added qualifier is true under the ordinary intended reading; reject it only when the qualifier is materially false.
+- Invalid, malformed, or low-quality non-gold distractors are not substantive defects unless they affect the accepted answer set; presentation corruption is handled separately.
+- Return uncertain when acceptance depends on missing context, source convention, jurisdiction, or an answer-changing assumption.
+"""
+
+
+GOLD_DEFENDER_SYSTEM_PROMPT = """You are the Gold Defender in a benchmark quality audit system.
+Given a task, its declared gold, and a blind solution, construct the strongest valid case for the gold.
+Do not rescue the gold by changing task notation, inventing missing facts, or using an unreasonable convention.
+
+Return only JSON:
+{
+  "gold_support": "supported" | "unsupported" | "uncertain",
+  "confidence": 0.0,
+  "needs_expert": false,
+  "assumptions_required": ["..."],
+  "claims": [
+    {
+      "claim": "short atomic claim",
+      "evidence_type": "calculation" | "definition" | "task_text" | "external_source" | "assumption",
+      "support": "short support"
+    }
+  ],
+  "rationale": "under 100 words"
+}
+
+Rules:
+- Explicitly identify assumptions required to support the gold.
+- If support depends on missing source context or a disputed convention, return uncertain.
+- If the gold cannot be defended under the task as written, return unsupported.
+"""
+
+
+GOLD_CHALLENGER_SYSTEM_PROMPT = """You are the Gold Challenger in a benchmark quality audit system.
+Given a task, its declared gold, and a blind solution, actively search for a decisive counterexample,
+an alternative correct answer, or proof that no supplied answer is correct.
+
+Return only JSON:
+{
+  "gold_validity": "valid" | "invalid" | "uncertain",
+  "defect_type": "none" | "wrong_gold_answer" | "no_correct_answer" | "multiple_correct_answers",
+  "alternative_answers": ["B"],
+  "confidence": 0.0,
+  "needs_expert": false,
+  "counterclaims": [
+    {
+      "claim": "short atomic challenge",
+      "evidence_type": "calculation" | "definition" | "task_text" | "external_source" | "assumption",
+      "support": "short counterevidence"
+    }
+  ],
+  "rationale": "under 100 words"
+}
+
+Rules:
+- Try to falsify the gold rather than merely restating the blind solution.
+- Preserve definitions and notation from the task.
+- A weak or malformed non-gold distractor is not a defect unless grading is affected.
+- For best-answer questions, distinguish weaker literal truths from accepted best answers.
+- Return uncertain when the challenge depends on unavailable sources or professional conventions.
+"""
+
+
+QUESTION_SYSTEM_PROMPT = """You are the Question Clarity Auditor in a benchmark quality audit system.
+Do not solve only for the gold. Audit whether the task statement contains enough information to determine the intended answer.
+
+Return only JSON:
+{
+  "clarity_status": "clear" | "answer_changing_ambiguity" | "missing_condition" | "missing_context" | "uncertain",
+  "confidence": 0.0,
+  "needs_expert": false,
+  "assumptions_used": ["..."],
+  "missing_information": ["..."],
+  "alternative_interpretations": [
+    {"interpretation": "short description", "answer": "A"}
+  ],
+  "rationale": "under 80 words"
+}
+
+Rules:
+- Flag only defects that can change the answer, make the task unsolvable, or leave multiple materially different interpretations.
+- Do not flag harmless grammar, awkward wording, minor typos, or information already embedded in the task.
+- Do not assume an unstated linearity, jurisdiction, date, convention, source, population, or unit when it changes the answer.
+- Do not flag a conventional textbook default merely because it is unstated when the convention is standard in the named task and the choices make the intended interpretation unique. Flag only when a plausible alternative changes the answer.
+- A symbolic graph written in text, such as H -> U <- P, counts as provided context; do not demand an image.
+- If a standard field convention resolves the task but conventions differ, return uncertain and needs_expert=true.
+"""
+
+
+OPTION_SYSTEM_PROMPT = """You are the Option Set Auditor in a benchmark quality audit system.
+Audit every answer choice, not just the gold.
+
+Return only JSON:
+{
+  "option_statuses": [
+    {
+      "label": "A",
+      "literal_truth": "true" | "false" | "uncertain" | "invalid",
+      "best_answer_status": "best" | "acceptable" | "weaker" | "irrelevant" | "invalid",
+      "clarity": "clear" | "unclear" | "corrupted",
+      "equivalence_group": "optional group id or null",
+      "confidence": 0.0,
+      "rationale": "short"
+    }
+  ],
+  "literal_cardinality": "exactly_one" | "multiple" | "none" | "uncertain",
+  "best_answer_cardinality": "exactly_one" | "multiple" | "none" | "uncertain",
+  "defect_type": "none" | "multiple_correct_answers" | "no_correct_answer" | "bad_options_clarity",
+  "confidence": 0.0,
+  "needs_expert": false,
+  "rationale": "under 80 words"
+}
+
+Rules:
+- Evaluate each option using the same definitions and notation as the task.
+- Separate literal truth from best-answer status. A weaker true property may be literally true but not an acceptable best answer.
+- Only use the best-answer convention when the stem explicitly or conventionally asks for best/most/primary/generally/most appropriate. Do not use it to hide two independently valid answers in an ordinary "which is true" question.
+- Equivalent logical/program expressions must share an equivalence_group even when variable names or syntax differ.
+- A bad distractor is not a benchmark defect unless it creates multiple valid answers, no valid answer, is uninterpretable, or overlaps the gold in an answer-changing way.
+- Do not flag an irrelevant invalid non-gold distractor if the gold remains uniquely correct and grading is unaffected.
+- Mark presentation-only corruption in clarity, even if it does not change the best answer; use bad_options_clarity with review-level confidence.
+- Use uncertain and needs_expert=true for textbook, professional, jurisdictional, or source conventions.
+"""
+
+PRESENTATION_SYSTEM_PROMPT = """You are the Presentation Integrity Auditor in a benchmark quality audit system.
+Inspect the exact task package for OCR, encoding, segmentation, truncation, and formatting corruption.
+Report corruption even when a capable model can silently repair it and still solve the task.
+
+Return only JSON:
+{
+  "issues": [
+    {
+      "artifact": "task_specification" | "context_attachment" | "choices" | "oracle_ground_truth" | "expected_output" | "evaluator",
+      "location": "short field/choice location",
+      "issue_type": "ocr_corruption" | "encoding_corruption" | "lost_math_markup" | "truncation" | "segmentation_error" | "format_conversion",
+      "raw_text": "exact problematic text",
+      "interpreted_text": "the repaired form required to understand it",
+      "repair_operations": ["inserted ^", "merged choices C and D"],
+      "confidence": 0.0,
+      "rationale": "short"
+    }
+  ],
+  "confidence": 0.0,
+  "rationale": "under 80 words"
+}
+
+Rules:
+- Compare the exact raw text with the form you must mentally reconstruct to understand it.
+- Report silent repairs such as 1.5 x 1017 interpreted as 1.5 × 10^17, lost superscripts, broken LaTeX, mojibake, OCR substitutions, truncated expressions, or one option split into two.
+- Inspect task text, context, every choice, gold representation, output contract, evaluator, tests, and rubric when present.
+- Do not report grammar style, awkward but understandable wording, difficulty, factual incorrectness, or harmless representation differences.
+- 0.025 versus 2.5% is not corruption when both are explicit and unambiguous.
+- A malformed non-gold distractor is still a presentation defect, even when it does not change the unique correct answer.
+- Do not silently normalize corrupted text and return no issues.
+"""
+
+
+class BaseLLMAuditor(Checker):
+    prompt = ""
+    name = "llm_auditor"
+
+    def __init__(
+        self,
+        client: LLMClient,
+        confirm_threshold: float = 0.75,
+        review_threshold: float = 0.45,
+    ):
+        self.client = client
+        self.confirm_threshold = confirm_threshold
+        self.review_threshold = review_threshold
+        self.last_error: str | None = None
+
+    def query(self, item: BenchmarkItem) -> dict[str, Any] | None:
+        self.last_error = None
+        item.metadata.setdefault("_llm_observations", {})["_declared_gold"] = item.gold
+        try:
+            result = self.client.chat_json(self.prompt, build_user_prompt(item))
+            item.metadata.setdefault("_llm_observations", {})[self.name] = result
+            return result
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            item.metadata.setdefault("_llm_observations", {})[self.name] = {
+                "audit_failure": str(exc)
+            }
+            return None
+
+    def failure_violation(self, item: BenchmarkItem) -> Violation:
+        return _violation(
+            item,
+            "llm_audit_failure",
+            1.0,
+            f"{self.name} failed to produce a usable result.",
+            {"auditor": self.name, "error": self.last_error},
+            severity="review",
+            review_only=True,
+            repair="Retry the failed auditor call or inspect provider output.",
+            method=self.name,
+            scope="operational",
+        )
+
+
+class GoldLLMAuditor(BaseLLMAuditor):
+    name = "llm_gold_audit"
+    prompt = GOLD_SYSTEM_PROMPT
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task or item.gold in (None, ""):
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(gold_violations(item, result, self.confirm_threshold, self.review_threshold))
+
+
+class EvidenceGoldLLMAuditor(BaseLLMAuditor):
+    """Blind solve first, then use adversarial evidence only when risk warrants it."""
+
+    name = "llm_gold_audit"
+
+    def __init__(
+        self,
+        client: LLMClient,
+        confirm_threshold: float = 0.75,
+        review_threshold: float = 0.45,
+        mode: str = "cascade",
+    ):
+        super().__init__(client, confirm_threshold, review_threshold)
+        if mode not in {"cascade", "full"}:
+            raise ValueError(f"Unknown evidence gold mode: {mode}")
+        self.mode = mode
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task or item.gold in (None, ""):
+            return []
+        self.last_error = None
+        observations = item.metadata.setdefault("_llm_observations", {})
+        observations["_declared_gold"] = item.gold
+        try:
+            blind = self.client.chat_json(
+                BLIND_SOLVER_SYSTEM_PROMPT,
+                build_blind_user_prompt(item),
+            )
+            observations["llm_blind_solver"] = blind
+        except RuntimeError as exc:
+            self.last_error = f"blind_solver: {exc}"
+            observations["llm_blind_solver"] = {"audit_failure": str(exc)}
+            return [self.failure_violation(item)]
+
+        try:
+            matcher = self.client.chat_json(
+                ANSWER_OPTION_MATCHER_SYSTEM_PROMPT,
+                build_option_match_user_prompt(item, blind),
+            )
+            observations["llm_answer_option_matcher"] = matcher
+        except RuntimeError as exc:
+            self.last_error = f"answer_option_matcher: {exc}"
+            observations["llm_answer_option_matcher"] = {"audit_failure": str(exc)}
+            return [self.failure_violation(item)]
+
+        try:
+            applicability = self.client.chat_json(
+                OPTION_APPLICABILITY_SYSTEM_PROMPT,
+                build_option_applicability_user_prompt(item, blind, matcher),
+            )
+            observations["llm_option_applicability"] = applicability
+        except RuntimeError as exc:
+            self.last_error = f"option_applicability: {exc}"
+            observations["llm_option_applicability"] = {"audit_failure": str(exc)}
+            return [self.failure_violation(item)]
+
+        option_evidence = option_match_evidence(
+            item,
+            blind,
+            matcher,
+            applicability,
+        )
+        observations["llm_programmatic_answer_set"] = option_evidence
+        if (
+            self.mode == "cascade"
+            and not option_evidence_is_risky(item, option_evidence)
+        ):
+            result = aggregate_gold_evidence(item, option_evidence, None, None)
+            observations[self.name] = result
+            return list(
+                gold_violations(
+                    item,
+                    result,
+                    self.confirm_threshold,
+                    self.review_threshold,
+                )
+            )
+
+        stage_payload = build_gold_evidence_user_prompt(
+            item,
+            blind,
+            matcher,
+            option_evidence,
+        )
+        try:
+            challenger = self.client.chat_json(GOLD_CHALLENGER_SYSTEM_PROMPT, stage_payload)
+            observations["llm_gold_challenger"] = challenger
+        except RuntimeError as exc:
+            challenger = {"audit_failure": str(exc)}
+            observations["llm_gold_challenger"] = challenger
+        defender = None
+        if self.mode == "full" or defender_is_needed(item, option_evidence, challenger):
+            try:
+                defender = self.client.chat_json(GOLD_DEFENDER_SYSTEM_PROMPT, stage_payload)
+                observations["llm_gold_defender"] = defender
+            except RuntimeError as exc:
+                defender = {"audit_failure": str(exc)}
+                observations["llm_gold_defender"] = defender
+
+        result = aggregate_gold_evidence(item, option_evidence, defender, challenger)
+        observations[self.name] = result
+        failed_stages = [
+            name
+            for name, stage in (
+                ("defender", defender),
+                ("challenger", challenger),
+            )
+            if stage is not None and "audit_failure" in stage
+        ]
+        if failed_stages:
+            self.last_error = (
+                "structured gold evidence stages failed: "
+                + ", ".join(failed_stages)
+            )
+        violations = list(
+            gold_violations(
+                item,
+                result,
+                self.confirm_threshold,
+                self.review_threshold,
+            )
+        )
+        existing_defects = {violation.defect_type for violation in violations}
+        violations.extend(
+            violation
+            for violation in option_applicability_violations(item, option_evidence)
+            if violation.defect_type not in existing_defects
+        )
+        if self.last_error:
+            violations.append(self.failure_violation(item))
+        return violations
+
+
+class QuestionClarityLLMAuditor(BaseLLMAuditor):
+    name = "llm_question_clarity"
+    prompt = QUESTION_SYSTEM_PROMPT
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(question_violations(item, result, self.confirm_threshold, self.review_threshold))
+
+
+class OptionSetLLMAuditor(BaseLLMAuditor):
+    name = "llm_option_set"
+    prompt = OPTION_SYSTEM_PROMPT
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task or not item.choices:
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(option_violations(item, result, self.confirm_threshold, self.review_threshold))
+
+
+class PresentationLLMAuditor(BaseLLMAuditor):
+    name = "llm_presentation_integrity"
+    prompt = PRESENTATION_SYSTEM_PROMPT
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        result = self.query(item)
+        if not result:
+            return [self.failure_violation(item)] if self.last_error else []
+        return list(
+            presentation_violations(
+                item,
+                result,
+                self.review_threshold,
+            )
+        )
+
+
+# Backward-compatible alias for callers that still request one semantic auditor.
+LLMSemanticChecker = GoldLLMAuditor
+
+
+def build_user_prompt(item: BenchmarkItem) -> str:
+    payload = {
+        "item_id": item.item_id,
+        "task": item.task,
+        "context": compact_value(item.context, 4000),
+        "choices": item.choices,
+        "gold": item.gold,
+        "aliases": item.aliases,
+        "output_contract": item.output_contract,
+        "evaluator": item.evaluator,
+        "metadata_without_verified_labels": strip_verified_metadata(item.metadata),
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def build_blind_user_prompt(item: BenchmarkItem) -> str:
+    payload = common_item_payload(item)
+    payload.pop("choices", None)
+    payload.pop("gold", None)
+    payload.pop("aliases", None)
+    payload.pop("evaluator", None)
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def build_gold_evidence_user_prompt(
+    item: BenchmarkItem,
+    blind_solution: dict[str, Any],
+    option_matching: dict[str, Any] | None = None,
+    option_evidence: dict[str, Any] | None = None,
+) -> str:
+    payload = common_item_payload(item)
+    payload["blind_solution"] = blind_solution
+    if option_matching is not None:
+        payload["answer_option_matching"] = option_matching
+    if option_evidence is not None:
+        payload["programmatic_answer_set"] = option_evidence
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def build_option_match_user_prompt(
+    item: BenchmarkItem,
+    blind_solution: dict[str, Any],
+) -> str:
+    payload = {
+        "item_id": item.item_id,
+        "task": item.task,
+        "context": compact_value(item.context, 4000),
+        "choices": item.choices,
+        "blind_solution": blind_solution,
+        "metadata_without_verified_labels": strip_verified_metadata(item.metadata),
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def build_option_applicability_user_prompt(
+    item: BenchmarkItem,
+    blind_solution: dict[str, Any],
+    option_matching: dict[str, Any],
+) -> str:
+    payload = {
+        "item_id": item.item_id,
+        "task": item.task,
+        "context": compact_value(item.context, 4000),
+        "choices": item.choices,
+        "blind_solution": blind_solution,
+        "answer_option_matching": option_matching,
+        "metadata_without_verified_labels": strip_verified_metadata(item.metadata),
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def common_item_payload(item: BenchmarkItem) -> dict[str, Any]:
+    return {
+        "item_id": item.item_id,
+        "task": item.task,
+        "context": compact_value(item.context, 4000),
+        "choices": item.choices,
+        "gold": item.gold,
+        "aliases": item.aliases,
+        "output_contract": item.output_contract,
+        "evaluator": item.evaluator,
+        "metadata_without_verified_labels": strip_verified_metadata(item.metadata),
+    }
+
+
+def strip_verified_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    blocked = {
+        "_llm_observations",
+        "error_type",
+        "verified_gold",
+        "verified_answer_text",
+        "injected_defects",
+        "potential_reason",
+        "source_evidence",
+    }
+    return {k: v for k, v in metadata.items() if k not in blocked}
+
+
+def compact_value(value: Any, max_chars: int) -> Any:
+    text = json.dumps(value, ensure_ascii=False)
+    if len(text) <= max_chars:
+        return value
+    return text[:max_chars] + "...[truncated]"
+
+
+def gold_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    confirm_threshold: float,
+    review_threshold: float,
+) -> Iterable[Violation]:
+    status = str(result.get("gold_status", "uncertain"))
+    defect_type = str(result.get("defect_type", "none"))
+    confidence = _float(result.get("confidence"), 0.0)
+    needs_expert = bool(result.get("needs_expert", False))
+
+    notation_conflict = detects_notation_reinterpretation(item, result)
+    if notation_conflict:
+        yield _llm_violation(
+            item,
+            "no_correct_answer",
+            max(confidence, 0.8),
+            result,
+            False,
+            "llm_gold_audit+notation_consistency",
+            "Gold support requires reinterpreting notation explicitly defined by the task.",
+        )
+        return
+    if confidence < review_threshold:
+        return
+    if defect_type == "none" and status != "contradicted":
+        return
+    if defect_type not in {
+        "wrong_gold_answer",
+        "no_correct_answer",
+        "multiple_correct_answers",
+    }:
+        defect_type = "wrong_gold_answer" if status == "contradicted" else "none"
+    if defect_type == "none":
+        return
+    review_only = needs_expert or confidence < confirm_threshold
+    yield _llm_violation(
+        item,
+        defect_type,
+        confidence,
+        result,
+        review_only,
+        "llm_gold_audit",
+        f"Gold auditor reported {defect_type} with gold_status={status}.",
+    )
+
+
+def blind_solution_is_risky(
+    item: BenchmarkItem,
+    blind: dict[str, Any],
+) -> bool:
+    if blind.get("solution_status") != "solved":
+        return True
+    if bool(blind.get("needs_expert", False)):
+        return True
+    if _float(blind.get("confidence"), 0.0) < 0.85:
+        return True
+    if blind.get("assumption_risk") == "answer_changing":
+        return True
+    answers = normalize_answer_set(
+        item,
+        blind.get("valid_answers", blind.get("derived_answers", [])),
+    )
+    gold = normalize_answer(item, item.gold)
+    return len(answers) != 1 or gold not in answers
+
+
+def defender_is_needed(
+    item: BenchmarkItem,
+    option_evidence: dict[str, Any],
+    challenger: dict[str, Any],
+) -> bool:
+    if "audit_failure" in challenger:
+        return True
+    if option_evidence_is_risky(item, option_evidence):
+        return True
+    if challenger.get("gold_validity") != "valid":
+        return True
+    if challenger.get("defect_type") not in {None, "", "none"}:
+        return True
+    return False
+
+
+def option_match_evidence(
+    item: BenchmarkItem,
+    blind: dict[str, Any],
+    matcher: dict[str, Any],
+    applicability: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    matches = matcher.get("matches", [])
+    equivalent = set()
+    uncertain = set()
+    confidences = [_float(blind.get("confidence"), 0.0)]
+    for entry in matches:
+        if not isinstance(entry, dict):
+            continue
+        label = normalize_answer(item, entry.get("label"))
+        relation = entry.get("relation")
+        confidence = _float(entry.get("confidence"), 0.0)
+        confidences.append(confidence)
+        if relation == "equivalent" and label:
+            equivalent.add(label)
+        elif relation == "uncertain" and label:
+            uncertain.add(label)
+
+    independently_acceptable = set()
+    independently_uncertain = set()
+    assessed_labels = set()
+    for entry in (applicability or {}).get("option_assessments", []):
+        if not isinstance(entry, dict):
+            continue
+        label = normalize_answer(item, entry.get("label"))
+        if label:
+            assessed_labels.add(label)
+        status = entry.get("status")
+        confidence = _float(entry.get("confidence"), 0.0)
+        confidences.append(confidence)
+        if confidence < 0.8 and label:
+            independently_uncertain.add(label)
+        elif status == "acceptable" and label:
+            independently_acceptable.add(label)
+        elif status == "uncertain" and label:
+            independently_uncertain.add(label)
+
+    missing_assessments = set()
+    if applicability is not None and item.choices:
+        expected_labels = set(CHOICE_LABELS[: len(item.choices)])
+        missing_assessments = expected_labels - assessed_labels
+        independently_uncertain |= missing_assessments
+
+    accepted = equivalent | independently_acceptable
+    uncertain |= independently_uncertain
+    if uncertain or blind.get("solution_status") in {"ambiguous", "uncertain"}:
+        status = "uncertain"
+    elif not accepted:
+        status = "none"
+    elif len(accepted) == 1:
+        status = "solved"
+    else:
+        status = "multiple"
+
+    return {
+        "solution_status": status,
+        "valid_answers": sorted(accepted),
+        "equivalent_answers": sorted(equivalent),
+        "independently_acceptable_answers": sorted(independently_acceptable),
+        "missing_option_assessments": sorted(missing_assessments),
+        "uncertain_answers": sorted(uncertain),
+        "confidence": (
+            sum(confidences) / len(confidences)
+            if confidences
+            else 0.0
+        ),
+        "needs_expert": bool(blind.get("needs_expert", False))
+        or bool(matcher.get("needs_expert", False))
+        or bool((applicability or {}).get("needs_expert", False)),
+        "assumption_risk": blind.get("assumption_risk", "none"),
+        "required_assumptions": blind.get("required_assumptions", []),
+        "claims": blind.get("claims", []),
+        "derived_answers": blind.get(
+            "derived_answers",
+            blind.get("valid_answers", []),
+        ),
+        "option_matching": matcher,
+        "option_applicability": applicability or {},
+    }
+
+
+def option_evidence_is_risky(
+    item: BenchmarkItem,
+    option_evidence: dict[str, Any],
+) -> bool:
+    if option_evidence.get("solution_status") != "solved":
+        return True
+    if option_evidence.get("uncertain_answers"):
+        return True
+    if bool(option_evidence.get("needs_expert", False)):
+        return True
+    if option_evidence.get("assumption_risk") == "answer_changing":
+        return True
+    answers = normalize_answer_set(item, option_evidence.get("valid_answers", []))
+    gold = normalize_answer(item, item.gold)
+    return len(answers) != 1 or gold not in answers
+
+
+def option_applicability_violations(
+    item: BenchmarkItem,
+    option_evidence: dict[str, Any],
+) -> Iterable[Violation]:
+    status = option_evidence.get("solution_status")
+    valid_answers = option_evidence.get("valid_answers", [])
+    uncertain_answers = option_evidence.get("uncertain_answers", [])
+    confidence = _float(option_evidence.get("confidence"), 0.0)
+    if status == "multiple":
+        yield _violation(
+            item,
+            "multiple_correct_answers",
+            confidence,
+            "Independent option checks found multiple choices that satisfy the task.",
+            {"option_evidence": option_evidence},
+            severity="review",
+            review_only=True,
+            repair=repair_for_defect("multiple_correct_answers"),
+            method="llm_option_applicability",
+        )
+    elif status == "none":
+        yield _violation(
+            item,
+            "no_correct_answer",
+            confidence,
+            "Independent option checks found no choice that satisfies the task.",
+            {"option_evidence": option_evidence},
+            severity="review",
+            review_only=True,
+            repair=repair_for_defect("no_correct_answer"),
+            method="llm_option_applicability",
+        )
+    elif (
+        status == "uncertain"
+        and len(valid_answers) == 1
+        and uncertain_answers
+    ):
+        yield _violation(
+            item,
+            "multiple_correct_answers_risk",
+            confidence,
+            "One accepted choice and additional uncertain choices may create multiple valid answers.",
+            {"option_evidence": option_evidence},
+            severity="review",
+            review_only=True,
+            repair="Independently verify the uncertain choices and clarify the acceptance criterion.",
+            method="llm_option_applicability",
+        )
+
+
+def aggregate_gold_evidence(
+    item: BenchmarkItem,
+    blind: dict[str, Any],
+    defender: dict[str, Any] | None,
+    challenger: dict[str, Any] | None,
+) -> dict[str, Any]:
+    gold = normalize_answer(item, item.gold)
+    blind_answers = normalize_answer_set(item, blind.get("valid_answers", []))
+    blind_defect = defect_from_blind(item, blind, blind_answers, gold)
+    votes: list[str] = []
+    stage_confidences = []
+    source_sensitive = task_requires_specific_source(item)
+    expert_flags = [
+        bool(blind.get("needs_expert", False)),
+        evidence_requires_external_validation(blind, source_sensitive),
+    ]
+
+    if blind_defect:
+        votes.append(blind_defect)
+    else:
+        votes.append("none")
+    stage_confidences.append(_float(blind.get("confidence"), 0.0))
+
+    if defender and "audit_failure" not in defender:
+        support = defender.get("gold_support")
+        if support == "supported":
+            votes.append("none")
+        elif support == "unsupported":
+            votes.append(infer_defect_from_answers(blind_answers, gold))
+        else:
+            votes.append("uncertain")
+        stage_confidences.append(_float(defender.get("confidence"), 0.0))
+        expert_flags.append(bool(defender.get("needs_expert", False)))
+        expert_flags.append(
+            evidence_requires_external_validation(defender, source_sensitive)
+        )
+
+    challenger_answers: set[str] = set()
+    if challenger and "audit_failure" not in challenger:
+        challenger_answers = normalize_answer_set(
+            item,
+            challenger.get("alternative_answers", []),
+        )
+        challenger_defect = str(challenger.get("defect_type", "none"))
+        if challenger.get("gold_validity") == "invalid" and challenger_defect == "none":
+            challenger_defect = infer_defect_from_answers(challenger_answers, gold)
+        if challenger.get("gold_validity") == "valid":
+            challenger_defect = "none"
+        if challenger_defect not in {
+            "none",
+            "wrong_gold_answer",
+            "no_correct_answer",
+            "multiple_correct_answers",
+        }:
+            challenger_defect = "uncertain"
+        votes.append(challenger_defect)
+        stage_confidences.append(_float(challenger.get("confidence"), 0.0))
+        expert_flags.append(bool(challenger.get("needs_expert", False)))
+        expert_flags.append(
+            evidence_requires_external_validation(challenger, source_sensitive)
+        )
+
+    defect_votes = [vote for vote in votes if vote not in {"none", "uncertain"}]
+    vote_counts: dict[str, int] = {}
+    for vote in defect_votes:
+        vote_counts[vote] = vote_counts.get(vote, 0) + 1
+    chosen_defect = (
+        max(vote_counts, key=lambda value: (vote_counts[value], value))
+        if vote_counts
+        else "none"
+    )
+    chosen_votes = vote_counts.get(chosen_defect, 0)
+    opposing_votes = sum(1 for vote in votes if vote == "none")
+    valid_stages = len(stage_confidences)
+    agreement = chosen_votes / valid_stages if valid_stages else 0.0
+    mean_stage_confidence = (
+        sum(stage_confidences) / valid_stages
+        if valid_stages
+        else 0.0
+    )
+    confidence = agreement * mean_stage_confidence
+
+    if chosen_defect == "none":
+        status = "supported" if opposing_votes else "uncertain"
+        confidence = (
+            opposing_votes / valid_stages * mean_stage_confidence
+            if valid_stages
+            else 0.0
+        )
+    elif opposing_votes and chosen_votes <= opposing_votes:
+        status = "uncertain"
+    else:
+        status = "contradicted"
+
+    answers = sorted(blind_answers | challenger_answers)
+    return {
+        "gold_status": status,
+        "defect_type": chosen_defect,
+        "correct_answers": answers,
+        "confidence": round(confidence, 6),
+        "needs_expert": any(expert_flags),
+        "rationale": (
+            f"Programmatic evidence aggregation: votes={votes}; "
+            f"agreement={chosen_votes}/{valid_stages}; "
+            f"mean_stage_confidence={mean_stage_confidence:.3f}."
+        ),
+        "evidence_votes": votes,
+        "evidence_agreement": agreement,
+        "valid_evidence_stages": valid_stages,
+        "blind_solution": blind,
+        "defender": defender,
+        "challenger": challenger,
+    }
+
+
+def defect_from_blind(
+    item: BenchmarkItem,
+    blind: dict[str, Any],
+    answers: set[str],
+    gold: str,
+) -> str:
+    status = blind.get("solution_status")
+    if status == "none":
+        return "no_correct_answer"
+    if status == "multiple":
+        return "multiple_correct_answers"
+    if status == "solved" and answers and gold not in answers:
+        return "wrong_gold_answer"
+    return ""
+
+
+def infer_defect_from_answers(answers: set[str], gold: str) -> str:
+    if not answers:
+        return "no_correct_answer"
+    if len(answers) > 1:
+        return "multiple_correct_answers"
+    if gold not in answers:
+        return "wrong_gold_answer"
+    return "wrong_gold_answer"
+
+
+def normalize_answer_set(item: BenchmarkItem, values: Any) -> set[str]:
+    if not isinstance(values, list):
+        values = [values]
+    return {
+        normalized
+        for value in values
+        if (normalized := normalize_answer(item, value))
+    }
+
+
+def normalize_answer(item: BenchmarkItem, value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    if item.choices:
+        index = choice_label_to_index(value, item.choices)
+        if index is not None and index < len(CHOICE_LABELS):
+            return CHOICE_LABELS[index]
+    return str(value).strip()
+
+
+def evidence_requires_external_validation(
+    stage: dict[str, Any],
+    source_sensitive: bool = False,
+) -> bool:
+    if stage.get("assumption_risk") == "answer_changing":
+        return True
+    if (
+        stage.get("gold_support") in {"supported", "uncertain"}
+        and stage.get("assumptions_required")
+    ):
+        return True
+    claims = [
+        *stage.get("claims", []),
+        *stage.get("counterclaims", []),
+    ]
+    if source_sensitive and any(
+        isinstance(claim, dict)
+        and claim.get("evidence_type") == "external_source"
+        for claim in claims
+    ):
+        return True
+    return (
+        stage.get("gold_support") != "unsupported"
+        and any(
+            isinstance(claim, dict)
+            and claim.get("evidence_type") == "assumption"
+            for claim in claims
+        )
+    )
+
+
+def task_requires_specific_source(item: BenchmarkItem) -> bool:
+    task = str(item.task or "")
+    if item.context:
+        return True
+    if re.search(
+        r"\b(according to|in the (?:passage|article|report|study|case|statute|"
+        r"table|figure)|the author|the excerpt|as of|current|latest|today)\b",
+        task,
+        re.I,
+    ):
+        return True
+    metadata_keys = {str(key).lower() for key in item.metadata}
+    return bool(
+        metadata_keys
+        & {
+            "jurisdiction",
+            "textbook",
+            "source_document",
+            "source_version",
+            "as_of",
+            "date",
+        }
+    )
+
+
+def question_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    confirm_threshold: float,
+    review_threshold: float,
+) -> Iterable[Violation]:
+    status = str(result.get("clarity_status", "uncertain"))
+    confidence = _float(result.get("confidence"), 0.0)
+    needs_expert = bool(result.get("needs_expert", False))
+    mapping = {
+        "answer_changing_ambiguity": "ambiguous_goal",
+        "missing_condition": "missing_condition",
+        "missing_context": "missing_context",
+    }
+    defect_type = mapping.get(status)
+    if defect_type is None or confidence < review_threshold:
+        return
+    # Natural-language clarity judgments remain review signals unless a
+    # non-LLM checker later provides independent evidence.
+    review_only = True
+    yield _llm_violation(
+        item,
+        defect_type,
+        confidence,
+        result,
+        review_only,
+        "llm_question_clarity",
+        f"Question clarity auditor reported {status}.",
+    )
+
+
+def option_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    confirm_threshold: float,
+    review_threshold: float,
+) -> Iterable[Violation]:
+    defect_type = str(result.get("defect_type", "none"))
+    literal_cardinality = str(
+        result.get("literal_cardinality", result.get("cardinality", "uncertain"))
+    )
+    best_cardinality = str(
+        result.get("best_answer_cardinality", result.get("cardinality", "uncertain"))
+    )
+    confidence = _float(result.get("confidence"), 0.0)
+    needs_expert = bool(result.get("needs_expert", False))
+    if confidence < review_threshold:
+        return
+    if defect_type == "none":
+        if best_cardinality == "multiple":
+            defect_type = "multiple_correct_answers"
+        elif best_cardinality == "none":
+            defect_type = "no_correct_answer"
+        elif has_option_clarity_issue(result):
+            defect_type = "bad_options_clarity"
+    if defect_type not in {
+        "multiple_correct_answers",
+        "no_correct_answer",
+        "bad_options_clarity",
+    }:
+        return
+    review_only = needs_expert or confidence < confirm_threshold or defect_type == "bad_options_clarity"
+    yield _llm_violation(
+        item,
+        defect_type,
+        confidence,
+        result,
+        review_only,
+        "llm_option_set",
+        (
+            f"Option set auditor reported {defect_type} with "
+            f"literal_cardinality={literal_cardinality}, "
+            f"best_answer_cardinality={best_cardinality}."
+        ),
+    )
+
+
+def has_option_clarity_issue(result: dict[str, Any]) -> bool:
+    for option in result.get("option_statuses", []):
+        if not isinstance(option, dict):
+            continue
+        if option.get("clarity") in {"unclear", "corrupted"}:
+            return True
+        if option.get("literal_truth") == "invalid" or option.get("status") == "invalid":
+            return True
+    return False
+
+
+def presentation_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    review_threshold: float,
+) -> Iterable[Violation]:
+    artifact_map = {
+        "task_specification": "task_specification",
+        "context_attachment": "context_attachment",
+        "choices": "expected_output",
+        "oracle_ground_truth": "oracle_ground_truth",
+        "expected_output": "expected_output",
+        "evaluator": "evaluator",
+    }
+    for issue in result.get("issues", []):
+        if not isinstance(issue, dict):
+            continue
+        confidence = _float(
+            issue.get("confidence"),
+            _float(result.get("confidence"), 0.0),
+        )
+        if confidence < review_threshold:
+            continue
+        raw_text = str(issue.get("raw_text", "")).strip()
+        interpreted_text = str(issue.get("interpreted_text", "")).strip()
+        if not raw_text or not interpreted_text or raw_text == interpreted_text:
+            continue
+        artifact = artifact_map.get(
+            str(issue.get("artifact", "")),
+            "expected_output",
+        )
+        yield _violation(
+            item,
+            "presentation_corruption",
+            confidence,
+            (
+                "Understanding the artifact requires an implicit formatting or "
+                "OCR repair."
+            ),
+            {
+                "presentation_issue": issue,
+                "llm_result": result,
+            },
+            severity="review",
+            review_only=True,
+            repair=(
+                "Restore the original notation, encoding, segmentation, or "
+                "formatting without relying on reader reconstruction."
+            ),
+            method="llm_presentation_integrity",
+            scope="presentation",
+            artifact=artifact,
+        )
+
+
+def _llm_violation(
+    item: BenchmarkItem,
+    defect_type: str,
+    confidence: float,
+    result: dict[str, Any],
+    review_only: bool,
+    method: str,
+    message: str,
+) -> Violation:
+    severity = "review" if review_only else severity_for_defect(defect_type)
+    return _violation(
+        item,
+        defect_type,
+        confidence,
+        message,
+        {"llm_result": result, "gold": item.gold, "choices": item.choices},
+        severity=severity,
+        review_only=review_only,
+        repair=repair_for_defect(defect_type),
+        method=method,
+    )
+
+
+def severity_for_defect(defect_type: str) -> str:
+    if defect_type == "wrong_gold_answer":
+        return "critical"
+    if defect_type in {
+        "multiple_correct_answers",
+        "no_correct_answer",
+        "ambiguous_goal",
+        "missing_condition",
+        "missing_context",
+    }:
+        return "major"
+    return "review"
+
+
+def repair_for_defect(defect_type: str) -> str:
+    repairs = {
+        "wrong_gold_answer": "Review and correct the gold answer or reference solution.",
+        "multiple_correct_answers": "Broaden accepted alternatives or rewrite the item to have a unique correct answer.",
+        "no_correct_answer": "Add a correct answer, revise choices, or remove the item.",
+        "ambiguous_goal": "Clarify the task goal and answer-changing assumptions.",
+        "missing_condition": "Add the missing condition or source convention required to determine the answer.",
+        "missing_context": "Attach the missing context or remove context-dependent wording.",
+        "duplicate_choices": "Rewrite unclear, overlapping, or uninterpretable answer choices.",
+        "bad_options_clarity": "Rewrite unclear, overlapping, or uninterpretable answer choices.",
+    }
+    return repairs.get(defect_type, "Review and repair the benchmark artifact at fault.")
+
+
+def _float(value: Any, default: float) -> float:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(0.0, min(1.0, out))
+
+
+def detects_notation_reinterpretation(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+) -> dict[str, Any] | None:
+    task = str(item.task or "")
+    rationale = str(result.get("rationale", ""))
+    if not rationale:
+        return None
+    defined_symbols = []
+    for symbol in ("*", "⊕", "⊗", "∘", "#", "@"):
+        escaped = re.escape(symbol)
+        if re.search(rf"\b\w+\s*{escaped}\s*\w+\s*(?:=|:=)", task):
+            defined_symbols.append(symbol)
+    if not defined_symbols:
+        return None
+    reinterpretation = re.search(
+        r"\b(ordinary|usual|standard|normal)\s+(multiplication|meaning|interpretation|operator)\b",
+        rationale,
+        re.I,
+    )
+    if not reinterpretation:
+        return None
+    return {
+        "defined_symbols": defined_symbols,
+        "rationale_phrase": reinterpretation.group(0),
+    }

@@ -1,0 +1,9 @@
+[project]
+name = "benchcore-after623"
+version = "0.1.0"
+description = "Fresh core-artifact benchmark audit prototype."
+requires-python = ">=3.10"
+
+[project.scripts]
+benchcore = "benchcore.cli:main"
+

@@ -1,0 +1,6 @@
+{"id":"math-bad-gold","question":"What is 7 * 6?","answer":"40","output_format":"numeric final answer","evaluator":"numeric_exact_match"}
+{"id":"choice-invalid-gold","question":"Which ocean is the largest?","choices":["Atlantic","Indian","Pacific","Arctic"],"answer":"Z","evaluator":"choice_exact_match"}
+{"id":"missing-passage","question":"According to the passage above, what caused the policy change?","answer":"budget pressure","evaluator":"normalized_exact_match"}
+{"id":"exact-too-strict","question":"Who wrote Hamlet?","answer":"William Shakespeare","aliases":["Shakespeare"],"evaluator":"exact_match"}
+{"id":"attachment-missing","question":"Use the attached CSV file to compute the total revenue.","files":"missing_revenue.csv","answer":"1200","output_format":"numeric final answer","evaluator":"numeric_exact_match"}
+

@@ -1,0 +1,4 @@
+{"id":"dup-a","question":"What is 2 + 2?","answer":"4","output_format":"numeric answer","evaluator":"numeric_exact_match"}
+{"id":"dup-b","question":"What is 2 + 2?","answer":"5","output_format":"numeric answer","evaluator":"numeric_exact_match"}
+{"id":"contract-mismatch","question":"Return a JSON object containing the capital of France.","answer":"Paris","output_format":"JSON object","evaluator":"exact_match"}
+{"id":"alias-overstrict","question":"Who wrote Hamlet?","answer":"William Shakespeare","aliases":["Shakespeare"],"output_format":"short answer","evaluator":"exact_match"}
