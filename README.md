@@ -438,6 +438,33 @@ python -m benchcore.cli audit \
   --print-summary
 ```
 
+### SVAMP-Platinum Pilot 100
+
+SVAMP 实验包含 35 道人工拒绝坏题、3 道人工修订错答案和 62 道干净题。
+`Quantity Consistency Auditor` 由 LLM 提取实体、数量、事件和约束，再由程序验证
+数量关系；影响答案的矛盾进入 priority，非关键背景矛盾进入 exploratory review。
+
+准备数据并运行：
+
+```bash
+python scripts/prepare_svamp_platinum.py
+python scripts/run_svamp_pilot.py \
+  --model deepseek \
+  --workers 10 \
+  --tag svamp_platinum_pilot100_v2_quantity
+```
+
+固定 Pilot 100 上的结果：
+
+| 模式 | Precision | Recall | F1 |
+|---|---:|---:|---:|
+| Confirmed | 0.818 | 0.237 | 0.367 |
+| Candidate | 0.842 | 0.842 | 0.842 |
+| Priority candidate | 0.880 | 0.579 | 0.698 |
+
+相较没有数量一致性审计的版本，Candidate F1 从 `0.676` 提升至 `0.842`，
+Priority Recall 从 `0.158` 提升至 `0.579`。3 道人工修订错答案均进入候选集合。
+
 ## 4. 报告字段
 
 JSON 报告包括：

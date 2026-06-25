@@ -215,6 +215,27 @@ class OutputContractChecker(Checker):
             )
         task = _text(item.task)
         gold_num = parse_number(item.gold)
+        if (
+            gold_num is not None
+            and re.search(r"\b(about|approximately|approximate|estimate|roughly|nearest)\b", task, re.I)
+            and infer_evaluator_type(item.gold, item.choices, item.evaluator) == "numeric"
+        ):
+            yield _violation(
+                item,
+                "output_format_overstrict_risk",
+                0.8,
+                "Task requests an approximate answer, but the evaluator requires exact numeric equality.",
+                {
+                    "gold": item.gold,
+                    "task_excerpt": task[:240],
+                    "evaluator": item.evaluator,
+                    "output_contract": item.output_contract,
+                },
+                severity="review",
+                review_only=True,
+                repair="Define an approximation rule, rounding target, or numeric tolerance.",
+                method="cross_artifact_consistency",
+            )
         if gold_num is not None and re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", task, re.I):
             if not re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", _text(item.output_contract), re.I):
                 yield _violation(

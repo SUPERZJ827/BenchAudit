@@ -53,6 +53,23 @@ class IntegrityAndFusionTest(unittest.TestCase):
             {violation.defect_type for violation in violations},
         )
 
+    def test_approximate_question_with_exact_numeric_evaluator_is_reviewed(self) -> None:
+        from benchcore.checkers import OutputContractChecker
+
+        item = BenchmarkItem(
+            item_id="approximate",
+            raw={},
+            task="About how many students attended?",
+            gold="30057",
+            output_contract={"type": "number"},
+            evaluator={"type": "numeric_exact_match"},
+        )
+        violations = list(OutputContractChecker().check(item))
+        self.assertIn(
+            "output_format_overstrict_risk",
+            {violation.defect_type for violation in violations},
+        )
+
     def test_presentation_corruption(self) -> None:
         item = BenchmarkItem(
             item_id="corrupt",
