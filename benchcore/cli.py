@@ -11,6 +11,7 @@ from .auditor import audit_items
 from .comparison import compare_report, write_comparison_markdown
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
+    DirectLLMAuditor,
     EvidenceGoldLLMAuditor,
     GoldLLMAuditor,
     OptionSetLLMAuditor,
@@ -158,6 +159,7 @@ def run_audit(args: argparse.Namespace) -> int:
             config.dry_run = True
         client = LLMClient(config)
         auditor_types = {
+            "direct": DirectLLMAuditor,
             "gold-single": GoldLLMAuditor,
             "question": QuestionClarityLLMAuditor,
             "option": OptionSetLLMAuditor,
@@ -306,6 +308,18 @@ def run_compare(args: argparse.Namespace) -> int:
                 "truth_items": comparison["truth_items"],
                 "confirmed": comparison["confirmed"],
                 "candidate": comparison["candidate"],
+                "priority_candidate": comparison.get("priority_candidate"),
+                "exploratory_candidate": comparison.get("exploratory_candidate"),
+                "substantive_only": comparison.get("substantive_only"),
+                "per_type_candidate_recall": {
+                    label: {
+                        "truth_count": s["truth_count"],
+                        "candidate_recall": round(s["candidate_recall"], 3),
+                        "confirmed_recall": round(s["confirmed_recall"], 3),
+                    }
+                    for label, s in comparison.get("per_type", {}).items()
+                },
+                "review_budget": comparison.get("review_budget"),
             },
             indent=2,
             ensure_ascii=False,

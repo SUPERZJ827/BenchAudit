@@ -153,9 +153,9 @@ class TaskIntegrityChecker(Checker):
         combined = f"{task}\n{combined_choices}"
 
         temporal_match = re.search(
-            r"\b(right now|as of now|today|latest|currently)\b|"
+            r"\b(as of now|latest|most recent)\b|"
             r"\bcurrent\s+(?:president|prime minister|leader|dalai lama|ceo|"
-            r"version|release|population|number|count|rate|status)\b",
+            r"version|release|population|rate|status|law|policy)\b",
             task,
             re.I,
         )

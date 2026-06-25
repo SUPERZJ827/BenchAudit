@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Run the supervised SVAMP-Platinum Pilot 100 experiment."""
 from __future__ import annotations
 
 import argparse
@@ -11,50 +12,24 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = Path(
-    "/home/zhoujun/llmdata/datasets/mmlu_redux/"
-    "mmlu_redux_all_5700_finegrained.jsonl"
+    "/home/zhoujun/llmdata/datasets/svamp_platinum/svamp_platinum_all.jsonl"
 )
-DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/mmlu_redux_pilot200.manifest.json"
+DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/svamp_platinum_pilot100.manifest.json"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run MMLU-Redux Pilot audit and supervised comparison."
+        description="Run SVAMP-Platinum Pilot 100 audit and supervised comparison."
     )
-    parser.add_argument(
-        "--tag",
-        default="mmlu_pilot200_open_match",
-        help="Prefix used for cache and report files.",
-    )
-    parser.add_argument(
-        "--model",
-        choices=("deepseek", "openrouter"),
-        default="deepseek",
-        help="LLM provider configuration.",
-    )
-    parser.add_argument(
-        "--auditors",
-        default="gold",
-        help=(
-            "Comma-separated auditors, for example gold or "
-            "gold,question,option,presentation; use all for every core auditor."
-        ),
-    )
-    parser.add_argument(
-        "--mode",
-        choices=("cascade", "full"),
-        default="cascade",
-        help="Structured Gold Auditor evidence mode.",
-    )
+    parser.add_argument("--tag", default="svamp_platinum_pilot100")
+    parser.add_argument("--model", choices=("deepseek", "openrouter"), default="deepseek")
+    parser.add_argument("--auditors", default="gold,question")
+    parser.add_argument("--mode", choices=("cascade", "full"), default="cascade")
     parser.add_argument("--workers", type=int, default=10)
     parser.add_argument("--progress-every", type=int, default=10)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
-    parser.add_argument(
-        "--audit-only",
-        action="store_true",
-        help="Run audit without the supervised comparison step.",
-    )
+    parser.add_argument("--audit-only", action="store_true")
     args = parser.parse_args()
 
     config = config_path(args.model)
@@ -69,7 +44,7 @@ def main() -> int:
     comparison_json = reports / f"{args.tag}_comparison.json"
     comparison_md = reports / f"{args.tag}_comparison.md"
 
-    audit_command = [
+    run([
         sys.executable,
         "-m",
         "benchcore.cli",
@@ -95,11 +70,10 @@ def main() -> int:
         "--md",
         str(audit_md),
         "--print-summary",
-    ]
-    run(audit_command)
+    ])
 
     if not args.audit_only:
-        compare_command = [
+        run([
             sys.executable,
             "-m",
             "benchcore.cli",
@@ -108,9 +82,9 @@ def main() -> int:
             "--report",
             str(audit_json),
             "--truth-field",
-            "metadata.error_type",
+            "metadata.audit_label",
             "--clean-value",
-            "ok",
+            "clean",
             "--manifest",
             str(args.manifest),
             "--out",
@@ -118,8 +92,7 @@ def main() -> int:
             "--md",
             str(comparison_md),
             "--print-summary",
-        ]
-        run(compare_command)
+        ])
 
     print("\nOutputs")
     print(f"audit:      {audit_json.relative_to(PROJECT_ROOT)}")
