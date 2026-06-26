@@ -26,29 +26,19 @@ from benchcore.llm_client import LLMClient, LLMConfig, load_llm_config
 # Prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are a benchmark quality auditor. Given a benchmark item and its declared gold answer, determine whether the item has any quality defect that would invalidate evaluation.
+SYSTEM_PROMPT = """You are a benchmark quality auditor. Given a benchmark item and its declared gold answer, determine whether the item has any quality issue that would make it unfair to evaluate a model on.
 
 Return ONLY valid JSON:
 {
   "has_defect": true | false,
-  "defect_types": [],
   "confidence": 0.95,
   "rationale": "one sentence"
 }
 
-Defect types (list all that apply, empty list if clean):
-- "wrong_gold_answer"        – declared gold answer is incorrect
-- "no_correct_answer"        – no valid answer exists among the choices
-- "multiple_correct_answers" – more than one choice is correct
-- "bad_options_clarity"      – choices are unclear or uninterpretable
-- "ambiguous_goal"           – question has multiple valid interpretations that change the answer
-- "missing_condition"        – required information is not provided
-- "missing_context"          – references external material not supplied
-
 Rules:
 - First solve the problem yourself, then compare with the declared gold.
-- Only flag defects that materially affect whether an LLM answer can be fairly evaluated.
-- Difficulty alone is not a defect. Unit/format conventions are not defects.
+- Flag the item if you believe a reasonable person could consider it defective.
+- Difficulty alone is not a defect.
 """
 
 
@@ -146,7 +136,6 @@ def classify_item(
     return {
         "id": item["id"],
         "predicted_defect": bool(result.get("has_defect", False)),
-        "defect_types": result.get("defect_types", []),
         "confidence": float(result.get("confidence", 0.0)),
         "rationale": result.get("rationale", ""),
     }
