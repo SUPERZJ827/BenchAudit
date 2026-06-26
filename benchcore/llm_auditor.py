@@ -248,6 +248,14 @@ Rules:
 - Treat a repeated or wrong entity reference that changes the unknown as a defect; do not silently repair it.
 - Distinguish the time or action named by the question, such as brought versus later bought and initial versus final.
 - Extra irrelevant quantities are not defects when the requested answer remains uniquely determined.
+- "Single answer" means one submitted response, not necessarily one scalar. A single response may
+  correctly contain all requested values, such as "8; 40" or "24; 120; 36". Do not call this
+  ambiguous merely because the requested response contains more than one number.
+- Treat numeric formatting variants such as 6.3 and 6.30, 6 and 6.0, or $4.62 and 4.62 dollars
+  as equivalent unless the task explicitly asks about notation, precision, or significant figures.
+- If the question asks for a quantity with its unit already named, such as "how many minutes",
+  "how much money", or "what is the area", a bare numeric answer can be acceptable. Do not flag
+  missing units merely because the gold is numeric.
 - Do not assume separately counted groups are disjoint unless the wording states or entails exclusivity.
 - If a grammatically plausible scope changes whether a rate is per individual or collective, return
   answer_changing_ambiguity and include both resulting answers.
@@ -255,6 +263,12 @@ Rules:
   it merely because one reading is more conventional.
 - Do not assume an unstated linearity, jurisdiction, date, convention, source, population, or unit when it changes the answer.
 - Do not flag a conventional textbook default merely because it is unstated when the convention is standard in the named task and the choices make the intended interpretation unique. Flag only when a plausible alternative changes the answer.
+- In algebra word problems, do not flag standard textbook operator phrases as ambiguous when the
+  conventional parse determines the expression, e.g. "the difference of A and B" means A - B,
+  "the quotient of A and B" means A / B, and "the sum/product of A and B" use the stated order.
+- In elementary count word problems, "the difference between/of the number of X and Y" normally
+  asks for the nonnegative amount by which the counts differ unless the task explicitly asks for
+  an ordered signed subtraction.
 - A symbolic graph written in text, such as H -> U <- P, counts as provided context; do not demand an image.
 - If a standard field convention resolves the task but conventions differ, return uncertain and needs_expert=true.
 """

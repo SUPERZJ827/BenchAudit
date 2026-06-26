@@ -3,13 +3,12 @@ from __future__ import annotations
 import ast
 import json
 import math
-import operator
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
-from .checkers import Checker, _violation
+from .checkers import Checker, _SAFE_BINOPS, _SAFE_UNARY, _violation
 from .evaluators import (
     CHOICE_LABELS,
     answer_contract,
@@ -57,7 +56,11 @@ class MetamorphicAnswerChecker(Checker):
         if item.gold in (None, ""):
             return []
         contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
-        kind = "set" if contract["cardinality"] == "set" else contract["kind"]
+        kind = (
+            contract["cardinality"]
+            if contract["cardinality"] in {"set", "compound"}
+            else contract["kind"]
+        )
         expected_variants = _semantics_preserving_variants(item, kind)
         rejected = []
         for description, variant in expected_variants:
@@ -155,8 +158,8 @@ class TaskIntegrityChecker(Checker):
         combined = f"{task}\n{combined_choices}"
 
         temporal_match = re.search(
-            r"\b(as of now|latest|most recent)\b|"
-            r"\bcurrent\s+(?:president|prime minister|leader|dalai lama|ceo|"
+            r"\bas of now\b|"
+            r"\b(?:latest|most recent|current)\s+(?:president|prime minister|leader|dalai lama|ceo|"
             r"version|release|population|rate|status|law|policy)\b",
             task,
             re.I,
@@ -469,7 +472,7 @@ def _semantics_preserving_variants(item: BenchmarkItem, kind: str) -> list[tuple
     elif kind == "numeric":
         number = parse_number(item.gold)
         if number is not None:
-            variants.append(("numeric_decimal", f"{number:.1f}"))
+            variants.extend(_numeric_equivalent_variants(item.gold, number))
             if float(number).is_integer():
                 variants.append(("numeric_leading_zeros", f"{int(number):03d}"))
     elif kind == "normalized_exact":
@@ -482,9 +485,33 @@ def _semantics_preserving_variants(item: BenchmarkItem, kind: str) -> list[tuple
         )
     elif kind == "set":
         variants.extend(answer_variants(item.gold, item.choices, item.evaluator, item.output_contract))
+    elif kind == "compound":
+        variants.extend(answer_variants(item.gold, item.choices, item.evaluator, item.output_contract))
     if kind != "set":
         variants.extend((f"declared_alias:{idx}", alias) for idx, alias in enumerate(item.aliases))
     return _deduplicate_variants(variants)
+
+
+def _numeric_equivalent_variants(gold: Any, number: float) -> list[tuple[str, Any]]:
+    """Generate numeric format variants without changing the value.
+
+    Rounding a decimal gold from 0.63 to 0.6 is not semantics preserving. These
+    variants only test representation changes such as 6 -> 6.0 or 6.3 -> 6.30.
+    """
+    text = str(gold).strip().replace(",", "")
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", text)
+    if not match:
+        return []
+    numeric_text = match.group(0)
+    if float(number).is_integer():
+        integer = str(int(number))
+        return [
+            ("numeric_decimal_equivalent", f"{integer}.0"),
+            ("numeric_two_decimal_equivalent", f"{integer}.00"),
+        ]
+    if "." in numeric_text:
+        return [("numeric_trailing_zero_equivalent", f"{numeric_text}0")]
+    return []
 
 
 def _wrong_answer_mutations(item: BenchmarkItem) -> list[tuple[str, Any]]:
@@ -550,16 +577,6 @@ def _coverage_pattern(item: BenchmarkItem) -> tuple[bool, bool, bool, bool, bool
     )
 
 
-_SAFE_BINOPS = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.FloorDiv: operator.floordiv,
-    ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
-}
-_SAFE_UNARY = {ast.UAdd: operator.pos, ast.USub: operator.neg}
 _SAFE_CALLS = {
     "abs": abs,
     "ceil": math.ceil,
@@ -644,6 +661,7 @@ def _find_candidate_answers(value: Any, path: str = "") -> list[tuple[str, Any, 
                 except (TypeError, ValueError):
                     confidence = None
                 found.append((child_path, answer, confidence))
+                continue  # matched records are leaves, not containers to recurse into
             found.extend(_find_candidate_answers(child, child_path))
     elif isinstance(value, list):
         for idx, child in enumerate(value):

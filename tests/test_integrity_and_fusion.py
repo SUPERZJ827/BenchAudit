@@ -53,6 +53,24 @@ class IntegrityAndFusionTest(unittest.TestCase):
             {violation.defect_type for violation in violations},
         )
 
+    def test_latest_story_object_is_not_external_temporal_scope(self) -> None:
+        item = BenchmarkItem(
+            item_id="latest-project",
+            raw={},
+            task=(
+                "A builder needed to buy one hundred fifty-four boards for his latest project. "
+                "If the boards he needs come in packs of three, how many packages will he need to buy?"
+            ),
+            gold="52",
+        )
+
+        violations = list(TaskIntegrityChecker().check(item))
+
+        self.assertNotIn(
+            "temporal_scope_missing",
+            {violation.defect_type for violation in violations},
+        )
+
     def test_approximate_question_with_exact_numeric_evaluator_is_reviewed(self) -> None:
         from benchcore.checkers import OutputContractChecker
 
@@ -66,6 +84,28 @@ class IntegrityAndFusionTest(unittest.TestCase):
         )
         violations = list(OutputContractChecker().check(item))
         self.assertIn(
+            "output_format_overstrict_risk",
+            {violation.defect_type for violation in violations},
+        )
+
+    def test_approximate_discrete_group_count_is_not_overstrict(self) -> None:
+        from benchcore.checkers import OutputContractChecker
+
+        item = BenchmarkItem(
+            item_id="approximate-piles",
+            raw={},
+            task=(
+                "For Halloween Adam received 201 pieces of candy. If he put them into piles "
+                "with 43 in each pile, approximately how many piles could he make?"
+            ),
+            gold="5",
+            output_contract={"type": "number", "format": "single answer"},
+            evaluator={"type": "numeric_or_normalized_exact"},
+        )
+
+        violations = list(OutputContractChecker().check(item))
+
+        self.assertNotIn(
             "output_format_overstrict_risk",
             {violation.defect_type for violation in violations},
         )

@@ -87,10 +87,15 @@ def answer_contract(
     combined = f"{evaluator_text} {output_text}".strip()
     values = answer_values(gold)
     cardinality = "set" if len(values) > 1 else "single"
+    if any(token in combined for token in ("compound", "compound_answer", "compound answer", "single response containing all requested values")):
+        cardinality = "compound"
     if any(token in combined for token in ("set", "list", "multi", "multiple", "all answers", "denotation")):
-        cardinality = "set"
+        if cardinality != "compound":
+            cardinality = "set"
     if choices:
         kind = "choice"
+    elif "ratio" in evaluator_text:
+        kind = "ratio"
     elif "numeric" in evaluator_text or "number" in evaluator_text:
         kind = "numeric"
     elif "choice" in evaluator_text or "multiple choice" in evaluator_text:
@@ -124,8 +129,8 @@ def answer_contract(
 
 def infer_evaluator_type(gold: Any, choices: list[Any] | None, evaluator: Any = None) -> str:
     contract = answer_contract(gold, choices, evaluator)
-    if contract["cardinality"] == "set":
-        return "set"
+    if contract["cardinality"] in {"set", "compound"}:
+        return contract["cardinality"]
     return contract["kind"]
 
 
@@ -134,6 +139,8 @@ def evaluate_answer(prediction: Any, gold: Any, choices: list[Any] | None, evalu
     kind = contract["kind"]
     if contract["cardinality"] == "set":
         return _evaluate_answer_set(prediction, answer_values(gold), kind, choices, evaluator)
+    if contract["cardinality"] == "compound":
+        return _evaluate_compound_answer(prediction, gold, kind, choices)
     return _evaluate_single_answer(prediction, gold, kind, choices)
 
 
@@ -144,8 +151,39 @@ def _evaluate_single_answer(prediction: Any, gold: Any, kind: str, choices: list
         pred_num = parse_number(prediction)
         gold_num = parse_number(gold)
         return pred_num is not None and gold_num is not None and abs(pred_num - gold_num) < 1e-9
+    if kind == "ratio":
+        return _evaluate_ratio_answer(prediction, gold)
     if kind == "exact":
         return str(prediction).strip() == str(gold).strip()
+    return normalize_loose(prediction) == normalize_loose(gold)
+
+
+def parse_ratio_value(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    text = re.sub(r"\s*\([^)]*\)\s*$", "", text).strip()
+    ratio = re.fullmatch(r"([-+]?\d+(?:\.\d+)?)\s*:\s*([-+]?\d+(?:\.\d+)?)", text)
+    fraction = re.fullmatch(r"([-+]?\d+(?:\.\d+)?)\s*/\s*([-+]?\d+(?:\.\d+)?)", text)
+    match = ratio or fraction
+    if match:
+        numerator = float(match.group(1))
+        denominator = float(match.group(2))
+        if denominator == 0:
+            return None
+        return numerator / denominator
+    decimal = re.fullmatch(r"[-+]?\d+(?:\.\d+)?", text)
+    if decimal:
+        return float(text)
+    return None
+
+
+def _evaluate_ratio_answer(prediction: Any, gold: Any) -> bool:
+    pred_ratio = parse_ratio_value(prediction)
+    gold_ratio = parse_ratio_value(gold)
+    if pred_ratio is not None and gold_ratio is not None:
+        tolerance = max(1e-9, 1e-6 * max(1.0, abs(pred_ratio), abs(gold_ratio)))
+        return abs(pred_ratio - gold_ratio) <= tolerance
     return normalize_loose(prediction) == normalize_loose(gold)
 
 
@@ -164,6 +202,8 @@ def answer_variants(
         if len(values) > 1:
             variants.append(("set_reordered", list(reversed(values))))
             variants.append(("set_comma_joined", ", ".join(values)))
+        return variants
+    if contract["cardinality"] == "compound":
         return variants
     text = str(gold).strip()
     if contract["accepts_explanatory_text"]:
@@ -205,6 +245,38 @@ def _evaluate_answer_set(
             return False
         remaining.pop(matched_index)
     return not remaining
+
+
+def _evaluate_compound_answer(
+    prediction: Any,
+    gold: Any,
+    kind: str,
+    choices: list[Any] | None,
+) -> bool:
+    predicted_parts = _split_compound_answer(prediction)
+    gold_parts = _split_compound_answer(gold)
+    if len(predicted_parts) != len(gold_parts):
+        return False
+    for predicted, expected in zip(predicted_parts, gold_parts):
+        if parse_number(predicted) is not None and parse_number(expected) is not None:
+            if not _evaluate_single_answer(predicted, expected, "numeric", choices):
+                return False
+            continue
+        if not _evaluate_single_answer(predicted, expected, kind, choices):
+            return False
+    return True
+
+
+def _split_compound_answer(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(part).strip() for part in value if str(part).strip()]
+    text = str(value).strip()
+    if not text:
+        return []
+    parts = re.split(r"\s*;\s*", text)
+    return [part.strip() for part in parts if part.strip()]
 
 
 def _split_list_answer(value: str) -> list[str]:

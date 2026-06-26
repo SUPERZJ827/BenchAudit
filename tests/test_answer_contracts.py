@@ -1,9 +1,11 @@
 import unittest
 
-from benchcore.checkers import EvaluatorChecker
+from benchcore.checkers import EvaluatorChecker, OutputContractChecker
 from benchcore.evaluators import answer_variants, evaluate_answer
 from benchcore.llm_auditor import compact_value, presentation_violations
+from benchcore.methods import MetamorphicAnswerChecker
 from benchcore.schema import BenchmarkItem
+from scripts.prepare_pilot_datasets import normalize_asdiv_answer, ratio_aliases
 
 
 class AnswerContractTest(unittest.TestCase):
@@ -65,6 +67,75 @@ class AnswerContractTest(unittest.TestCase):
         }
 
         self.assertEqual(list(presentation_violations(item, result, 0.45)), [])
+
+    def test_asdiv_semicolon_answer_remains_single_compound_response(self) -> None:
+        gold = normalize_asdiv_answer("24 (degrees); 120 (degrees); 36 (degrees)")
+
+        self.assertEqual(gold, "24; 120; 36")
+        self.assertTrue(
+            evaluate_answer(
+                "24; 120; 36",
+                gold,
+                None,
+                {"type": "normalized_exact_match"},
+            )
+        )
+        self.assertTrue(
+            evaluate_answer(
+                "24 (degrees); 120 (degrees); 36 (degrees)",
+                gold,
+                None,
+                {"type": "compound_normalized_exact_match"},
+            )
+        )
+        self.assertFalse(
+            evaluate_answer(
+                "24",
+                gold,
+                None,
+                {"type": "compound_normalized_exact_match"},
+            )
+        )
+
+    def test_asdiv_ratio_answer_preserves_structure(self) -> None:
+        gold = normalize_asdiv_answer("7:50")
+
+        self.assertEqual(gold, "7:50")
+        self.assertEqual(ratio_aliases(gold), ["7/50", "0.14"])
+        self.assertTrue(evaluate_answer("7:50", gold, None, {"type": "ratio_or_normalized_exact"}))
+        self.assertTrue(evaluate_answer("7/50", gold, None, {"type": "ratio_or_normalized_exact"}))
+        self.assertTrue(evaluate_answer("0.14", gold, None, {"type": "ratio_or_normalized_exact"}))
+        self.assertFalse(evaluate_answer("7", gold, None, {"type": "ratio_or_normalized_exact"}))
+
+    def test_numeric_metamorphic_variants_preserve_decimal_value(self) -> None:
+        item = BenchmarkItem(
+            item_id="money",
+            raw={},
+            task="If each ball costs $1.54, how much must Kyoko pay for three balls?",
+            gold="4.62",
+            evaluator={"type": "numeric_or_normalized_exact"},
+            output_contract={"type": "number", "format": "single answer"},
+        )
+
+        violations = list(MetamorphicAnswerChecker().check(item))
+
+        self.assertEqual(violations, [])
+        self.assertTrue(evaluate_answer("4.620", "4.62", None, {"type": "numeric_or_normalized_exact"}))
+        self.assertFalse(evaluate_answer("4.6", "4.62", None, {"type": "numeric_or_normalized_exact"}))
+
+    def test_unit_requested_by_question_allows_bare_numeric_gold(self) -> None:
+        item = BenchmarkItem(
+            item_id="minutes",
+            raw={},
+            task="An industrial machine made 12 shirts. It can make 2 shirts a minute. How many minutes was the machine working?",
+            gold="6",
+            evaluator={"type": "numeric_or_normalized_exact"},
+            output_contract={"type": "number", "format": "single answer"},
+        )
+
+        violations = list(OutputContractChecker().check(item))
+
+        self.assertNotIn("missing_accepted_alternatives", {v.defect_type for v in violations})
 
 
 if __name__ == "__main__":
