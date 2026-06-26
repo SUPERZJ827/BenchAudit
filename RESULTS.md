@@ -2,23 +2,27 @@
 
 ## Baseline Comparison
 
-Direct LLM classification: single-pass prompt per item, no artifact decomposition, no programmatic rules.
-BenchCore: structured multi-checker pipeline (candidate tier shown for apples-to-apples comparison).
+**Naive LLM baseline**: single-pass prompt asking only "does this item have a quality issue?" — no
+defect taxonomy, no artifact decomposition, no programmatic rules.
+**BenchCore**: structured multi-checker pipeline (candidate tier; priority tier for GSM8K).
 
-| Dataset | System | P | R | F1 | ΔF1 vs baseline |
-|---|---|---:|---:|---:|---:|
-| SVAMP | Direct LLM (DeepSeek) | 0.917 | 0.579 | 0.710 | — |
-| SVAMP | **BenchCore v5** | 0.860 | **0.974** | **0.914** | **+0.204** |
-| GSM8K | Direct LLM (DeepSeek) | 0.727 | 0.800 | 0.762 | — |
-| GSM8K | **BenchCore** (priority) | 0.714 | **1.000** | **0.833** | +0.071 |
-| MMLU-Redux | Direct LLM (DeepSeek) | 0.897 | 0.520 | 0.658 | — |
-| MMLU-Redux | **BenchCore** (candidate) | 0.740 | **0.770** | **0.755** | +0.097 |
+| Dataset | System | P | R | F1 | ΔF1 | ΔRecall |
+|---|---|---:|---:|---:|---:|---:|
+| SVAMP | Naive LLM (DeepSeek) | 0.897 | 0.684 | 0.776 | — | — |
+| SVAMP | **BenchCore v5** | 0.860 | **0.974** | **0.914** | **+0.138** | **+0.290** |
+| GSM8K | Naive LLM (DeepSeek) | 0.750 | 0.900 | 0.818 | — | — |
+| GSM8K | **BenchCore** (priority) | 0.714 | **1.000** | **0.833** | +0.015 | +0.100 |
+| MMLU-Redux | Naive LLM (DeepSeek) | 0.845 | 0.490 | 0.620 | — | — |
+| MMLU-Redux | **BenchCore** (candidate) | 0.740 | **0.770** | **0.755** | **+0.135** | **+0.280** |
 
-**Key finding**: Direct LLM is high-precision but low-recall — it misses subtle defects (story premise
-contradictions, event-state violations, implicit quantity inconsistencies). BenchCore's structured
-checkers raise recall by 0.20–0.48 points on SVAMP while maintaining comparable precision.
-For MMLU-Redux, BenchCore outperforms the best published automated baseline from the MMLU-Redux paper
-(Gema et al., 2024: Claude 3 Opus + RAG achieved F2=41.92 ≈ P≈14%, R≈84%; BenchCore: P=74%, R=77%, F1=75.5%).
+**Key finding**: The naive LLM detects obvious defects (wrong arithmetic, clearly bad options) but
+misses subtle structural defects requiring multi-step reasoning across the full item:
+- SVAMP: naive LLM finds 26/38 defects; BenchCore finds 37/38 (+11 via quantity/event-state checkers)
+- MMLU:  naive LLM finds 49/100 defects; BenchCore finds 77/100 (+28 via option/gold auditors)
+- GSM8K: gap is small (+0.015 F1) because GSM8K defects are mostly wrong arithmetic — solvable in one pass
+
+For MMLU-Redux, BenchCore also outperforms the best published automated result from Gema et al. (2024):
+Claude 3 Opus + RAG achieved F2=41.92 (P≈14%, R≈84%); BenchCore: P=74%, R=77%, F1=75.5%.
 
 ---
 
