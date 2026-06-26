@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .evaluators import (
+    answer_contract,
     answer_variants,
     choice_label_to_index,
     evaluate_answer,
@@ -308,7 +309,8 @@ class EvaluatorChecker(Checker):
     name = "evaluator"
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
-        inferred = infer_evaluator_type(item.gold, item.choices, item.evaluator)
+        contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
+        inferred = "set" if contract["cardinality"] == "set" else contract["kind"]
         if item.evaluator in (None, "", [], {}) and item.gold not in (None, ""):
             severity = "minor" if inferred in {"choice", "numeric", "normalized_exact"} else "major"
             yield _violation(
@@ -322,13 +324,19 @@ class EvaluatorChecker(Checker):
                 repair="Declare evaluator type, normalization, aliases, tests, or rubric.",
             )
         rejected = []
-        for description, variant in answer_variants(item.gold, item.choices):
+        for description, variant in answer_variants(
+            item.gold,
+            item.choices,
+            item.evaluator,
+            item.output_contract,
+        ):
             if not evaluate_answer(variant, item.gold, item.choices, item.evaluator):
                 rejected.append({"variant_description": description, "variant": variant})
         alias_rejected = []
-        for alias in item.aliases:
-            if not evaluate_answer(alias, item.gold, item.choices, item.evaluator):
-                alias_rejected.append(alias)
+        if contract["cardinality"] != "set":
+            for alias in item.aliases:
+                if not evaluate_answer(alias, item.gold, item.choices, item.evaluator):
+                    alias_rejected.append(alias)
         if alias_rejected:
             yield _violation(
                 item,
