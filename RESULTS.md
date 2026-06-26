@@ -12,8 +12,10 @@ defect taxonomy, no artifact decomposition, no programmatic rules.
 | SVAMP | **BenchCore v5** | 0.860 | **0.974** | **0.914** | **+0.138** | **+0.290** |
 | GSM8K | Naive LLM (DeepSeek) | 0.750 | 0.900 | 0.818 | — | — |
 | GSM8K | **BenchCore** (priority) | 0.714 | **1.000** | **0.833** | +0.015 | +0.100 |
-| MMLU-Redux | Naive LLM (DeepSeek) | 0.845 | 0.490 | 0.620 | — | — |
-| MMLU-Redux | **BenchCore** (candidate) | 0.740 | **0.770** | **0.755** | **+0.135** | **+0.280** |
+| MMLU-Redux (n=200) | Naive LLM (DeepSeek) | 0.845 | 0.490 | 0.620 | — | — |
+| MMLU-Redux (n=200) | **BenchCore** (candidate) | 0.740 | **0.770** | **0.755** | **+0.135** | **+0.280** |
+| MMLU-Redux (n=1000) | Naive LLM (DeepSeek) | 0.808 | 0.478 | 0.601 | — | — |
+| MMLU-Redux (n=1000) | **BenchCore** (candidate) | 0.641 | **0.686** | **0.663** | **+0.062** | **+0.208** |
 
 **Key finding**: The naive LLM detects obvious defects (wrong arithmetic, clearly bad options) but
 misses subtle structural defects requiring multi-step reasoning across the full item:
