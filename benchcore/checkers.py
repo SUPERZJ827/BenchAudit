@@ -220,6 +220,7 @@ class OutputContractChecker(Checker):
             gold_num is not None
             and re.search(r"\b(about|approximately|approximate|estimate|roughly|nearest)\b", task, re.I)
             and infer_evaluator_type(item.gold, item.choices, item.evaluator) == "numeric"
+            and not _is_discrete_count_approximation(task, gold_num)
         ):
             yield _violation(
                 item,
@@ -238,7 +239,10 @@ class OutputContractChecker(Checker):
                 method="cross_artifact_consistency",
             )
         if gold_num is not None and re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", task, re.I):
-            if not re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", _text(item.output_contract), re.I):
+            if (
+                not _question_requests_unit_answer(task)
+                and not re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", _text(item.output_contract), re.I)
+            ):
                 yield _violation(
                     item,
                     "missing_accepted_alternatives",
@@ -310,7 +314,11 @@ class EvaluatorChecker(Checker):
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
-        inferred = "set" if contract["cardinality"] == "set" else contract["kind"]
+        inferred = (
+            contract["cardinality"]
+            if contract["cardinality"] in {"set", "compound"}
+            else contract["kind"]
+        )
         if item.evaluator in (None, "", [], {}) and item.gold not in (None, ""):
             severity = "minor" if inferred in {"choice", "numeric", "normalized_exact"} else "major"
             yield _violation(
@@ -404,6 +412,48 @@ def _has_embedded_context(task: str, context_name: str) -> bool:
         if marker and len(task[marker.end() :].strip()) >= 40:
             return True
     return False
+
+
+def _question_requests_unit_answer(task: str) -> bool:
+    """Return true when the unit is already part of the answer request.
+
+    In elementary word problems, a bare numeric gold is acceptable when the
+    question asks "how many minutes", "how much money", "what is the area",
+    etc. The evaluator may still normalize units, but missing unit text in the
+    gold is not itself a useful review signal.
+    """
+    text = re.sub(r"\s+", " ", task.lower())
+    unit = r"dollars?|usd|yuan|rmb|cents?|percent|%|meters?|miles?|hours?|minutes?|kilograms?|kg|pounds?"
+    if re.search(rf"\bhow\s+(?:many|much)\b[^?.!]*\b(?:{unit})\b", text):
+        return True
+    if re.search(r"\bhow\s+much\s+(?:money|will\b[^?.!]*(?:pay|cost)|does\b[^?.!]*cost)\b", text):
+        return True
+    if re.search(r"\bhow\s+(?:long|far)\b", text):
+        return True
+    if re.search(r"\bwhat\s+is\b[^?.!]*\b(?:area|perimeter|volume|length|height|width|distance|time)\b", text):
+        return True
+    return False
+
+
+def _is_discrete_count_approximation(task: str, gold_num: float) -> bool:
+    if not float(gold_num).is_integer():
+        return False
+    text = re.sub(r"\s+", " ", task.lower())
+    discrete_units = (
+        "piles",
+        "groups",
+        "packages",
+        "packs",
+        "boxes",
+        "bags",
+        "buses",
+        "cars",
+        "trips",
+        "loads",
+        "teams",
+    )
+    unit_pattern = "|".join(discrete_units)
+    return bool(re.search(rf"\bhow\s+many\b[^?.!]*\b(?:{unit_pattern})\b", text))
 
 
 _SAFE_BINOPS = {
