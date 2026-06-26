@@ -324,6 +324,9 @@ Rules:
 - Do not report grammar style, awkward but understandable wording, difficulty, factual incorrectness, or harmless representation differences.
 - 0.025 versus 2.5% is not corruption when both are explicit and unambiguous.
 - A malformed non-gold distractor is still a presentation defect, even when it does not change the unique correct answer.
+- If a field is represented as a BenchCore transport preview with "__benchcore_payload_truncated__": true,
+  do not report that preview truncation as a benchmark artifact defect. Only report truncation when
+  the original artifact itself visibly contains a truncation marker or missing segment.
 - Do not silently normalize corrupted text and return no issues.
 """
 
@@ -967,7 +970,15 @@ def compact_value(value: Any, max_chars: int) -> Any:
     text = json.dumps(value, ensure_ascii=False)
     if len(text) <= max_chars:
         return value
-    return text[:max_chars] + "...[truncated]"
+    return {
+        "__benchcore_payload_truncated__": True,
+        "preview": text[:max_chars],
+        "original_serialized_chars": len(text),
+        "note": (
+            "Transport preview truncated to fit the LLM prompt. Do not treat this "
+            "preview truncation as a benchmark artifact defect."
+        ),
+    }
 
 
 def gold_violations(
@@ -1921,6 +1932,8 @@ def presentation_violations(
         interpreted_text = str(issue.get("interpreted_text", "")).strip()
         if not raw_text or not interpreted_text or raw_text == interpreted_text:
             continue
+        if _is_transport_truncation_issue(item, issue):
+            continue
         artifact = artifact_map.get(
             str(issue.get("artifact", "")),
             "expected_output",
@@ -1947,6 +1960,36 @@ def presentation_violations(
             scope="presentation",
             artifact=artifact,
         )
+
+
+def _is_transport_truncation_issue(item: BenchmarkItem, issue: dict[str, Any]) -> bool:
+    issue_type = str(issue.get("issue_type", "")).lower()
+    raw_text = str(issue.get("raw_text", ""))
+    rationale = str(issue.get("rationale", ""))
+    combined = f"{raw_text}\n{rationale}".lower()
+    if "truncation" not in issue_type and "truncated" not in combined:
+        return False
+    source_text = json.dumps(
+        {
+            "task": item.task,
+            "context": item.context,
+            "choices": item.choices,
+            "gold": item.gold,
+            "aliases": item.aliases,
+            "output_contract": item.output_contract,
+            "evaluator": item.evaluator,
+        },
+        ensure_ascii=False,
+        default=str,
+    ).lower()
+    if any(marker in source_text for marker in ("[truncated]", "...[truncated]", "__benchcore_payload_truncated__")):
+        return False
+    return (
+        "__benchcore_payload_truncated__" in combined
+        or "...[truncated]" in combined
+        or "full table" in combined
+        or "preview" in combined
+    )
 
 
 def _llm_violation(

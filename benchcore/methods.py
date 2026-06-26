@@ -12,6 +12,7 @@ from typing import Any, Iterable
 from .checkers import Checker, _violation
 from .evaluators import (
     CHOICE_LABELS,
+    answer_contract,
     answer_variants,
     choice_label_to_index,
     evaluate_answer,
@@ -55,7 +56,8 @@ class MetamorphicAnswerChecker(Checker):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, ""):
             return []
-        kind = infer_evaluator_type(item.gold, item.choices, item.evaluator)
+        contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
+        kind = "set" if contract["cardinality"] == "set" else contract["kind"]
         expected_variants = _semantics_preserving_variants(item, kind)
         rejected = []
         for description, variant in expected_variants:
@@ -478,7 +480,10 @@ def _semantics_preserving_variants(item: BenchmarkItem, kind: str) -> list[tuple
                 ("case_change", text.swapcase()),
             ]
         )
-    variants.extend((f"declared_alias:{idx}", alias) for idx, alias in enumerate(item.aliases))
+    elif kind == "set":
+        variants.extend(answer_variants(item.gold, item.choices, item.evaluator, item.output_contract))
+    if kind != "set":
+        variants.extend((f"declared_alias:{idx}", alias) for idx, alias in enumerate(item.aliases))
     return _deduplicate_variants(variants)
 
 
