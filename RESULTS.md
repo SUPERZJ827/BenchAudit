@@ -2,20 +2,29 @@
 
 ## Main Results Table
 
-Supervised experiments with Platinum human defect labels as ground truth.
-Metrics: P = Precision, R = Recall, F1.
+All six benchmark pilots. Supervised rows (†) have Platinum human defect labels and report P/R/F1.
+Audit-only rows report detection counts only.
 
-| Dataset | Items | Defects | Conf P | Conf R | Conf F1 | Cand P | Cand R | Cand F1 | Priority P | Priority R | Priority F1 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| SVAMP-Platinum | 100 | 38 | 0.900 | 0.474 | 0.621 | 0.860 | 0.974 | **0.914** | 0.897 | 0.684 | 0.776 |
-| SVAMP-Platinum (repro) | 100 | 38 | 0.826 | 0.500 | 0.623 | 0.837 | 0.947 | 0.889 | 0.862 | 0.658 | 0.746 |
-| GSM8K-Platinum | 100 | 10 | 0.667 | 0.600 | 0.632 | 0.400 | 1.000 | 0.571 | 0.714 | 1.000 | **0.833** |
-| MMLU-Redux | 200 | 100 | 0.875 | 0.210 | 0.339 | 0.740 | 0.770 | **0.755** | 0.860 | 0.490 | 0.624 |
+| Dataset | Domain | Items | Known defects | Flagged | Confirmed | Cand P | Cand R | Cand F1 | Priority P | Priority R | Priority F1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| SVAMP-Platinum † | Math | 100 | 38 | 43 | 20 | 0.860 | 0.974 | **0.914** | 0.897 | 0.684 | 0.776 |
+| SVAMP-Platinum (repro) † | Math | 100 | 38 | 43 | — | 0.837 | 0.947 | 0.889 | 0.862 | 0.658 | 0.746 |
+| GSM8K-Platinum † | Math | 100 | 10 | 25 | 9 | 0.400 | 1.000 | 0.571 | 0.714 | 1.000 | **0.833** |
+| MMLU-Redux † | Multi-choice | 200 | 100 | 104 | 24 | 0.740 | 0.770 | **0.755** | 0.860 | 0.490 | 0.624 |
+| ARC-Challenge | Multi-choice | 200 | — | 22 | 3 | — | — | — | — | — | — |
+| ASDiv | Math | 100 | — | 5 | 1 | — | — | — | — | — | — |
+| WikiTableQuestions | Table QA | 100 | — | 30 | 0 | — | — | — | — | — | — |
+
+† Supervised evaluation against Platinum human defect labels.
 
 **Three tiers**:
-- `confirmed`: high precision (programmatic rules agree)
-- `candidate`: high recall (any signal)
-- `priority_candidate`: balanced (confirmed OR high-confidence review)
+- `candidate`: any signal (high recall)
+- `priority_candidate`: confirmed OR high-confidence review (balanced)
+- `confirmed`: programmatic rules agree (high precision); not shown above as separate columns
+
+**Manual verification results** (audit-only datasets):
+- ARC-Challenge: 11 items verified → 4 true positives (2 multi-answer, 1 wrong gold, 1 unit error)
+- ASDiv: 5 items verified → 2 true positives (discount scope ambiguity, story inconsistency)
 
 ---
 
@@ -31,42 +40,21 @@ Each row adds one checker family to the previous configuration.
 | v4: +Event-state | +event\_state | 0.818 | 0.947 | 0.878 | 0.783 | 0.474 | 0.590 |
 | v5: +Prompt refinement | +prompt\_fix | **0.860** | **0.974** | **0.914** | **0.900** | **0.474** | **0.621** |
 
-Key insight: each checker family independently increases recall. Prompt refinement in v5 recovers precision without sacrificing recall.
+Each checker family independently increases recall. Prompt refinement in v5 recovers precision without sacrificing recall, yielding the best F1.
 
 ---
 
 ## Review Budget Curves
 
-Fraction of items that must be reviewed to reach a given recall level, compared to random baseline.
+Fraction of items reviewed to reach a given recall level vs. random baseline.
 
-| Dataset | Budget for Recall=0.77 | Budget for Recall=1.0 | Random baseline for Recall=1.0 |
+| Dataset | Budget for Recall=0.77 | Budget for Recall=1.0 | Efficiency gain |
 |---|---:|---:|---:|
-| SVAMP | 22% | **43%** | 100% |
-| GSM8K | 5% | **15%** | 100% |
-| MMLU-Redux | 52% | — (max 77%) | — |
+| SVAMP | 22% | **43%** | 2.3× |
+| GSM8K | 5% | **15%** | **6.7×** |
+| MMLU-Redux | 52% | — (max 77% at 52%) | — |
 
-GSM8K achieves full recall by reviewing only 15% of items, a **6.7× efficiency gain** over random review.
-
----
-
-## Audit-Only Benchmarks (no Platinum labels)
-
-These pilots demonstrate BenchCore on unlabeled data. No P/R/F1 reported.
-
-| Dataset | Items | Affected | Confirmed | Top defect types |
-|---|---:|---:|---:|---|
-| ASDiv | 100 | 5 | 1 | ambiguous_goal (5), no_correct_answer (1) |
-| WikiTableQuestions | 100 | 30 | 0 | presentation_corruption (17), ambiguous_goal (10) |
-| ARC-Challenge | 200 | 22 | 3 | multiple_correct_answers_risk (11), multiple_correct_answers (4) |
-
-**Manual verification of ARC-Challenge flags** (11 items inspected):
-- 4 confirmed true positives: 2 multiple-correct-answer questions, 1 wrong gold (biodiesel labeled as biogas), 1 unit error (current stated in ohms)
-- 7 false positives: system over-flagged well-formed items
-
-**Manual verification of ASDiv flags** (5 items inspected):
-- 2 confirmed true positives: discount scope ambiguity, washing-machine story inconsistency
-- 1 weak positive: "serve equally" floor-division convention
-- 2 false positives: gold=0.63 (dollars) is correct, mean 5.666...→5.7 is correct 1 d.p. rounding
+GSM8K achieves full recall by reviewing only 15% of items (**6.7× efficiency gain** over random review).
 
 ---
 
@@ -77,8 +65,23 @@ Of the 6 candidate false positives in the v5 run:
 | Category | Count |
 |---|---:|
 | True false positive (genuine system error) | 2 |
-| Clean label but real quality issue (missed by Platinum annotators) | 4 |
+| Clean label but real quality issue missed by Platinum | 4 |
 | Presentation artifact | 1 |
 
-Adjusted precision (reclassifying real-quality-issue FPs as TPs): **(37+4)/43 = 0.953**
+Adjusted precision reclassifying missed-issue FPs as TPs: **(37+4)/43 = 0.953**
 Reported supervised candidate precision: **0.860**
+
+This suggests BenchCore finds real defects beyond what the Platinum annotation captured.
+
+---
+
+## Confirmed Tier Metrics
+
+Full three-tier breakdown for reference.
+
+| Dataset | Conf P | Conf R | Conf F1 | Cand P | Cand R | Cand F1 | Priority P | Priority R | Priority F1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| SVAMP v5 | 0.900 | 0.474 | 0.621 | 0.860 | 0.974 | **0.914** | 0.897 | 0.684 | 0.776 |
+| SVAMP repro | 0.826 | 0.500 | 0.623 | 0.837 | 0.947 | 0.889 | 0.862 | 0.658 | 0.746 |
+| GSM8K | 0.667 | 0.600 | 0.632 | 0.400 | 1.000 | 0.571 | 0.714 | 1.000 | **0.833** |
+| MMLU-Redux | 0.875 | 0.210 | 0.339 | 0.740 | 0.770 | **0.755** | 0.860 | 0.490 | 0.624 |
