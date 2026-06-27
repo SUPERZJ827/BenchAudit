@@ -41,6 +41,44 @@ Rules:
 - Difficulty alone is not a defect.
 """
 
+TAXONOMY_SYSTEM_PROMPT = """You are a benchmark quality auditor. Given a benchmark item and its declared gold answer, determine whether the item has any quality issue that would make it unfair to evaluate a model on.
+
+Return ONLY valid JSON:
+{
+  "has_defect": true | false,
+  "defect_type": "<type from list below or null>",
+  "confidence": 0.95,
+  "rationale": "one sentence"
+}
+
+Rules:
+- First solve the problem yourself, then compare with the declared gold.
+- Flag the item if it matches ANY of the defect types below.
+- Difficulty alone is not a defect.
+- Academic domain knowledge is NOT missing_context.
+
+Defect taxonomy — flag the item if it has any of:
+
+ORACLE / GOLD ANSWER defects:
+- wrong_gold_answer: The declared gold answer is factually or arithmetically incorrect
+- no_correct_answer: No provided choice is correct under the task
+- multiple_correct_answers: More than one choice is clearly correct
+- multiple_correct_answers_risk: A second choice is plausibly correct
+- invalid_choice_gold: Gold letter cannot be matched to the available choices
+
+TASK SPECIFICATION defects:
+- ambiguous_goal: Task has multiple equally valid interpretations yielding different answers
+- missing_condition: Task requires information not given to determine a unique answer
+- incomplete_task_instruction: Task stem is truncated or missing a required component
+- temporal_scope_missing: Task is time-sensitive but lacks a reference date
+
+CONTEXT / PRESENTATION defects:
+- missing_context: Task explicitly references an external passage or figure that is absent
+- bad_options_clarity: One or more MCQ choices are uninterpretable or semantically overlapping
+- duplicate_choices: Two or more choices normalize to identical content
+- presentation_corruption: OCR errors, garbled text, or encoding corruption visible in the item
+"""
+
 
 def build_user_prompt(item: dict[str, Any]) -> str:
     question = item.get("question") or item.get("task") or ""
@@ -121,10 +159,11 @@ def load_items_with_truth(
 def classify_item(
     item: dict[str, Any],
     client: LLMClient,
+    system_prompt: str = SYSTEM_PROMPT,
 ) -> dict[str, Any]:
     user = build_user_prompt(item)
     try:
-        result = client.chat_json(SYSTEM_PROMPT, user)
+        result = client.chat_json(system_prompt, user)
     except Exception as e:
         result = {
             "has_defect": False,
@@ -190,9 +229,14 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--progress-every", type=int, default=10)
     parser.add_argument("--llm-dry-run", action="store_true")
+    parser.add_argument(
+        "--with-taxonomy", action="store_true",
+        help="Use taxonomy-augmented prompt (lists all BenchCore defect types)",
+    )
     args = parser.parse_args()
 
     clean_values = args.clean_values or ["clean", "ok", "false"]
+    active_prompt = TAXONOMY_SYSTEM_PROMPT if args.with_taxonomy else SYSTEM_PROMPT
 
     # Config
     config_map = {
@@ -218,7 +262,7 @@ def main() -> int:
     start = time.time()
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(classify_item, item, client): item["id"] for item in items}
+        futures = {pool.submit(classify_item, item, client, active_prompt): item["id"] for item in items}
         done = 0
         for future in as_completed(futures):
             results.append(future.result())
@@ -239,8 +283,9 @@ def main() -> int:
 
     # Output comparison JSON (same structure as BenchCore comparison files)
     comparison = {
-        "baseline": "direct_llm_classification",
+        "baseline": "llm_taxonomy" if args.with_taxonomy else "direct_llm_classification",
         "model": args.model,
+        "with_taxonomy": args.with_taxonomy,
         "input_path": args.input,
         "truth_field": args.truth_field,
         "clean_values": clean_values,

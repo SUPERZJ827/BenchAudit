@@ -24,6 +24,8 @@ class LLMConfig:
     max_retries: int = 3
     cache_path: str | None = None
     dry_run: bool = False
+    n_votes: int = 1          # 1 = no voting; 3 = majority-vote (3 calls with vote_temperature)
+    vote_temperature: float = 0.3  # temperature used for voting calls (must be > 0 for variance)
 
 
 def load_llm_config(path: str | None = None) -> LLMConfig:
@@ -40,6 +42,8 @@ def load_llm_config(path: str | None = None) -> LLMConfig:
         max_retries=max(1, int(data.get("max_retries", 3))),
         cache_path=data.get("cache_path"),
         dry_run=bool(data.get("dry_run", False)),
+        n_votes=max(1, int(data.get("n_votes", 1))),
+        vote_temperature=float(data.get("vote_temperature", 0.3)),
     )
 
 
@@ -146,11 +150,92 @@ class LLMClient:
                 conn.close()
         raise RuntimeError(f"LLM API request failed after retries: {last_error}")
 
+    def chat_json_multi(self, system: str, user: str) -> list[dict[str, Any]]:
+        """Make n_votes calls at vote_temperature and return all results.
+
+        Falls back to a single chat_json call when n_votes <= 1.  Each voting
+        call gets its own cache slot (via _vote_cache_key) so temperature > 0
+        produces genuinely different responses across calls.
+        """
+        if self.config.n_votes <= 1:
+            return [self.chat_json(system, user)]
+        results = []
+        for vi in range(1, self.config.n_votes + 1):
+            results.append(self._chat_json_vote(system, user, vi))
+        return results
+
+    def _chat_json_vote(self, system: str, user: str, vote_index: int) -> dict[str, Any]:
+        """Single voting call: uses vote_temperature and a vote-specific cache key."""
+        key = self._vote_cache_key(system, user, vote_index)
+        with self._cache_lock:
+            cached = self.cache.get(key)
+        if cached is not None:
+            return dict(cached)
+        if self.config.dry_run:
+            result: dict[str, Any] = {
+                "gold_status": "uncertain",
+                "defect_type": "none",
+                "confidence": 0.0,
+                "correct_answers": [],
+                "needs_expert": True,
+                "rationale": "dry_run",
+            }
+            self._write_cache(key, result)
+            return result
+
+        api_key = os.environ.get(self.config.api_key_env)
+        if not api_key:
+            raise RuntimeError(
+                f"Missing API key environment variable: {self.config.api_key_env}"
+            )
+
+        body = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": self.config.vote_temperature,
+            "max_tokens": self.config.max_tokens,
+            "response_format": {"type": "json_object"},
+        }
+        invalid_responses: list[dict[str, Any]] = []
+        for attempt in range(self.config.max_retries):
+            raw = self._post_chat_completions(body, api_key)
+            try:
+                result = _extract_json_result(raw)
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                invalid_responses.append(_response_diagnostic(raw))
+                if attempt + 1 < self.config.max_retries:
+                    time.sleep(2**attempt)
+                    continue
+                raise RuntimeError(
+                    f"LLM vote {vote_index} did not return valid JSON after retries: "
+                    f"{invalid_responses}"
+                ) from exc
+            self._write_cache(key, result)
+            return result
+        raise RuntimeError("LLM vote retry loop ended unexpectedly")
+
     def _cache_key(self, system: str, user: str) -> str:
         payload = json.dumps(
             {
                 "model": self.config.model,
                 "temperature": self.config.temperature,
+                "system": system,
+                "user": user,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _vote_cache_key(self, system: str, user: str, vote_index: int) -> str:
+        payload = json.dumps(
+            {
+                "model": self.config.model,
+                "temperature": self.config.vote_temperature,
+                "vote_index": vote_index,
                 "system": system,
                 "user": user,
             },

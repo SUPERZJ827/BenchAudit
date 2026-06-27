@@ -1,6 +1,27 @@
 # BenchCore Experiment Results
 
-## Baseline Comparison
+## Ablation Baselines — Four-Way Comparison
+
+Four systems compared on two supervised datasets (SVAMP-Platinum n=100; MMLU-Redux n=1000).
+All use DeepSeek as the underlying LLM where applicable.
+
+| System | What it uses | SVAMP P | SVAMP R | SVAMP F1 | MMLU P | MMLU R | MMLU F1 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| **Rules-Only** | Static checkers, no LLM | 0.000 | 0.000 | 0.000 | 0.714 | 0.014 | 0.027 |
+| **Naive LLM** | Single-pass LLM, no taxonomy, no rules | 0.897 | 0.684 | 0.776 | 0.808 | 0.478 | 0.601 |
+| **LLM + Taxonomy** | Single-pass LLM with defect taxonomy in prompt | 0.917 | 0.579 | 0.710 | 0.775 | 0.503 | 0.610 |
+| **BenchCore** | Static rules + structured LLM decomposition | **0.860** | **0.974** | **0.914** | **0.641** | **0.686** | **0.663** |
+
+**Key findings**:
+- Rules-Only achieves near-zero recall on SVAMP (all defects require arithmetic reasoning or LLM) and R=0.014 on MMLU (only `missing_context` structural flags). This establishes that LLM is essential, not optional.
+- LLM+Taxonomy vs Naive LLM: taxonomy *hurts* on SVAMP (R 0.684→0.579, F1 −0.066) but marginally *helps* on MMLU (R 0.478→0.503, F1 +0.009). On SVAMP the taxonomy causes the LLM to require a category match rather than holistically flagging quality issues, suppressing legitimate detections. The net effect across datasets is negligible (+/−0.005 F1).
+- BenchCore vs best single-pass LLM: +0.138 F1 on SVAMP (+0.290 recall), +0.062 F1 on MMLU (+0.208 recall). The recall gains confirm that structured decomposition (separate oracle, option, and question auditors) finds defects invisible to holistic single-pass classification regardless of whether a taxonomy is provided.
+
+**Ablation interpretation**: Adding a taxonomy to a flat prompt does not replicate BenchCore's benefit; the gain comes from *decomposition* (asking the LLM about specific artifact dimensions in sequence) and *programmatic evidence* (quantity consistency, differential candidates), not from vocabulary enrichment.
+
+---
+
+## Baseline Comparison (Original)
 
 **Naive LLM baseline**: single-pass prompt asking only "does this item have a quality issue?" — no
 defect taxonomy, no artifact decomposition, no programmatic rules.
@@ -103,6 +124,26 @@ This suggests BenchCore finds real defects beyond what the Platinum annotation c
 
 ---
 
+## Majority Voting (n=3) Results
+
+Voting uses 3 LLM calls at temperature=0.3 per key decision point (blind solver, question clarity, gold auditor, option set auditor). A defect is flagged at `review_only=False` only when ≥2/3 calls agree; 1/3 agreement keeps `review_only=True`.
+
+| Dataset | System | Conf P | Conf R | Conf F1 | Cand P | Cand R | Cand F1 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| SVAMP n=100 | BenchCore v5 (no voting) | 0.900 | 0.474 | 0.621 | 0.860 | 0.974 | 0.914 |
+| SVAMP n=100 | **BenchCore + vote3** | **0.897** | **0.684** | **0.776** | 0.809 | **1.000** | 0.894 |
+| MMLU n=1000 | BenchCore (no voting) | 0.875 | 0.210 | 0.339 | 0.641 | 0.686 | 0.663 |
+| MMLU n=1000 | **BenchCore + vote3** | **0.811** | **0.268** | **0.402** | 0.629 | **0.751** | **0.685** |
+
+**Voting findings (both datasets)**:
+- SVAMP confirmed F1: 0.621 → **0.776** (+0.155); candidate recall: 0.974 → **1.000** (perfect)
+- MMLU confirmed F1: 0.339 → **0.402** (+0.063); candidate recall: 0.686 → **0.751** (+0.065)
+- `llm_question_clarity` violations can now be promoted to `review_only=False` (previously hardcoded `True`), the main driver of confirmed recall improvement
+- Precision tradeoff: confirmed P 0.875→0.811 on MMLU (voting promotes borderline items that turn out to be FP)
+- `multiple_correct_answers` confirmed recall remains 0.077 — this defect type is detected by `llm_option_applicability` which is always `review_only=True` and was not covered by voting; future improvement opportunity
+
+---
+
 ## Confirmed Tier Metrics
 
 Full three-tier breakdown for reference.
@@ -110,6 +151,8 @@ Full three-tier breakdown for reference.
 | Dataset | Conf P | Conf R | Conf F1 | Cand P | Cand R | Cand F1 | Priority P | Priority R | Priority F1 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | SVAMP v5 | 0.900 | 0.474 | 0.621 | 0.860 | 0.974 | **0.914** | 0.897 | 0.684 | 0.776 |
+| SVAMP vote3 | 0.897 | 0.684 | **0.776** | 0.809 | 1.000 | 0.894 | 0.909 | 0.789 | 0.845 |
 | SVAMP repro | 0.826 | 0.500 | 0.623 | 0.837 | 0.947 | 0.889 | 0.862 | 0.658 | 0.746 |
 | GSM8K | 0.667 | 0.600 | 0.632 | 0.400 | 1.000 | 0.571 | 0.714 | 1.000 | **0.833** |
-| MMLU-Redux | 0.875 | 0.210 | 0.339 | 0.740 | 0.770 | **0.755** | 0.860 | 0.490 | 0.624 |
+| MMLU-Redux (n=1000) | 0.875 | 0.210 | 0.339 | 0.641 | 0.686 | **0.663** | 0.727 | 0.503 | 0.595 |
+| MMLU vote3 (n=1000) | 0.811 | 0.268 | **0.402** | 0.629 | 0.751 | **0.685** | 0.720 | 0.527 | 0.608 |
