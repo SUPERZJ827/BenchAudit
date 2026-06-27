@@ -748,6 +748,44 @@ class IntegrityAndFusionTest(unittest.TestCase):
         empty_evidence = {**evidence, "option_applicability": {"option_assessments": []}}
         self.assertEqual(list(option_applicability_violations(item, empty_evidence)), [])
 
+    def test_all_of_above_gold_suppresses_multiple_correct_answers(self) -> None:
+        # When the correct answer IS "All of the above", finding multiple valid
+        # individual options is expected — not a defect.
+        item = BenchmarkItem(
+            item_id="all-of-above",
+            raw={},
+            task="Which authentication factors improve security?",
+            choices=["Password", "Biometric", "SMS code", "All of the above"],
+            gold="D",
+        )
+        evidence = {
+            "solution_status": "multiple",
+            "valid_answers": ["A", "B", "C"],
+            "uncertain_answers": [],
+            "confidence": 0.90,
+            "option_applicability": {
+                "option_assessments": [
+                    {"label": "A", "status": "acceptable", "confidence": 0.90},
+                    {"label": "B", "status": "acceptable", "confidence": 0.88},
+                    {"label": "C", "status": "acceptable", "confidence": 0.85},
+                    {"label": "D", "status": "acceptable", "confidence": 0.92},
+                ]
+            },
+        }
+        self.assertEqual(list(option_applicability_violations(item, evidence)), [])
+
+        # A non-"all of the above" item with multiple valid options still flags.
+        item_normal = BenchmarkItem(
+            item_id="normal-multiple",
+            raw={},
+            task="Which number is prime?",
+            choices=["2", "3", "4"],
+            gold="A",
+        )
+        violations = list(option_applicability_violations(item_normal, evidence))
+        self.assertEqual(len(violations), 1)
+        self.assertEqual(violations[0].defect_type, "multiple_correct_answers")
+
     def test_presentation_auditor_reports_silent_math_repair(self) -> None:
         item = BenchmarkItem(
             item_id="lost-exponent",

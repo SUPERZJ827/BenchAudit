@@ -1266,6 +1266,29 @@ def option_evidence_is_risky(
     return len(answers) != 1 or gold not in answers
 
 
+_ALL_OF_ABOVE_PATTERNS = (
+    "all of the above",
+    "all of these",
+    "all the above",
+    "all of them",
+)
+
+
+def _gold_is_all_of_above(item: BenchmarkItem) -> bool:
+    """True when the gold choice text is an 'all of the above' aggregate option.
+
+    When the correct answer is 'all of the above', every individual option is
+    intentionally valid — so multiple_correct_answers is expected, not a defect.
+    """
+    if not item.choices or item.gold is None:
+        return False
+    idx = choice_label_to_index(item.gold, item.choices)
+    if idx is None:
+        return False
+    choice_text = str(item.choices[idx]).lower()
+    return any(p in choice_text for p in _ALL_OF_ABOVE_PATTERNS)
+
+
 def option_applicability_violations(
     item: BenchmarkItem,
     option_evidence: dict[str, Any],
@@ -1280,18 +1303,20 @@ def option_applicability_violations(
     valid_answers = option_evidence.get("valid_answers", [])
     uncertain_answers = option_evidence.get("uncertain_answers", [])
     confidence = _float(option_evidence.get("confidence"), 0.0)
+    all_of_above = _gold_is_all_of_above(item)
     if status == "multiple":
-        yield _violation(
-            item,
-            "multiple_correct_answers",
-            confidence,
-            "Independent option checks found multiple choices that satisfy the task.",
-            {"option_evidence": option_evidence},
-            severity="review",
-            review_only=True,
-            repair=repair_for_defect("multiple_correct_answers"),
-            method="llm_option_applicability",
-        )
+        if not all_of_above:
+            yield _violation(
+                item,
+                "multiple_correct_answers",
+                confidence,
+                "Independent option checks found multiple choices that satisfy the task.",
+                {"option_evidence": option_evidence},
+                severity="review",
+                review_only=True,
+                repair=repair_for_defect("multiple_correct_answers"),
+                method="llm_option_applicability",
+            )
     elif status == "none":
         yield _violation(
             item,
@@ -1308,6 +1333,7 @@ def option_applicability_violations(
         status == "uncertain"
         and len(valid_answers) == 1
         and uncertain_answers
+        and not all_of_above
     ):
         yield _violation(
             item,
