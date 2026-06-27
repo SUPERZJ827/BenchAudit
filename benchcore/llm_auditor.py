@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 from pathlib import Path
@@ -520,10 +521,27 @@ class GoldLLMAuditor(BaseLLMAuditor):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if not item.task or item.gold in (None, ""):
             return []
-        result = self.query(item)
-        if not result:
-            return [self.failure_violation(item)] if self.last_error else []
-        return list(gold_violations(item, result, self.confirm_threshold, self.review_threshold))
+        self.last_error = None
+        observations = item.metadata.setdefault("_llm_observations", {})
+        observations["_declared_gold"] = item.gold
+        user_prompt = build_user_prompt(item)
+        try:
+            results = self.client.chat_json_multi(self.prompt, user_prompt)
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            observations[self.name] = {"audit_failure": str(exc)}
+            return [self.failure_violation(item)]
+        defect_results = [
+            r for r in results
+            if r.get("defect_type", "none") not in {"none", None, ""}
+            or r.get("gold_status") == "contradicted"
+        ]
+        vote_fraction = len(defect_results) / len(results)
+        result = defect_results[0] if defect_results else results[0]
+        observations[self.name] = result
+        return list(
+            gold_violations(item, result, self.confirm_threshold, self.review_threshold, vote_fraction)
+        )
 
 
 class EvidenceGoldLLMAuditor(BaseLLMAuditor):
@@ -549,16 +567,34 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
         self.last_error = None
         observations = item.metadata.setdefault("_llm_observations", {})
         observations["_declared_gold"] = item.gold
+
+        # --- Blind solver step (with optional majority voting) ---
+        blind_user_prompt = build_blind_user_prompt(item)
         try:
-            blind = self.client.chat_json(
-                BLIND_SOLVER_SYSTEM_PROMPT,
-                build_blind_user_prompt(item),
+            blind_results = self.client.chat_json_multi(
+                BLIND_SOLVER_SYSTEM_PROMPT, blind_user_prompt
             )
-            observations["llm_blind_solver"] = blind
         except RuntimeError as exc:
             self.last_error = f"blind_solver: {exc}"
             observations["llm_blind_solver"] = {"audit_failure": str(exc)}
             return [self.failure_violation(item)]
+
+        # Vote on which derived_answers set the majority agrees on.
+        gold_norm = normalize_answer(item, item.gold)
+        def _answer_key(r: dict[str, Any]) -> frozenset[str]:
+            return frozenset(
+                normalize_answer(item, a)
+                for a in r.get("derived_answers", [])
+                if normalize_answer(item, a)
+            )
+        answer_keys = [_answer_key(r) for r in blind_results]
+        from collections import Counter as _Counter
+        winner_key, winner_count = _Counter(answer_keys).most_common(1)[0]
+        blind_vote_fraction = winner_count / len(blind_results)
+        blind = next((r for r in blind_results if _answer_key(r) == winner_key), blind_results[0])
+        observations["llm_blind_solver"] = blind
+        if len(blind_results) > 1:
+            observations["llm_blind_vote_fraction"] = blind_vote_fraction
 
         try:
             matcher = self.client.chat_json(
@@ -601,6 +637,7 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
                     result,
                     self.confirm_threshold,
                     self.review_threshold,
+                    blind_vote_fraction,
                 )
             )
 
@@ -646,6 +683,7 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
                 result,
                 self.confirm_threshold,
                 self.review_threshold,
+                blind_vote_fraction,
             )
         )
         existing_defects = {violation.defect_type for violation in violations}
@@ -686,10 +724,28 @@ class QuestionClarityLLMAuditor(BaseLLMAuditor):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if not item.task:
             return []
-        result = self.query(item)
-        if not result:
-            return [self.failure_violation(item)] if self.last_error else []
-        return list(question_violations(item, result, self.confirm_threshold, self.review_threshold))
+        self.last_error = None
+        payload = common_item_payload(item)
+        payload.pop("gold", None)
+        payload.pop("aliases", None)
+        payload.pop("evaluator", None)
+        user_prompt = json.dumps(payload, ensure_ascii=False, indent=2)
+        try:
+            results = self.client.chat_json_multi(self.prompt, user_prompt)
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            item.metadata.setdefault("_llm_observations", {})[self.name] = {
+                "audit_failure": str(exc)
+            }
+            return [self.failure_violation(item)]
+        _defect_statuses = {"answer_changing_ambiguity", "missing_condition", "missing_context"}
+        defect_results = [r for r in results if r.get("clarity_status") in _defect_statuses]
+        vote_fraction = len(defect_results) / len(results)
+        result = defect_results[0] if defect_results else results[0]
+        item.metadata.setdefault("_llm_observations", {})[self.name] = result
+        return list(
+            question_violations(item, result, self.confirm_threshold, self.review_threshold, vote_fraction)
+        )
 
 
 class OptionSetLLMAuditor(BaseLLMAuditor):
@@ -699,10 +755,27 @@ class OptionSetLLMAuditor(BaseLLMAuditor):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if not item.task or not item.choices:
             return []
-        result = self.query(item)
-        if not result:
-            return [self.failure_violation(item)] if self.last_error else []
-        return list(option_violations(item, result, self.confirm_threshold, self.review_threshold))
+        self.last_error = None
+        user_prompt = build_user_prompt(item)
+        try:
+            results = self.client.chat_json_multi(self.prompt, user_prompt)
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            item.metadata.setdefault("_llm_observations", {})[self.name] = {
+                "audit_failure": str(exc)
+            }
+            return [self.failure_violation(item)]
+        defect_results = [
+            r for r in results
+            if r.get("defect_type", "none") not in {"none", None, ""}
+            or r.get("best_answer_cardinality", r.get("cardinality", "uncertain")) in {"multiple", "none"}
+        ]
+        vote_fraction = len(defect_results) / len(results)
+        result = defect_results[0] if defect_results else results[0]
+        item.metadata.setdefault("_llm_observations", {})[self.name] = result
+        return list(
+            option_violations(item, result, self.confirm_threshold, self.review_threshold, vote_fraction)
+        )
 
 
 class PresentationLLMAuditor(BaseLLMAuditor):
@@ -1000,6 +1073,7 @@ def gold_violations(
     result: dict[str, Any],
     confirm_threshold: float,
     review_threshold: float,
+    vote_fraction: float | None = None,
 ) -> Iterable[Violation]:
     status = str(result.get("gold_status", "uncertain"))
     defect_type = str(result.get("defect_type", "none"))
@@ -1031,6 +1105,8 @@ def gold_violations(
     if defect_type == "none":
         return
     review_only = needs_expert or confidence < confirm_threshold
+    if vote_fraction is not None and vote_fraction < 2 / 3:
+        review_only = True
     yield _llm_violation(
         item,
         defect_type,
@@ -1468,6 +1544,7 @@ def question_violations(
     result: dict[str, Any],
     confirm_threshold: float,
     review_threshold: float,
+    vote_fraction: float | None = None,
 ) -> Iterable[Violation]:
     status = str(result.get("clarity_status", "uncertain"))
     confidence = _float(result.get("confidence"), 0.0)
@@ -1480,9 +1557,12 @@ def question_violations(
     defect_type = mapping.get(status)
     if defect_type is None or confidence < review_threshold:
         return
-    # Natural-language clarity judgments remain review signals unless a
-    # non-LLM checker later provides independent evidence.
-    review_only = True
+    # Single call: natural-language clarity is always tentative (needs independent evidence).
+    # With majority voting (2/3+ calls agree) we have stronger evidence → can confirm.
+    if vote_fraction is not None:
+        review_only = needs_expert or confidence < confirm_threshold or vote_fraction < 2 / 3
+    else:
+        review_only = True
     yield _llm_violation(
         item,
         defect_type,
@@ -1868,6 +1948,7 @@ def option_violations(
     result: dict[str, Any],
     confirm_threshold: float,
     review_threshold: float,
+    vote_fraction: float | None = None,
 ) -> Iterable[Violation]:
     defect_type = str(result.get("defect_type", "none"))
     literal_cardinality = str(
@@ -1894,6 +1975,8 @@ def option_violations(
     }:
         return
     review_only = needs_expert or confidence < confirm_threshold or defect_type == "bad_options_clarity"
+    if vote_fraction is not None and vote_fraction < 2 / 3:
+        review_only = True
     yield _llm_violation(
         item,
         defect_type,

@@ -15,14 +15,26 @@ from benchcore.methods import TaskIntegrityChecker
 from benchcore.schema import BenchmarkItem
 
 
+class FakeLLMConfig:
+    n_votes = 1
+    vote_temperature = 0.3
+
+
 class FakeLLMClient:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
+        self.config = FakeLLMConfig()
 
     def chat_json(self, system, user):
         self.calls.append((system, user))
         return self.responses.pop(0)
+
+    def chat_json_multi(self, system, user):
+        return [self.chat_json(system, user)]
+
+    def _chat_json_vote(self, system, user, vote_index):
+        return self.chat_json(system, user)
 
 
 class IntegrityAndFusionTest(unittest.TestCase):
