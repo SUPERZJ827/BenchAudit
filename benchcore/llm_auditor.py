@@ -1398,23 +1398,12 @@ def option_applicability_violations(
             repair=repair_for_defect("no_correct_answer"),
             method="llm_option_applicability",
         )
-    elif (
-        status == "uncertain"
-        and len(valid_answers) == 1
-        and uncertain_answers
-        and not all_of_above
-    ):
-        yield _violation(
-            item,
-            "multiple_correct_answers_risk",
-            confidence,
-            "One accepted choice and additional uncertain choices may create multiple valid answers.",
-            {"option_evidence": option_evidence},
-            severity="review",
-            review_only=True,
-            repair="Independently verify the uncertain choices and clarify the acceptance criterion.",
-            method="llm_option_applicability",
-        )
+    # Note: a "multiple_correct_answers_risk" signal was previously emitted when
+    # exactly one option was accepted but others were uncertain. In best-answer
+    # benchmarks genuine multiple-correct items are rare, and this speculative
+    # uncertainty-triggered signal was the lowest-precision auditor output
+    # (0.41 on MMLU-Redux). It is no longer emitted; an actual second valid
+    # answer surfaces as status == "multiple" above.
 
 
 def aggregate_gold_evidence(
@@ -2068,6 +2057,12 @@ def option_violations(
         "no_correct_answer",
         "bad_options_clarity",
     }:
+        return
+    # Internal-consistency guard: do not raise multiple_correct_answers when the
+    # auditor's own best-answer judgment does not see two co-equal best options.
+    # In best-answer benchmarks an option that is merely literally true (but
+    # weaker/partial) is not a genuine second answer.
+    if defect_type == "multiple_correct_answers" and best_cardinality != "multiple":
         return
     review_only = needs_expert or confidence < confirm_threshold or defect_type == "bad_options_clarity"
     if vote_fraction is not None and vote_fraction < 2 / 3:
