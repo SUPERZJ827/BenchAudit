@@ -934,6 +934,75 @@ class DirectLLMAuditor(BaseLLMAuditor):
             )
 
 
+class HolisticSamplingLLMAuditor(BaseLLMAuditor):
+    """Holistic taxonomy judge sampled n_samples times, unioned for recall.
+
+    Complements the structured auditors: it catches defects the artifact-specific
+    cascade misses by sampling a single whole-item taxonomy prompt several times
+    and flagging the item if ANY sample reports a defect. Emits a review-only
+    (candidate-tier) signal so a lone holistic flag never auto-confirms.
+    """
+
+    name = "llm_holistic_sampling"
+    prompt = DIRECT_AUDIT_SYSTEM_PROMPT
+
+    def __init__(self, client, confirm_threshold=0.75, review_threshold=0.45, n_samples=6):
+        super().__init__(client, confirm_threshold, review_threshold)
+        self.n_samples = max(1, n_samples)
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        self.last_error = None
+        observations = item.metadata.setdefault("_llm_observations", {})
+        user_prompt = build_user_prompt(item)
+        samples: list[dict[str, Any]] = []
+        for vi in range(1, self.n_samples + 1):
+            try:
+                samples.append(self.client._chat_json_vote(self.prompt, user_prompt, vi))
+            except RuntimeError as exc:
+                self.last_error = str(exc)
+        if not samples:
+            observations[self.name] = {"audit_failure": self.last_error}
+            return [self.failure_violation(item)] if self.last_error else []
+
+        flagged = [
+            s for s in samples
+            if s.get("has_defect", False)
+            and _float(s.get("confidence"), 0.0) >= self.review_threshold
+        ]
+        observations[self.name] = {
+            "n_samples": len(samples),
+            "n_flagged": len(flagged),
+            "vote_fraction": round(len(flagged) / len(samples), 3),
+        }
+        if not flagged:
+            return []
+        types = [
+            dt
+            for s in flagged
+            for dt in (s.get("defect_types") or [])
+            if dt in _DIRECT_AUDIT_DEFECT_TYPES
+        ]
+        defect_type = max(set(types), key=types.count) if types else "wrong_gold_answer"
+        confidence = max(_float(s.get("confidence"), 0.0) for s in flagged)
+        best = max(flagged, key=lambda s: _float(s.get("confidence"), 0.0))
+        return [
+            _llm_violation(
+                item,
+                defect_type,
+                confidence,
+                best,
+                review_only=True,
+                method=self.name,
+                message=(
+                    f"Holistic sampling flagged {defect_type} "
+                    f"({len(flagged)}/{len(samples)} samples)."
+                ),
+            )
+        ]
+
+
 # Backward-compatible alias for callers that still request one semantic auditor.
 LLMSemanticChecker = GoldLLMAuditor
 
