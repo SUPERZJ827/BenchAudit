@@ -21,6 +21,7 @@ from .llm_auditor import (
     QuantityConsistencyLLMAuditor,
     QuestionClarityLLMAuditor,
 )
+from .code_verifier import CodeExecVerifier
 from .llm_client import LLMClient, load_llm_config
 from .methods import DEFAULT_DATASET_CHECKERS, DEFAULT_METHOD_CHECKERS
 from .report import build_report, write_json_report, write_markdown_report
@@ -170,6 +171,7 @@ def run_audit(args: argparse.Namespace) -> int:
             "presentation": PresentationLLMAuditor,
             "quantity": QuantityConsistencyLLMAuditor,
             "holistic": HolisticSamplingLLMAuditor,
+            "codeexec": CodeExecVerifier,
         }
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
