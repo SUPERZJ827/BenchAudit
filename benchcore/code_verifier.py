@@ -1,0 +1,179 @@
+"""Code-execution verifier (tool-using executor).
+
+For table-QA items, this checker parses the table into a pandas DataFrame, asks
+an LLM to write code that computes the answer from the table, executes that code
+in an isolated subprocess, and compares the computed answer to the declared gold.
+
+Unlike an LLM judging the table by eye, the answer is *computed*. This catches
+table/computation gold errors and, crucially, is reproducible (the code and its
+output are recorded) with no circularity (it computes, it does not look the
+answer up).
+"""
+from __future__ import annotations
+
+import io
+import re
+import subprocess
+import sys
+import tempfile
+import textwrap
+from pathlib import Path
+from typing import Iterable
+
+from .checkers import Checker
+from .llm_client import LLMClient
+from .schema import BenchmarkItem, Violation
+
+CODEGEN_PROMPT = """You are given a pandas DataFrame `df` already loaded from a table.
+Write Python that computes the answer to the question using `df` and prints ONLY
+the final answer (a number or short string) via print(). pandas is imported as pd
+and numpy as np; `df` already exists (all columns are strings, coerce as needed).
+Do not read files or the network.
+
+Return ONLY JSON: {{"code": "<python statements that print the answer>"}}
+
+DataFrame columns: {columns}
+First rows:
+{preview}
+
+Question: {question}"""
+
+
+def parse_markdown_table(md: str):
+    lines = [ln for ln in md.splitlines() if ln.strip().startswith("|")]
+    if len(lines) < 2:
+        return None
+    cells = lambda ln: [c.strip() for c in ln.strip().strip("|").split("|")]
+    cols = cells(lines[0])
+    rows = [cells(ln) for ln in lines[2:] if set(ln.strip()) - set("|-: ")]
+    rows = [r for r in rows if len(r) == len(cols)]
+    if not cols or not rows:
+        return None
+    return cols, rows
+
+
+def _to_csv(cols, rows) -> str:
+    import csv
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(cols)
+    w.writerows(rows)
+    return buf.getvalue()
+
+
+def _normalize(ans) -> str:
+    s = str(ans).strip().lower().replace(",", "")
+    s = re.sub(r"[‒-―−]", "-", s)   # unify dash/minus variants
+    s = re.sub(r"\s+", " ", s).strip().rstrip(".")
+    s = re.sub(r"\b0+(\d)", r"\1", s)               # strip leading zeros (e.g. 05 -> 5)
+    m = re.fullmatch(r"-?\d+\.?\d*", s)
+    if m:
+        f = float(s)
+        return str(int(f)) if f == int(f) else f"{round(f, 4):g}"
+    return s
+
+
+def _table_markdown(item: BenchmarkItem) -> str | None:
+    raw = item.raw or {}
+    if isinstance(raw.get("table"), str) and "|" in raw["table"]:
+        return raw["table"]
+    ctx = item.context or {}
+    vals = list(ctx.values()) if isinstance(ctx, dict) else [ctx]
+    for v in vals:
+        if isinstance(v, str) and "|" in v and "---" in v:
+            return v
+    return None
+
+
+def _run_code(csv_data: str, code: str, timeout: int = 12) -> tuple[str | None, str | None]:
+    """Execute generated code against df in an isolated subprocess."""
+    wrapper = (
+        "import io, sys\nimport pandas as pd\nimport numpy as np\n"
+        f"df = pd.read_csv(io.StringIO({csv_data!r}), dtype=str).fillna('')\n"
+        "df = df.apply(lambda c: c.str.strip())\n"
+        "try:\n"
+        + textwrap.indent(code, "    ")
+        + "\nexcept Exception as e:\n    print('__ERR__:' + repr(e))\n"
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+        f.write(wrapper)
+        path = f.name
+    try:
+        proc = subprocess.run(
+            [sys.executable, path], capture_output=True, text=True, timeout=timeout,
+        )
+        out = (proc.stdout or "").strip()
+        if "__ERR__:" in out:
+            return None, out.split("__ERR__:", 1)[1]
+        if proc.returncode != 0:
+            return None, (proc.stderr or "nonzero exit").strip()[:300]
+        return out, None
+    except subprocess.TimeoutExpired:
+        return None, "timeout"
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+class CodeExecVerifier(Checker):
+    """Verifies table-QA gold answers by computing them with executed code."""
+
+    name = "code_exec_verifier"
+
+    def __init__(self, client: LLMClient, confirm_threshold: float = 0.75,
+                 review_threshold: float = 0.45):
+        self.client = client
+        self.confirm_threshold = confirm_threshold
+        self.review_threshold = review_threshold
+        self.stats: dict[str, int] = {}
+
+    def _bump(self, k: str) -> None:
+        self.stats[k] = self.stats.get(k, 0) + 1
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        md = _table_markdown(item)
+        if not md or item.gold in (None, ""):
+            return []
+        parsed = parse_markdown_table(md)
+        if not parsed:
+            self._bump("no_table"); return []
+        cols, rows = parsed
+        csv_data = _to_csv(cols, rows)
+        preview = _to_csv(cols, rows[:5])
+
+        try:
+            gen = self.client.chat_json(
+                CODEGEN_PROMPT.format(columns=cols, preview=preview, question=item.task),
+                f"Question: {item.task}",
+            )
+        except Exception:
+            self._bump("codegen_fail"); return []
+        code = (gen or {}).get("code", "")
+        if not isinstance(code, str) or "print" not in code:
+            self._bump("no_code"); return []
+
+        computed, err = _run_code(csv_data, code)
+        if computed is None:
+            self._bump("exec_fail"); return []
+        self._bump("verified")
+
+        comp_n, gold_n = _normalize(computed), _normalize(item.gold)
+        if comp_n == gold_n or comp_n in {_normalize(a) for a in (item.aliases or [])}:
+            self._bump("agree"); return []  # gold corroborated by computation
+
+        self._bump("disagree")
+        return [Violation(
+            item_id=item.item_id,
+            artifact="oracle_ground_truth",
+            mechanism="code_execution",
+            defect_type="wrong_gold_answer",
+            severity="review",
+            confidence=0.6,
+            message=(f"Executed table computation yields '{computed}' but gold is "
+                     f"'{item.gold}'."),
+            detection_method="code_exec_verifier",
+            defect_scope="substantive",
+            evidence={"computed": computed, "gold": item.gold, "code": code,
+                      "columns": cols, "n_rows": len(rows)},
+            suggested_repair="Re-verify the gold against the table computation.",
+            review_only=True,
+        )]
