@@ -934,6 +934,75 @@ class DirectLLMAuditor(BaseLLMAuditor):
             )
 
 
+class HolisticSamplingLLMAuditor(BaseLLMAuditor):
+    """Holistic taxonomy judge sampled n_samples times, unioned for recall.
+
+    Complements the structured auditors: it catches defects the artifact-specific
+    cascade misses by sampling a single whole-item taxonomy prompt several times
+    and flagging the item if ANY sample reports a defect. Emits a review-only
+    (candidate-tier) signal so a lone holistic flag never auto-confirms.
+    """
+
+    name = "llm_holistic_sampling"
+    prompt = DIRECT_AUDIT_SYSTEM_PROMPT
+
+    def __init__(self, client, confirm_threshold=0.75, review_threshold=0.45, n_samples=6):
+        super().__init__(client, confirm_threshold, review_threshold)
+        self.n_samples = max(1, n_samples)
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if not item.task:
+            return []
+        self.last_error = None
+        observations = item.metadata.setdefault("_llm_observations", {})
+        user_prompt = build_user_prompt(item)
+        samples: list[dict[str, Any]] = []
+        for vi in range(1, self.n_samples + 1):
+            try:
+                samples.append(self.client._chat_json_vote(self.prompt, user_prompt, vi))
+            except RuntimeError as exc:
+                self.last_error = str(exc)
+        if not samples:
+            observations[self.name] = {"audit_failure": self.last_error}
+            return [self.failure_violation(item)] if self.last_error else []
+
+        flagged = [
+            s for s in samples
+            if s.get("has_defect", False)
+            and _float(s.get("confidence"), 0.0) >= self.review_threshold
+        ]
+        observations[self.name] = {
+            "n_samples": len(samples),
+            "n_flagged": len(flagged),
+            "vote_fraction": round(len(flagged) / len(samples), 3),
+        }
+        if not flagged:
+            return []
+        types = [
+            dt
+            for s in flagged
+            for dt in (s.get("defect_types") or [])
+            if dt in _DIRECT_AUDIT_DEFECT_TYPES
+        ]
+        defect_type = max(set(types), key=types.count) if types else "wrong_gold_answer"
+        confidence = max(_float(s.get("confidence"), 0.0) for s in flagged)
+        best = max(flagged, key=lambda s: _float(s.get("confidence"), 0.0))
+        return [
+            _llm_violation(
+                item,
+                defect_type,
+                confidence,
+                best,
+                review_only=True,
+                method=self.name,
+                message=(
+                    f"Holistic sampling flagged {defect_type} "
+                    f"({len(flagged)}/{len(samples)} samples)."
+                ),
+            )
+        ]
+
+
 # Backward-compatible alias for callers that still request one semantic auditor.
 LLMSemanticChecker = GoldLLMAuditor
 
@@ -1329,23 +1398,12 @@ def option_applicability_violations(
             repair=repair_for_defect("no_correct_answer"),
             method="llm_option_applicability",
         )
-    elif (
-        status == "uncertain"
-        and len(valid_answers) == 1
-        and uncertain_answers
-        and not all_of_above
-    ):
-        yield _violation(
-            item,
-            "multiple_correct_answers_risk",
-            confidence,
-            "One accepted choice and additional uncertain choices may create multiple valid answers.",
-            {"option_evidence": option_evidence},
-            severity="review",
-            review_only=True,
-            repair="Independently verify the uncertain choices and clarify the acceptance criterion.",
-            method="llm_option_applicability",
-        )
+    # Note: a "multiple_correct_answers_risk" signal was previously emitted when
+    # exactly one option was accepted but others were uncertain. In best-answer
+    # benchmarks genuine multiple-correct items are rare, and this speculative
+    # uncertainty-triggered signal was the lowest-precision auditor output
+    # (0.41 on MMLU-Redux). It is no longer emitted; an actual second valid
+    # answer surfaces as status == "multiple" above.
 
 
 def aggregate_gold_evidence(
@@ -1999,6 +2057,12 @@ def option_violations(
         "no_correct_answer",
         "bad_options_clarity",
     }:
+        return
+    # Internal-consistency guard: do not raise multiple_correct_answers when the
+    # auditor's own best-answer judgment does not see two co-equal best options.
+    # In best-answer benchmarks an option that is merely literally true (but
+    # weaker/partial) is not a genuine second answer.
+    if defect_type == "multiple_correct_answers" and best_cardinality != "multiple":
         return
     review_only = needs_expert or confidence < confirm_threshold or defect_type == "bad_options_clarity"
     if vote_fraction is not None and vote_fraction < 2 / 3:

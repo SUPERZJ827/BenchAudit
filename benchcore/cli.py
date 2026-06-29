@@ -15,6 +15,7 @@ from .llm_auditor import (
     EventStateLLMAuditor,
     EvidenceGoldLLMAuditor,
     GoldLLMAuditor,
+    HolisticSamplingLLMAuditor,
     OptionSetLLMAuditor,
     PresentationLLMAuditor,
     QuantityConsistencyLLMAuditor,
@@ -168,6 +169,7 @@ def run_audit(args: argparse.Namespace) -> int:
             "option": OptionSetLLMAuditor,
             "presentation": PresentationLLMAuditor,
             "quantity": QuantityConsistencyLLMAuditor,
+            "holistic": HolisticSamplingLLMAuditor,
         }
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
