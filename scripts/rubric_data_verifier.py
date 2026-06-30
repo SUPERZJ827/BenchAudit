@@ -43,7 +43,7 @@ RUBRIC: {rubric}"""
 
 
 def case_block(text, name):
-    m = re.search(rf"\n## {re.escape(name)}(.*?)(?=\n## 仓敏|\Z)", text.replace("\\", ""), re.S)
+    m = re.search(rf"\n## {re.escape(name)}(.*?)(?=\n## [一-鿿]{{2,5}}_\d|\Z)", text.replace("\\", ""), re.S)
     return m.group(1) if m else ""
 
 
