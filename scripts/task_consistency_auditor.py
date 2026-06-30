@@ -70,10 +70,18 @@ def main():
     text = (REPO / "Workspace-Bench Case Learning.md").read_text(encoding="utf-8")
     block = rdv.case_block(text, name)
     task = extract_task(text.replace("\\", "").split(f"## {name}", 1)[-1].split("\n## 仓敏", 1)[0])
+    from benchcore.file_reader import read_file
     att = REPO / "图片和附件"
-    xlsx = [att / p for p in rdv.input_paths(block) if p.lower().endswith(".xlsx") and (att / p).exists()]
+    inputs = [att / p for p in rdv.input_paths(block) if (att / p).exists()]
+    xlsx = inputs  # all input files now (xlsx/pdf/docx/pptx/...)
     rubrics = rdv.rubrics_of(block)
-    profiles = "\n\n".join(rdv.profile_xlsx(p) for p in xlsx) if xlsx else "(无 xlsx 输入或为 PDF/PPT/DOCX)"
+    if inputs:
+        listing = "提供的输入文件清单（共 %d 个）:\n%s" % (
+            len(inputs), "\n".join(f"  - {p.name}" for p in inputs))
+        excerpts = "\n\n".join(read_file(p, max_chars=600) for p in inputs)
+        profiles = listing + "\n\n各文件内容摘要:\n" + excerpts
+    else:
+        profiles = "(输入区未提供文件)"
     rub_str = "\n".join(f"- {r}" for r in rubrics)
 
     cfg = load_llm_config(str(REPO / "configs/llm_deepseek.json"))
