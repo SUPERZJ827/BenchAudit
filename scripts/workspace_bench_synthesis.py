@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 TEXT = (REPO / "Workspace-Bench Case Learning.md").read_text(encoding="utf-8")
-cases_raw = re.split(r"\n## (?=仓敏)", TEXT)
+cases_raw = re.split(r"\n## ", TEXT)
 
 
 def clean(s):
@@ -58,7 +58,7 @@ report = ["# Workspace-Bench 高置信坏 rubric 总报告(三信号合成)", ""
 summary = []
 detail = []
 for block in cases_raw:
-    if not block.startswith("仓敏"):
+    if not re.match(r"[\u4e00-\u9fff]{2,5}_\d", block.lstrip()[:8]):
         continue
     name, rubrics, passes = parse(block)
     if not rubrics:

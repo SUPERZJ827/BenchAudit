@@ -12,7 +12,7 @@ from pathlib import Path
 
 path = Path(sys.argv[1] if len(sys.argv) > 1 else "Workspace-Bench Case Learning.md")
 text = path.read_text(encoding="utf-8")
-cases = re.split(r"\n## (?=仓敏)", text)
+cases = re.split(r"\n## ", text)
 
 
 def parse_rubrics(block):
@@ -35,7 +35,7 @@ total_suspicious = 0
 print(f"{'case':10} {'#rub':>5} {'#runs':>6}  suspicious rubrics (failed by >=80% of runs)")
 for c in cases:
     name = clean(c.split("\n", 1)[0])
-    if not name.startswith("仓敏"):
+    if not re.match(r"[\u4e00-\u9fff]{2,5}_\d", name):
         continue
     runs = parse_rubrics(c)
     if not runs:

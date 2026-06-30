@@ -59,7 +59,7 @@ RUBRICS (index: text):
 
 def parse_cases(text: str):
     out = []
-    for m in re.finditer(r"\n## (仓敏[^\n]+)(.*?)(?=\n## 仓敏|\Z)", text, re.S):
+    for m in re.finditer(r"\n## ([一-鿿]{2,5}\\?_\d[^\n]*)(.*?)(?=\n## [一-鿿]{2,5}\\?_\d|\Z)", text, re.S):
         name = re.sub(r"\\", "", m.group(1)).strip()
         body = m.group(2)
         tm = re.search(r"Task[:：](.*?)(?=\n###|\n输入|\n#### )", body, re.S)
