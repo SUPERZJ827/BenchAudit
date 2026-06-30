@@ -39,6 +39,10 @@ Return ONLY JSON: {"verdict":"...","reason":"one sentence citing the file/column
 INPUT FILES (structure + preview):
 {inputs}
 
+SEARCH HITS (rubric keywords located in the source files; reconcile units like
+亿/万/元, % and rounding before judging):
+{search}
+
 RUBRIC: {rubric}"""
 
 
@@ -81,12 +85,23 @@ def main():
     name = sys.argv[1] if len(sys.argv) > 1 else "仓敏_3"
     text = (REPO / "Workspace-Bench Case Learning.md").read_text(encoding="utf-8")
     block = case_block(text, name)
+    from benchcore.file_reader import read_file, search_file
     att = REPO / "图片和附件"
-    xlsx = [att / p for p in input_paths(block) if p.lower().endswith(".xlsx") and (att / p).exists()]
+    inputs = [att / p for p in input_paths(block) if (att / p).exists()]
     rubrics = rubrics_of(block)
-    if not xlsx:
-        print(f"{name}: 无 xlsx 输入,跳过"); return
-    profiles = "\n\n".join(profile_xlsx(p) for p in xlsx)
+    if not inputs:
+        print(f"{name}: 无可读输入,跳过"); return
+    xlsx = inputs  # all input files (xlsx/pdf/docx/pptx)
+    profiles = "\n\n".join(read_file(p, 700) for p in inputs)
+
+    def search_rubric(rtext):
+        terms = re.findall(r"[一-鿿]{2,8}", rtext)[:5] + re.findall(r"\d[\d,\.]+%?", rtext)[:5]
+        hits = {}
+        for p in inputs:
+            for t, ctx in search_file(p, [t for t in terms if t not in hits]).items():
+                if ctx:
+                    hits[t] = f"{p.name[:24]}: …{ctx}…"
+        return "\n".join(f"  '{k}' -> {v}" for k, v in hits.items()) or "  (未在输入中定位到 rubric 关键词)"
     cfg = load_llm_config(str(REPO / "configs/llm_deepseek.json"))
     cfg.cache_path = "reports/rubric_data_verify_cache.jsonl"
     client = LLMClient(cfg)
@@ -96,7 +111,9 @@ def main():
     rows = []
     for r in numeric:
         try:
-            res = client.chat_json(PROMPT.replace("{inputs}", profiles[:10000]).replace("{rubric}", r), "Verify.")
+            p = (PROMPT.replace("{inputs}", profiles[:8000])
+                       .replace("{search}", search_rubric(r)[:1500]).replace("{rubric}", r))
+            res = client.chat_json(p, "Verify.")
         except Exception as e:
             res = {"verdict": "error", "reason": str(e)}
         rows.append((r, res))

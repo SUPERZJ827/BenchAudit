@@ -58,7 +58,7 @@ report = ["# Workspace-Bench 高置信坏 rubric 总报告(三信号合成)", ""
 summary = []
 detail = []
 for block in cases_raw:
-    if not re.match(r"[\u4e00-\u9fff]{2,5}_\d", block.lstrip()[:8]):
+    if not re.match(r"[\u4e00-\u9fff]{2,5}\\?_\d", block.lstrip()[:8]):
         continue
     name, rubrics, passes = parse(block)
     if not rubrics:
