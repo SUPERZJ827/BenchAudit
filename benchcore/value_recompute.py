@@ -30,21 +30,33 @@ from .file_reader import read_file
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
-TABULAR_SUFFIXES = (".xlsx", ".xls", ".csv")
+REPO_ROOT = str(Path(__file__).resolve().parents[1])
 
 SYSTEM_PROMPT = """You recompute quantities from data files to verify a benchmark
 rubric. You do not trust the rubric's numbers; you compute them independently.
 Return only JSON."""
 
 USER_PROMPT = """Write Python (pandas as pd) that RE-COMPUTES, from the input files,
-the quantities the rubric asserts, and prints each as `label=value`. Read files by
-the absolute paths given. If the data needed is NOT in the inputs, print
-`DATA_NOT_AVAILABLE` and nothing else. Do not trust the rubric's numbers; compute
-independently.
+the quantity the rubric asserts, and prints it as `label=value`.
+
+Reading inputs (use the absolute paths given below; files may be hash-named with no
+extension, so judge type from the preview, not the name):
+- try pandas first: pd.read_csv(path) / pd.read_excel(path) (pandas reads by content).
+- if a file is not tabular, call the preloaded helper `read_file(path, 20000)`, which
+  returns the file's text (handles docx/pdf/pptx/txt/xml); parse the number from it.
+
+Rules:
+- Print the numeric VALUE itself, e.g. `count=84` or `total=58000`. NEVER print a
+  boolean such as yes/no/true/false -- print the number you computed.
+- Compute the FULL quantity the rubric asks about (e.g. a grand total across all
+  rows/months/categories), not a single row or a partial subset.
+- Do not trust the rubric's numbers; compute independently.
+- Only if the data is genuinely absent from every input file, print
+  `DATA_NOT_AVAILABLE` and nothing else.
 
 Return ONLY JSON: {{"code": "<python that prints label=value lines>"}}
 
-INPUT FILES (absolute paths + structure preview):
+INPUT FILES (absolute paths + preview):
 {inputs}
 
 RUBRIC: {rubric}"""
@@ -96,9 +108,20 @@ def reproduced(expected: list[float], computed_out: str) -> list[float]:
     return miss
 
 
+_PRELUDE = (
+    "import sys\n"
+    f"sys.path.insert(0, {REPO_ROOT!r})\n"
+    "import pandas as pd, numpy as np, warnings\n"
+    "warnings.filterwarnings('ignore')\n"
+    # read_file handles xlsx/docx/pptx/pdf/text, so generated code can pull numbers
+    # from non-tabular inputs, not just the csv/xlsx pandas reads natively.
+    "from benchcore.file_reader import read_file\n"
+)
+
+
 def run_code(code: str, timeout: int = 15) -> str:
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-        f.write("import pandas as pd, numpy as np, warnings\nwarnings.filterwarnings('ignore')\n" + code)
+        f.write(_PRELUDE + code)
         p = f.name
     try:
         r = subprocess.run([sys.executable, p], capture_output=True, text=True, timeout=timeout)
@@ -109,13 +132,15 @@ def run_code(code: str, timeout: int = 15) -> str:
         Path(p).unlink(missing_ok=True)
 
 
-def tabular_input_paths(item: BenchmarkItem, root: Path | None) -> list[Path]:
-    """Resolved, existing tabular input files a pandas recompute can read."""
+def input_file_paths(item: BenchmarkItem, root: Path | None) -> list[Path]:
+    """Resolved, existing input files. Tabular ones the recompute reads with pandas;
+    the rest it reads via read_file, so the data a rubric needs is not starved just
+    because it lives in a non-tabular input."""
     paths: list[Path] = []
     seen: set[str] = set()
     for _label, value in context_pairs(item):
         for entry in value if isinstance(value, list) else [value]:
-            if not isinstance(entry, str) or not entry.lower().endswith(TABULAR_SUFFIXES):
+            if not isinstance(entry, str):
                 continue
             path = resolve_path(entry, root)
             if path is None or not path.exists():
@@ -127,6 +152,12 @@ def tabular_input_paths(item: BenchmarkItem, root: Path | None) -> list[Path]:
             seen.add(key)
             paths.append(resolved)
     return paths
+
+
+def inputs_preview(paths: list[Path], per_file_chars: int) -> str:
+    # read_file gives the LLM a content preview so it can tell tabular from text even
+    # when files are hash-named; the generated code re-reads the real file for the compute.
+    return "\n\n".join(f"路径: {path}\n{read_file(path, per_file_chars)}" for path in paths)
 
 
 class ValueRecomputeChecker(Checker):
@@ -150,7 +181,7 @@ class ValueRecomputeChecker(Checker):
         self.confidence = confidence
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
-        paths = tabular_input_paths(item, root)
+        paths = input_file_paths(item, root)
         if not paths:
             return
         rubrics = extract_rubrics(item)
@@ -163,7 +194,7 @@ class ValueRecomputeChecker(Checker):
         }
         if not numeric:
             return
-        inputs = "\n\n".join(f"路径: {p}\n{read_file(p, self.per_file_chars)}" for p in paths)[: self.max_inputs_chars]
+        inputs = inputs_preview(paths, self.per_file_chars)[: self.max_inputs_chars]
         for index, rubric in enumerate(rubrics):
             if index not in numeric:
                 continue
