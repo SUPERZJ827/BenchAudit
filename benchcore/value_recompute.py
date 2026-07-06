@@ -81,6 +81,9 @@ def rubric_values(s: str) -> list[float]:
                r'less than|more than|over|above|below|up to|within|between)\s*[¥$]?\s*\d[\d,]*\.?\d*\s*%?',
                ' ', t, flags=re.I)
     t = re.sub(r'\b\d[\d,]*\.?\d*\s*%?\s*(?:-|to|~|–|—|至|到)\s*\d[\d,]*\.?\d*\s*%', ' ', t)  # ranges '35%-45%'
+    # bare numeric ranges are labels/bins ('1-9 beds', '10-29', '30-49'), not asserted
+    # single values -- a recompute reproduces one value, never a range bound.
+    t = re.sub(r'\b\d[\d,]*\.?\d*\s*(?:-|–|—|~|至|到)\s*\d[\d,]*\.?\d*\b', ' ', t)
     t = re.sub(r'\b[A-Za-z]{1,}[-_]?\d[\w-]*', ' ', t)      # SR-021, DES-06, DEV-0108, PO-2024-019, W42, P4, A4
     t = re.sub(r'#\s*\d+', ' ', t)                          # #1013
     t = re.sub(r'\b(?:item|items|partner|chapter|page|pages|top|no|number|question|article|'
@@ -98,14 +101,38 @@ def rubric_values(s: str) -> list[float]:
     return nums(t)
 
 
+def computed_values(output: str) -> list[float]:
+    """Numbers from the VALUE side of `label=value` lines only. Labels such as
+    'centers_10_29_beds' otherwise leak 10 and 29 into the comparison, both faking
+    matches and hiding all-zero (failed) recomputes."""
+    vals: list[float] = []
+    for line in output.splitlines():
+        rhs = line.rsplit("=", 1)[-1] if "=" in line else line
+        vals.extend(nums(rhs))
+    return vals
+
+
 def reproduced(expected: list[float], computed_out: str) -> list[float]:
     """Each expected number must appear (within 0.5% or ±1) in the computed output."""
-    got = nums(computed_out)
+    got = computed_values(computed_out)
     miss = []
     for e in expected:
         if not any(abs(e - g) <= max(1, abs(e) * 0.005) for g in got):
             miss.append(e)
     return miss
+
+
+def is_uninformative(computed: str, expected: list[float]) -> bool:
+    """A recompute that produced no usable value -- not a rubric defect. Covers nan/None
+    results and all-zero output while the rubric asserts non-zero values (the LLM code
+    found/parsed nothing and emitted zeros instead of the DATA_NOT_AVAILABLE sentinel)."""
+    low = computed.lower()
+    if "nan" in low or "none" in low or "null" in low:
+        return True
+    got = computed_values(computed)
+    if got and all(g == 0 for g in got) and any(e != 0 for e in expected):
+        return True
+    return False
 
 
 _PRELUDE = (
@@ -231,13 +258,15 @@ class ValueRecomputeChecker(Checker):
         # never saw -- so we stay silent. Data-gap detection is owned by GroundedRubricConsistencyChecker,
         # which distinguishes generated content from a true gap; emitting it here would only
         # duplicate and over-flag it.
+        expected = rubric_values(rubric)
         if (
             not computed
             or "DATA_NOT_AVAILABLE" in computed
             or any(m in computed for m in ("Error", "Traceback", "TIMEOUT"))
+            or is_uninformative(computed, expected)
         ):
             return
-        missing = reproduced(rubric_values(rubric), computed)
+        missing = reproduced(expected, computed)
         if missing:
             yield _violation(
                 item,
@@ -247,7 +276,7 @@ class ValueRecomputeChecker(Checker):
                 {
                     "rubric_index": index,
                     "rubric": rubric,
-                    "expected_values": rubric_values(rubric),
+                    "expected_values": expected,
                     "missing_values": missing,
                     "computed_output": computed[:200],
                     "code": code,

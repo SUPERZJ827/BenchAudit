@@ -5,7 +5,9 @@ from pathlib import Path
 from benchcore.schema import BenchmarkItem
 from benchcore.value_recompute import (
     ValueRecomputeChecker,
+    computed_values,
     input_file_paths,
+    is_uninformative,
     reproduced,
     run_code,
 )
@@ -27,6 +29,19 @@ class ReproducedTest(unittest.TestCase):
         self.assertEqual(reproduced([15102.0], "n=15,102"), [])       # thousands separator
         self.assertEqual(reproduced([300.0], "total=299"), [])        # within ±1 tolerance
         self.assertEqual(reproduced([350.0], "total=299"), [350.0])   # real mismatch
+
+    def test_ignores_numbers_in_labels(self):
+        # 'centers_10_29_beds' must not leak 10/29 into the comparison
+        self.assertEqual(reproduced([3640.0], "centers_10_29_beds=0"), [3640.0])
+        self.assertEqual(computed_values("a_1_9=0\nb_10_29=0"), [0.0, 0.0])
+
+
+class IsUninformativeTest(unittest.TestCase):
+    def test_nan_and_all_zero_are_uninformative(self):
+        self.assertTrue(is_uninformative("top1=nan", [3200.0]))
+        self.assertTrue(is_uninformative("a=0\nb=0", [3640.0, 611.0]))   # failed recompute
+        self.assertFalse(is_uninformative("count=27", [27.0]))
+        self.assertFalse(is_uninformative("errors=0", [0.0]))            # genuine zero result
 
 
 class InputFilePathsTest(unittest.TestCase):
