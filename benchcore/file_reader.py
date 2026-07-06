@@ -110,7 +110,8 @@ def search_file(path, terms: list[str], max_pages: int = 200) -> dict:
     except Exception as e:
         return {"_error": str(e)}
     out = {}
+    low = text.lower()
     for t in terms:
-        idx = text.find(t)
+        idx = low.find(t.lower())  # case-insensitive: 'purchase order' must match 'Purchase Order'
         out[t] = text[max(0, idx - 40): idx + 60].replace("\n", " ") if idx >= 0 else None
     return out

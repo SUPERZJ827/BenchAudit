@@ -58,6 +58,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "major",
         "Task references external context that is not present.",
     ),
+    "artifact_data_gap": DefectInfo(
+        "context_attachment",
+        "missing",
+        "artifact_data_gap",
+        "major",
+        "Task, rubric, evaluator, or reference requires data absent from the provided artifacts.",
+    ),
     "inaccessible_attachment": DefectInfo(
         "context_attachment",
         "unavailable",
@@ -198,6 +205,20 @@ DEFECTS: dict[str, DefectInfo] = {
         "major",
         "The output contract and evaluator type are inconsistent.",
     ),
+    "task_rubric_mismatch": DefectInfo(
+        "evaluator",
+        "inconsistent",
+        "task_rubric_mismatch",
+        "major",
+        "Rubric or evaluator checks requirements not supported by the task specification.",
+    ),
+    "reference_task_mismatch": DefectInfo(
+        "oracle_ground_truth",
+        "inconsistent",
+        "reference_task_mismatch",
+        "major",
+        "Reference solution or gold artifact appears misaligned with the task specification.",
+    ),
     "duplicate_item_id": DefectInfo(
         "task_specification",
         "inconsistent",
@@ -211,6 +232,20 @@ DEFECTS: dict[str, DefectInfo] = {
         "duplicate_task",
         "review",
         "Multiple benchmark records contain the same normalized task.",
+    ),
+    "solution_leak": DefectInfo(
+        "task_specification",
+        "leaky",
+        "solution_leak",
+        "major",
+        "The visible task statement directly exposes solution or repair content.",
+    ),
+    "hints_only_solution_leak": DefectInfo(
+        "context_attachment",
+        "leaky",
+        "hints_only_solution_leak",
+        "review",
+        "Solution or repair content appears only in non-visible hints or comments.",
     ),
     "conflicting_duplicate_oracle": DefectInfo(
         "oracle_ground_truth",
