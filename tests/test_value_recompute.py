@@ -5,8 +5,9 @@ from pathlib import Path
 from benchcore.schema import BenchmarkItem
 from benchcore.value_recompute import (
     ValueRecomputeChecker,
+    input_file_paths,
     reproduced,
-    tabular_input_paths,
+    run_code,
 )
 
 
@@ -28,18 +29,31 @@ class ReproducedTest(unittest.TestCase):
         self.assertEqual(reproduced([350.0], "total=299"), [350.0])   # real mismatch
 
 
-class TabularInputPathsTest(unittest.TestCase):
-    def test_keeps_only_existing_tabular_files(self):
+class InputFilePathsTest(unittest.TestCase):
+    def test_keeps_all_existing_files_drops_missing(self):
+        # non-tabular inputs are kept too -- the recompute reads them via read_file.
         with tempfile.TemporaryDirectory() as d:
             csv = Path(d) / "data.csv"
             csv.write_text("a,b\n1,2\n", encoding="utf-8")
+            txt = Path(d) / "notes.txt"
+            txt.write_text("hello", encoding="utf-8")
             item = BenchmarkItem(
                 item_id="t",
                 raw={},
-                context={"files": [str(csv), str(Path(d) / "missing.csv"), "notes.txt"]},
+                context={"files": [str(csv), str(txt), str(Path(d) / "missing.csv")]},
             )
-            paths = tabular_input_paths(item, root=None)
-            self.assertEqual([p.name for p in paths], ["data.csv"])
+            paths = input_file_paths(item, root=None)
+            self.assertEqual(sorted(p.name for p in paths), ["data.csv", "notes.txt"])
+
+
+class RunCodeTest(unittest.TestCase):
+    def test_generated_code_can_read_non_tabular_via_read_file(self):
+        # run_code preloads read_file so recompute can pull numbers from text inputs.
+        with tempfile.TemporaryDirectory() as d:
+            txt = Path(d) / "report.txt"
+            txt.write_text("negative-variance items: 8\n", encoding="utf-8")
+            out = run_code(f"t = read_file({str(txt)!r}, 20000)\nprint('has8=' + str('8' in t))")
+            self.assertIn("has8=True", out)
 
 
 class ValueRecomputeCheckerTest(unittest.TestCase):
