@@ -50,6 +50,38 @@ def nums(s):
     return [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*\.?\d*", s.replace(",", ""))]
 
 
+def rubric_values(s):
+    """Extract only the SUBSTANTIVE numeric claims from a rubric, dropping the numbers
+    that are identifiers / indices / years / filename digits / THRESHOLDS -- nums() treats
+    those as 'expected values' and produces false B2 mismatches (Partner 3, item 14, PO
+    #1013, SR-021, DES-06, year 2024, '4-financial-table.xlsx', the '50' in 'discount
+    >=50%'). Keeps real counts/sums/figures."""
+    t = s
+    t = re.sub(r'\b[\w\-./]+\.(?:xlsx|xls|csv|txt|docx?|pdf|md|py|json|pptx?|png|html?)\b', ' ', t, flags=re.I)  # filenames
+    # inequality / threshold numbers ('>=50%', 'at least 3', 'top 10%') are FILTER conditions,
+    # not asserted results -- a recompute reproduces the asserted value, never the threshold.
+    t = re.sub(r'(?:≥|≤|>=|<=|>|<|至少|至多|不少于|不超过|不低于|不高于|大于|小于|超过|低于|高于|'
+               r'at least|at most|no (?:less|more) than|not (?:less|more) than|greater than|'
+               r'less than|more than|over|above|below|up to|within|between)\s*[¥$]?\s*\d[\d,]*\.?\d*\s*%?',
+               ' ', t, flags=re.I)
+    t = re.sub(r'\b\d[\d,]*\.?\d*\s*%?\s*(?:-|to|~|–|—|至|到)\s*\d[\d,]*\.?\d*\s*%', ' ', t)  # ranges '35%-45%'
+    t = re.sub(r'\b[A-Za-z]{1,}[-_]?\d[\w-]*', ' ', t)      # SR-021, DES-06, DEV-0108, PO-2024-019, W42, P4, A4
+    t = re.sub(r'#\s*\d+', ' ', t)                          # #1013
+    t = re.sub(r'\b(?:item|items|partner|chapter|page|pages|top|no|number|question|article|'
+               r'figure|fig|table|slide|part|day|days|month|months|week|weeks|step|point|'
+               r'grades?|level|priority|section|row|column|col|q|dev|proj)\.?\s*#?\s*\d+',
+               ' ', t, flags=re.I)                          # ordinal/index words + number
+    t = re.sub(r'第\s*\d+\s*(?:个|条|项|章|页|位|名|列|行|款|季度|周|天|月)?', ' ', t)
+    t = re.sub(r'序号\s*\d+', ' ', t)
+    # Chinese calendar tokens: '2024年' (the English \b year rule fails before 年, a word char),
+    # month/day indices '1月' '01月' '15日' -- calendar references, never asserted results.
+    # '12个月' (a duration) keeps its number: the 个 blocks the N月 match.
+    t = re.sub(r'(?:19|20)\d{2}\s*年', ' ', t)
+    t = re.sub(r'\d{1,2}\s*[月日号]', ' ', t)
+    t = re.sub(r'\b(?:19|20)\d{2}\b', ' ', t)               # standalone years
+    return nums(t)
+
+
 def reproduced(expected, computed_out):
     """Each expected number must appear (within 0.5% or ±1) in the computed output."""
     got = nums(computed_out)
@@ -74,7 +106,10 @@ def main():
     cfg.cache_path = "reports/output_l1_cache.jsonl"
     client = LLMClient(cfg)
 
-    numeric = [r for r in rubrics if re.search(r"\d", r) and not re.search(r"工作表|文件名|sheet|命名|包含名为|格式", r)]
+    # only rubrics that ASSERT a substantive numeric value are recomputable; rubric_values()
+    # drops identifiers/thresholds/years/filenames so those never trigger a B2 recompute.
+    numeric = [r for r in rubrics
+               if rubric_values(r) and not re.search(r"工作表|文件名|sheet|命名|包含名为|格式", r)]
     print(f"{name}: {len(inputs)} 输入文件, 核验 {len(numeric)} 条数值 rubric\n")
     tally = {"✅一致": 0, "🔴不符": 0, "🔴数据缺失": 0, "⚠️无法核验": 0}
     out = []
@@ -85,7 +120,7 @@ def main():
         except Exception as e:
             code = ""
         comp = run_code(code) if "print" in code else ""
-        exp = nums(r)
+        exp = rubric_values(r)
         if "DATA_NOT_AVAILABLE" in comp:
             verdict = "🔴数据缺失"
         elif not comp or "Error" in comp or "Traceback" in comp or "TIMEOUT" in comp:
