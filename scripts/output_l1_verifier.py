@@ -9,7 +9,7 @@ Reuses the DeepSeek client; reads inputs via file_reader for the structure previ
 """
 from __future__ import annotations
 
-import importlib.util, json, re, subprocess, sys, tempfile
+import importlib.util, json, re, sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -18,6 +18,9 @@ _spec = importlib.util.spec_from_file_location("rdv", REPO / "scripts" / "rubric
 rdv = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(rdv)
 from benchcore.file_reader import read_file
 from benchcore.llm_client import LLMClient, load_llm_config
+# single source of truth: the recompute primitives now live in the package so the
+# ValueRecomputeChecker and this standalone driver cannot drift apart.
+from benchcore.value_recompute import nums, reproduced, rubric_values, run_code
 
 PROMPT = """Write Python (pandas as pd) that RE-COMPUTES, from the input files, the
 quantities the rubric asserts, and prints each as `label=value`. Read files by the
@@ -33,63 +36,7 @@ INPUT FILES (absolute paths + structure preview):
 RUBRIC: {rubric}"""
 
 
-def run_code(code: str, timeout=15):
-    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-        f.write("import pandas as pd, numpy as np, warnings\nwarnings.filterwarnings('ignore')\n" + code)
-        p = f.name
-    try:
-        r = subprocess.run([sys.executable, p], capture_output=True, text=True, timeout=timeout)
-        return (r.stdout or "").strip() or (r.stderr or "")[-200:]
-    except subprocess.TimeoutExpired:
-        return "TIMEOUT"
-    finally:
-        Path(p).unlink(missing_ok=True)
-
-
-def nums(s):
-    return [float(x.replace(",", "")) for x in re.findall(r"\d[\d,]*\.?\d*", s.replace(",", ""))]
-
-
-def rubric_values(s):
-    """Extract only the SUBSTANTIVE numeric claims from a rubric, dropping the numbers
-    that are identifiers / indices / years / filename digits / THRESHOLDS -- nums() treats
-    those as 'expected values' and produces false B2 mismatches (Partner 3, item 14, PO
-    #1013, SR-021, DES-06, year 2024, '4-financial-table.xlsx', the '50' in 'discount
-    >=50%'). Keeps real counts/sums/figures."""
-    t = s
-    t = re.sub(r'\b[\w\-./]+\.(?:xlsx|xls|csv|txt|docx?|pdf|md|py|json|pptx?|png|html?)\b', ' ', t, flags=re.I)  # filenames
-    # inequality / threshold numbers ('>=50%', 'at least 3', 'top 10%') are FILTER conditions,
-    # not asserted results -- a recompute reproduces the asserted value, never the threshold.
-    t = re.sub(r'(?:≥|≤|>=|<=|>|<|至少|至多|不少于|不超过|不低于|不高于|大于|小于|超过|低于|高于|'
-               r'at least|at most|no (?:less|more) than|not (?:less|more) than|greater than|'
-               r'less than|more than|over|above|below|up to|within|between)\s*[¥$]?\s*\d[\d,]*\.?\d*\s*%?',
-               ' ', t, flags=re.I)
-    t = re.sub(r'\b\d[\d,]*\.?\d*\s*%?\s*(?:-|to|~|–|—|至|到)\s*\d[\d,]*\.?\d*\s*%', ' ', t)  # ranges '35%-45%'
-    t = re.sub(r'\b[A-Za-z]{1,}[-_]?\d[\w-]*', ' ', t)      # SR-021, DES-06, DEV-0108, PO-2024-019, W42, P4, A4
-    t = re.sub(r'#\s*\d+', ' ', t)                          # #1013
-    t = re.sub(r'\b(?:item|items|partner|chapter|page|pages|top|no|number|question|article|'
-               r'figure|fig|table|slide|part|day|days|month|months|week|weeks|step|point|'
-               r'grades?|level|priority|section|row|column|col|q|dev|proj)\.?\s*#?\s*\d+',
-               ' ', t, flags=re.I)                          # ordinal/index words + number
-    t = re.sub(r'第\s*\d+\s*(?:个|条|项|章|页|位|名|列|行|款|季度|周|天|月)?', ' ', t)
-    t = re.sub(r'序号\s*\d+', ' ', t)
-    # Chinese calendar tokens: '2024年' (the English \b year rule fails before 年, a word char),
-    # month/day indices '1月' '01月' '15日' -- calendar references, never asserted results.
-    # '12个月' (a duration) keeps its number: the 个 blocks the N月 match.
-    t = re.sub(r'(?:19|20)\d{2}\s*年', ' ', t)
-    t = re.sub(r'\d{1,2}\s*[月日号]', ' ', t)
-    t = re.sub(r'\b(?:19|20)\d{2}\b', ' ', t)               # standalone years
-    return nums(t)
-
-
-def reproduced(expected, computed_out):
-    """Each expected number must appear (within 0.5% or ±1) in the computed output."""
-    got = nums(computed_out)
-    miss = []
-    for e in expected:
-        if not any(abs(e - g) <= max(1, abs(e) * 0.005) for g in got):
-            miss.append(e)
-    return miss
+# nums / rubric_values / reproduced / run_code are imported from benchcore.value_recompute.
 
 
 def main():
