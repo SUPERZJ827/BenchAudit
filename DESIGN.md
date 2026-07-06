@@ -29,6 +29,7 @@ benchcore/
   loader.py          JSONL / JSON / CSV 加载
   llm_client.py      OpenAI-compatible LLM API client
   llm_auditor.py     通用 LLM semantic auditor
+  artifact_consistency.py 通用 task/context/reference/evaluator 一致性与 grounded rubric 审计器
   auditor.py         checker 调度、并行执行和跨审计器证据融合
   methods.py         replay / metamorphic / mutation / dataset checks
   field_mapping.py   自动字段映射
@@ -36,6 +37,7 @@ benchcore/
   taxonomy.py        artifact + mechanism + defect_type 分类
   evaluators.py      简单 evaluator 和 answer normalization
   checkers.py        核心 artifact 检查器
+  swe_leak.py        代码 benchmark 的 solution leakage 审计器
   auditor.py         运行所有 checker
   report.py          JSON / Markdown 报告输出
 ```
@@ -59,6 +61,8 @@ DifferentialCandidateChecker
 DuplicateConflictChecker
 SchemaDriftChecker
 TaskIntegrityChecker
+SolutionLeakChecker（可选，面向含 patch/problem_statement 的代码 benchmark）
+CrossArtifactConsistencyChecker（可选，LLM 二级审计 task/context/reference/evaluator 是否互相一致）
 ```
 
 它们现在主要做高泛化、低成本的检查：
@@ -79,6 +83,8 @@ TaskIntegrityChecker
 - 引用未指明的研究、报告或比较来源；
 - 明显截断的任务指令；
 - mojibake、电子表格日期转换等展示损坏。
+- gold patch 新增修复代码是否泄漏到可见 problem_statement（SWE-bench / 代码 benchmark 专项）。
+- task、context/input、reference/gold、rubric/evaluator 之间是否存在数据缺口、任务-rubric 不一致、reference-task 不一致（可选 LLM 二级审计）。
 
 ## 3.1 通用 Adapter 原则
 
@@ -186,11 +192,102 @@ python -m benchcore.cli audit \
   --print-summary
 ```
 
+代码 benchmark solution leakage 审计：
+
+```bash
+python scripts/export_swebench_jsonl.py \
+  --suite both \
+  --out-dir datasets/swebench
+
+python -m benchcore.cli audit \
+  datasets/swebench/lite.jsonl \
+  --profile swebench \
+  --out reports/swe_leak_audit.json \
+  --md reports/swe_leak_audit.md \
+  --print-summary
+```
+
+带 LLM 二级确认：
+
+```bash
+python -m benchcore.cli audit \
+  datasets/swebench/lite.jsonl \
+  --profile swebench \
+  --swe-leak-llm-confirm \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/llm_cache.jsonl \
+  --out reports/swe_leak_audit_confirmed.json \
+  --md reports/swe_leak_audit_confirmed.md \
+  --print-summary
+```
+
+通用 cross-artifact consistency 审计：
+
+```bash
+python -m benchcore.cli audit \
+  /path/to/benchmark.jsonl \
+  --cross-artifact-audit \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/cross_artifact_cache.jsonl \
+  --out reports/cross_artifact_audit.json \
+  --md reports/cross_artifact_audit.md \
+  --print-summary
+```
+
+通用 grounded-rubric 审计（Workspace-Bench B1/B5 迁移版）：
+
+```bash
+python -m benchcore.cli audit \
+  /path/to/benchmark.jsonl \
+  --profile workspacebench \
+  --basic-only \
+  --grounded-rubric-audit \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/grounded_rubric_cache.jsonl \
+  --out reports/grounded_rubric_audit.json \
+  --md reports/grounded_rubric_audit.md \
+  --print-summary
+```
+
+该 checker 将每条 rubric 拆开审计：数据型 rubric 检查其所需 source data 是否存在于输入/context 中；结构型 rubric 检查文件名、sheet 名、章节、格式等要求是否被 task 明确支持。输出统一落到 `artifact_data_gap` 和 `task_rubric_mismatch`，默认作为 review signal。
+
+B2 数值重算审计（`--value-recompute-audit`）：
+
+```bash
+python -m benchcore.cli audit \
+  /path/to/benchmark.jsonl \
+  --profile workspacebench \
+  --basic-only \
+  --value-recompute-audit \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/value_recompute_cache.jsonl \
+  --out reports/value_recompute_audit.json \
+  --md reports/value_recompute_audit.md \
+  --print-summary
+```
+
+对每条**断言了实质数值**的 rubric（`rubric_values()` 过滤掉标识符/阈值/年份/文件名/月份序号后仍有数值），让 LLM 写 pandas 代码从表格输入（`.xlsx/.xls/.csv`）**独立重算**该值，执行后比对。只有当重算成功且与断言不符时才发 `wrong_gold_answer`（review signal）；重算不可运行或报 `DATA_NOT_AVAILABLE`（所需数据常在非表格输入里）一律静默，data-gap 检测交给 grounded-rubric checker。
+
+⚠️ **安全**：该 checker 会用 `subprocess` **执行 LLM 生成的代码**、无沙箱，因此默认关闭、须显式 `--value-recompute-audit`，且**只应对可信数据启用**。
+
+Workspace-Bench HuggingFace 导出：
+
+```bash
+python scripts/export_workspacebench_jsonl.py \
+  --suite lite \
+  --limit 5 \
+  --download-inputs \
+  --out-dir datasets/workspacebench
+```
+
+`--download-inputs` 会下载每个任务的真实 `data/` 目录，并把完整文件清单、`size_bytes` 和可读文件内容交给 grounded-rubric checker；没有这个证据，data-gap 类候选容易被截断 context 误导。
+
 ## 5. 后续扩展点
 
 优先扩展：
 
-1. recommended mappings/scripts：MMLU-Redux、GSM8K-Platinum、ELT-Bench、LiveSQLBench/BIRD；
+1. benchmark-family adapters：SWE-bench、Workspace-Bench、MMLU-Redux、GSM8K-Platinum、ELT-Bench、LiveSQLBench/BIRD；
 2. execution consistency：验证合理替代解是否被 evaluator 误杀；
 3. mutation testing：验证 evaluator 是否过松；
-4. supervised comparison：如果输入里有人类 defect label，计算 precision/recall。
+4. benchmark-family grounding strategies：继续把 Workspace-Bench 的 B2、代码 benchmark 的 task/patch/test consistency 接到统一输出；
+5. supervised comparison：如果输入里有人类 defect label，计算 precision/recall。

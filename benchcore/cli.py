@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from .adapter import canonicalize_rows, write_canonical_jsonl
+from .artifact_consistency import CrossArtifactConsistencyChecker, GroundedRubricConsistencyChecker
 from .auditor import audit_items
 from .comparison import compare_report, write_comparison_markdown
 from .loader import build_items, load_mapping, load_rows
@@ -32,6 +33,8 @@ from .sampling import (
     write_jsonl,
     write_manifest,
 )
+from .swe_leak import SolutionLeakChecker
+from .value_recompute import ValueRecomputeChecker
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,6 +43,12 @@ def main(argv: list[str] | None = None) -> int:
 
     audit_parser = subparsers.add_parser("audit", help="Audit a benchmark JSONL/JSON/CSV file")
     audit_parser.add_argument("input", help="Input benchmark file (.jsonl, .json, .csv)")
+    audit_parser.add_argument(
+        "--profile",
+        choices=("generic", "swebench", "workspacebench"),
+        default="generic",
+        help="Benchmark-family profile controlling the default checker set",
+    )
     audit_parser.add_argument("--mapping", help="Optional field mapping JSON")
     audit_parser.add_argument("--root", help="Root directory for relative attachments")
     audit_parser.add_argument("--limit", type=int, help="Only audit the first N rows after offset")
@@ -71,6 +80,31 @@ def main(argv: list[str] | None = None) -> int:
     audit_parser.add_argument("--llm-dry-run", action="store_true", help="Do not call API; emit dry-run uncertain outputs")
     audit_parser.add_argument("--llm-confirm-threshold", type=float, default=0.75)
     audit_parser.add_argument("--llm-review-threshold", type=float, default=0.45)
+    audit_parser.add_argument(
+        "--swe-leak-audit",
+        action="store_true",
+        help="Enable code benchmark solution-leak auditing for patch/problem_statement fields",
+    )
+    audit_parser.add_argument(
+        "--swe-leak-llm-confirm",
+        action="store_true",
+        help="Use LLM semantic confirmation for solution-leak candidates",
+    )
+    audit_parser.add_argument(
+        "--cross-artifact-audit",
+        action="store_true",
+        help="Enable LLM cross-artifact consistency audit over task/context/reference/evaluator",
+    )
+    audit_parser.add_argument(
+        "--value-recompute-audit",
+        action="store_true",
+        help="Recompute numeric rubric values from tabular inputs (EXECUTES LLM-generated code; trusted data only)",
+    )
+    audit_parser.add_argument(
+        "--grounded-rubric-audit",
+        action="store_true",
+        help="Enable grounded rubric checks against task text and provided context artifacts",
+    )
     audit_parser.add_argument("--basic-only", action="store_true", help="Disable replay/metamorphic/mutation/dataset methods")
     audit_parser.add_argument(
         "--progress-every",
@@ -150,18 +184,23 @@ def run_audit(args: argparse.Namespace) -> int:
     root = Path(args.root) if args.root else input_path.parent
     from .checkers import DEFAULT_CHECKERS
 
-    checkers = list(DEFAULT_CHECKERS)
+    checkers = [] if args.profile == "swebench" else list(DEFAULT_CHECKERS)
+    if args.profile == "workspacebench":
+        checkers = [checker for checker in checkers if checker.name != "oracle_ground_truth"]
     dataset_checkers = []
-    if not args.basic_only:
+    if args.profile != "swebench" and not args.basic_only:
         checkers.extend(DEFAULT_METHOD_CHECKERS)
         dataset_checkers.extend(DEFAULT_DATASET_CHECKERS)
+    client = None
+    if (
+        args.llm_audit
+        or args.swe_leak_llm_confirm
+        or args.cross_artifact_audit
+        or args.grounded_rubric_audit
+        or args.value_recompute_audit
+    ):
+        client = build_llm_client(args)
     if args.llm_audit:
-        config = load_llm_config(args.llm_config)
-        if args.llm_cache:
-            config.cache_path = args.llm_cache
-        if args.llm_dry_run:
-            config.dry_run = True
-        client = LLMClient(config)
         auditor_types = {
             "direct": DirectLLMAuditor,
             "event": EventStateLLMAuditor,
@@ -198,6 +237,28 @@ def run_audit(args: argparse.Namespace) -> int:
                     review_threshold=args.llm_review_threshold,
                 )
             )
+    if args.profile == "swebench" or args.swe_leak_audit or args.swe_leak_llm_confirm:
+        checkers.append(
+            SolutionLeakChecker(
+                client if args.swe_leak_llm_confirm else None,
+            )
+        )
+    if args.cross_artifact_audit:
+        checkers.append(
+            CrossArtifactConsistencyChecker(
+                client,
+                review_threshold=args.llm_review_threshold,
+            )
+        )
+    if args.grounded_rubric_audit:
+        checkers.append(
+            GroundedRubricConsistencyChecker(
+                client,
+                review_threshold=args.llm_review_threshold,
+            )
+        )
+    if args.value_recompute_audit:
+        checkers.append(ValueRecomputeChecker(client))
     progress_callback = make_progress_callback(args.progress_every)
     violations = audit_items(
         items,
@@ -215,6 +276,15 @@ def run_audit(args: argparse.Namespace) -> int:
     if args.print_summary:
         print(json.dumps(report["summary"], indent=2, ensure_ascii=False))
     return 0
+
+
+def build_llm_client(args: argparse.Namespace) -> LLMClient:
+    config = load_llm_config(args.llm_config)
+    if args.llm_cache:
+        config.cache_path = args.llm_cache
+    if args.llm_dry_run:
+        config.dry_run = True
+    return LLMClient(config)
 
 
 def make_progress_callback(every: int):
