@@ -6,6 +6,7 @@ from benchcore.artifact_consistency import (
     GroundedRubricConsistencyChecker,
     REQUIRED_DATA_PROMPT,
     RubricOutputContractConsistencyChecker,
+    STRUCTURE_PROMPT,
     build_context_preview,
     extract_rubrics,
     full_context_text,
@@ -164,6 +165,21 @@ def test_true_output_structure_rubrics_still_route_to_structure_checker():
     assert is_structure_rubric("输出文件必须包含名为“数据说明”的工作表。")
 
 
+def test_structure_prompt_is_semantic_confirmation_stage():
+    prompt = STRUCTURE_PROMPT.format(
+        task="Generate an annual report analysis.",
+        context="The input contains revenue, risk, and R&D data.",
+        rubric="Does the report include an R&D analysis section?",
+    )
+
+    assert "POSSIBLE" in prompt
+    assert "semantic confirmation" in prompt
+    assert "Most candidates" in prompt
+    assert "should be rejected" in prompt
+    assert "normal oracle check" in prompt
+    assert "CONTEXT / INPUT ARTIFACTS" in prompt
+
+
 def test_cross_artifact_checker_maps_data_gap_to_violation():
     item = BenchmarkItem(
         item_id="gap",
@@ -319,6 +335,30 @@ def test_grounded_rubric_checker_flags_over_constrained_structure():
     assert violations[0].severity == "review"
     assert violations[0].review_only
     assert violations[0].evidence["grounding_check"] == "output_structure_vs_task"
+
+
+def test_grounded_rubric_checker_drops_low_confidence_structure_claim():
+    item = BenchmarkItem(
+        item_id="ground-structure-low-confidence",
+        raw={"rubrics": ["Is the report file saved in Markdown format?"]},
+        task="Generate an annual report analysis.",
+        context={"table": "columns: revenue, risk, R&D"},
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "defect": "over_constrained",
+                    "evidence": "Maybe the task did not mention Markdown.",
+                    "confidence": 0.2,
+                }
+            ]
+        ]
+    )
+
+    violations = list(GroundedRubricConsistencyChecker(client).check(item))
+
+    assert violations == []
 
 
 def test_static_contract_ignores_save_location_directory():

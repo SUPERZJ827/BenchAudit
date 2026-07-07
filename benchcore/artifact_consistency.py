@@ -144,11 +144,15 @@ RUBRIC:
 {rubric}
 """
 
-STRUCTURE_SYSTEM_PROMPT = """You verify whether an output-structure rubric is
-grounded in the task. Return only JSON."""
+STRUCTURE_SYSTEM_PROMPT = """You are the semantic confirmation stage for
+candidate rubric/task mismatch findings. Return only JSON."""
 
-STRUCTURE_PROMPT = """This rubric checks output structure, such as filename, sheet
-name, format, section name, directory, or layout. Judge it against the task.
+STRUCTURE_PROMPT = """A cheap code filter selected this rubric as a POSSIBLE
+rubric/task mismatch because it mentions structure, naming, format, a title, a
+directory, a file, a worksheet, or layout.
+
+Your job is semantic confirmation, not candidate generation. Most candidates
+should be rejected.
 
 Important: in benchmark rubrics, it is normal for the rubric to operationalize
 a broad task into concrete checks. Do NOT treat the following as over-constraint:
@@ -157,20 +161,31 @@ a broad task into concrete checks. Do NOT treat the following as over-constraint
   derived from the inputs;
 - checking whether the answer includes specific evidence-backed content, even
   if the task phrased the request broadly.
+- checking a generated report's substantive section/content coverage when the
+  task asks for a report, analysis, summary, manual, guide, or plan.
 
 Verdicts:
 - none: the task explicitly asks for this structure, or it is a harmless
-  operationalization.
+  operationalization / normal oracle check.
 - over_constrained: the task never asks for this exact structure, so a correct
   answer could fail only because of the rubric's extra arbitrary structure,
-  naming, formatting, or wording requirement.
+  naming, formatting, exact-title, or wording requirement.
 - task_mismatch: the structure contradicts the task's scope or requested output.
+
+Use over_constrained only when BOTH are true:
+1. the requirement is arbitrary and not grounded in the task, output contract, or
+   provided context; and
+2. a reasonable correct output could be incorrectly rejected solely because of
+   that extra structure/format/name/title requirement.
 
 Return ONLY JSON:
 {{"defect":"none|over_constrained|task_mismatch","evidence":"short quote/reason","confidence":0.0}}
 
 TASK:
 {task}
+
+CONTEXT / INPUT ARTIFACTS:
+{context}
 
 RUBRIC:
 {rubric}
@@ -377,7 +392,13 @@ class GroundedRubricConsistencyChecker(Checker):
             return []
         task = item.task or ""
         for index, rubric in enumerate(rubrics):
-            for violation in self._check_structure_rubric(item, index, rubric, task):
+            for violation in self._check_structure_rubric(
+                item,
+                index,
+                rubric,
+                task,
+                context_text,
+            ):
                 yield violation
             for violation in self._check_data_grounding(
                 item,
@@ -395,11 +416,13 @@ class GroundedRubricConsistencyChecker(Checker):
         index: int,
         rubric: str,
         task: str,
+        context_text: str,
     ) -> Iterable[Violation]:
         if not is_structure_rubric(rubric) or len(normalize_space(task)) < 8:
             return []
         prompt = STRUCTURE_PROMPT.format(
             task=preview(task, 1400),
+            context=preview(context_text, 2200),
             rubric=preview(rubric, 1000),
         )
         result = call_json_multi_majority(
@@ -412,7 +435,9 @@ class GroundedRubricConsistencyChecker(Checker):
         defect = result.get("majority")
         if defect not in {"over_constrained", "task_mismatch"}:
             return []
-        confidence = max(self.review_threshold, as_float(result.get("confidence"), 0.65))
+        confidence = as_float(result.get("confidence"), 0.0)
+        if confidence < self.review_threshold:
+            return []
         return [
             _violation(
                 item,
