@@ -222,6 +222,30 @@ def test_grounded_rubric_checker_flags_over_constrained_structure():
     assert violations[0].evidence["grounding_check"] == "output_structure_vs_task"
 
 
+def test_static_contract_ignores_save_location_directory():
+    # the directory is only where the named output file is saved; the file IS the contract,
+    # so it must not be flagged as a missing required output directory.
+    item = BenchmarkItem(
+        item_id="save-loc",
+        raw={},
+        task="Create `Inventory_Optimization_Report.txt` and save it in the folder under `/budget-management/`.",
+        output_contract={"type": "workspace_files", "required_files": ["Inventory_Optimization_Report.txt"]},
+    )
+    assert static_output_contract_issues(item) == []
+
+
+def test_static_contract_flags_directory_deliverable():
+    # here the deliverable itself is a new directory of copied files; contract wrongly names a file.
+    item = BenchmarkItem(
+        item_id="dir-deliverable",
+        raw={},
+        task="Copy the documents into a new directory named `project_kickoff_archive`.",
+        output_contract={"type": "workspace_files", "required_files": ["output.md"]},
+    )
+    issues = static_output_contract_issues(item)
+    assert [i["type"] for i in issues] == ["extra_output"]
+
+
 def test_rubric_output_contract_checker_flags_extra_required_output():
     item = BenchmarkItem(
         item_id="contract-extra",
