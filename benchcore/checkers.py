@@ -118,6 +118,9 @@ class Checker:
 class TaskSpecChecker(Checker):
     name = "task_specification"
 
+    def __init__(self, *, check_ambiguity: bool = True) -> None:
+        self.check_ambiguity = check_ambiguity
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         task = _text(item.task).strip()
         if not task:
@@ -143,6 +146,8 @@ class TaskSpecChecker(Checker):
                     {"reference_type": context_name, "task_excerpt": task[:240]},
                     repair=f"Attach the referenced {context_name} or remove the reference.",
                 )
+        if not self.check_ambiguity:
+            return
         for pattern in AMBIGUITY_PATTERNS:
             if pattern.search(task) and not any(k in item.metadata for k in ("source", "version", "date", "domain")):
                 yield _violation(

@@ -197,13 +197,16 @@ def run_audit(args: argparse.Namespace) -> int:
     if args.canonical_out:
         write_canonical_jsonl(args.canonical_out, canonicalize_rows(rows, mapping))
     root = Path(args.root) if args.root else input_path.parent
-    from .checkers import DEFAULT_CHECKERS, ContextChecker
+    from .checkers import DEFAULT_CHECKERS, ContextChecker, TaskSpecChecker
 
     checkers = [] if args.profile == "swebench" else list(DEFAULT_CHECKERS)
     if args.profile == "workspacebench":
         profile_checkers = []
         for checker in checkers:
             if checker.name == "oracle_ground_truth":
+                continue
+            if checker.name == "task_specification":
+                profile_checkers.append(TaskSpecChecker(check_ambiguity=False))
                 continue
             if checker.name == "context_attachment":
                 profile_checkers.append(ContextChecker(check_version_risk=False))
