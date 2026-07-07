@@ -9,18 +9,29 @@ how to interpret them.
 from __future__ import annotations
 
 import warnings
+from functools import lru_cache
 from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
 
 def _xlsx(path: Path, max_chars: int) -> str:
+    body = _xlsx_full_text(path)
+    return _head_tail(body, max_chars)
+
+
+def _xlsx_full_text(path: Path) -> str:
     import pandas as pd
     xl = pd.ExcelFile(path)
     out = [f"sheets={xl.sheet_names}"]
-    for sh in xl.sheet_names[:3]:
-        df = xl.parse(sh, header=None, nrows=12)
-        out.append(f"-- sheet '{sh}' --\n" + df.to_string(max_colwidth=12)[: max_chars // 2])
+    for sh in xl.sheet_names:
+        df = xl.parse(sh, header=None)
+        out.append(f"-- sheet '{sh}' shape={df.shape} --")
+        clean = df.fillna("").astype(str)
+        for row in clean.itertuples(index=False, name=None):
+            line = "\t".join(cell.strip() for cell in row if cell.strip())
+            if line:
+                out.append(line)
     return "\n".join(out)
 
 
@@ -53,11 +64,18 @@ def _pdf(path: Path, max_chars: int, max_pages: int = 8) -> str:
     import pdfplumber
     with pdfplumber.open(str(path)) as pdf:
         n = len(pdf.pages)
+        head = list(range(min(n, max_pages)))
+        tail = list(range(max(0, n - 2), n)) if n > max_pages else []
+        indices = sorted(set(head + tail))
         txt = []
-        for pg in pdf.pages[:max_pages]:
-            txt.append(pg.extract_text() or "")
+        for idx in indices:
+            txt.append(f"[page {idx + 1}]\n{pdf.pages[idx].extract_text() or ''}")
         body = "\n".join(txt)
-    return f"({n}-page PDF, showing first {min(n, max_pages)} pages)\n" + body[:max_chars]
+    truncated = n > len(indices)
+    return (
+        f"({n}-page PDF, preview_pages={[i + 1 for i in indices]}, truncated={str(truncated).lower()})\n"
+        + _head_tail(body, max_chars)
+    )
 
 
 def _head_tail(text: str, max_chars: int) -> str:
@@ -98,25 +116,32 @@ def read_file(path, max_chars: int = 3000) -> str:
         return f"FILE {path.name} [{ext}] (读取失败: {e})"
 
 
-def search_file(path, terms: list[str], max_pages: int = 200) -> dict:
+@lru_cache(maxsize=256)
+def _searchable_text(path_str: str, max_pages: int | None = None) -> str:
+    path = Path(path_str)
+    ext = path.suffix.lower()
+    if ext == ".pdf":
+        import pdfplumber
+        with pdfplumber.open(str(path)) as pdf:
+            pages = pdf.pages if max_pages is None else pdf.pages[:max_pages]
+            return "\n".join((p.extract_text() or "") for p in pages)
+    if ext in (".xlsx", ".xls"):
+        return _xlsx_full_text(path)
+    if ext in (".docx", ".doc"):
+        from docx import Document
+        return "\n".join(p.text for p in Document(str(path)).paragraphs)
+    return read_file(path, 200000)
+
+
+def search_file(path, terms: list[str], max_pages: int | None = None) -> dict:
     """Search a (large) file's full text for terms; returns term -> found context.
 
     Lets value-rubric verification locate specific figures in big documents
     (e.g. a 193-page annual report) without sending the whole file to an LLM.
     """
     path = Path(path)
-    ext = path.suffix.lower()
-    text = ""
     try:
-        if ext == ".pdf":
-            import pdfplumber
-            with pdfplumber.open(str(path)) as pdf:
-                text = "\n".join((p.extract_text() or "") for p in pdf.pages[:max_pages])
-        elif ext in (".docx", ".doc"):
-            from docx import Document
-            text = "\n".join(p.text for p in Document(str(path)).paragraphs)
-        else:
-            text = read_file(path, 200000)
+        text = _searchable_text(str(path), max_pages)
     except Exception as e:
         return {"_error": str(e)}
     out = {}

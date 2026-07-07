@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from benchcore.file_reader import read_file
+import pandas as pd
+
+from benchcore.file_reader import read_file, search_file
 
 
 def test_plain_reader_keeps_head_and_tail_for_long_files(tmp_path: Path):
@@ -15,3 +17,22 @@ def test_plain_reader_keeps_head_and_tail_for_long_files(tmp_path: Path):
     assert "important opening" in text
     assert "middle truncated" in text
     assert "emergency mutual aid agreement" in text
+
+
+def test_xlsx_reader_and_search_cover_rows_beyond_preview_head(tmp_path: Path):
+    path = tmp_path / "annual.xlsx"
+    df = pd.DataFrame(
+        {
+            "company": [f"company-{i}" for i in range(200)] + ["山东凯马汽车"],
+            "net_profit": [i for i in range(200)] + [-8343],
+        }
+    )
+    df.to_excel(path, index=False)
+
+    preview = read_file(path, 600)
+    hits = search_file(path, ["山东凯马汽车", "-8343"])
+
+    assert "middle truncated" in preview
+    assert "山东凯马汽车" in preview
+    assert hits["山东凯马汽车"] is not None
+    assert hits["-8343"] is not None
