@@ -112,6 +112,8 @@ def test_data_grounding_prompts_require_semantic_matching():
     assert "aid vs assistance" in grounding_prompt
     assert "dismissed vs dissolved" in grounding_prompt
     assert "enumeration" in grounding_prompt
+    assert "unverified_due_to_read_limit" in grounding_prompt
+    assert "targeted full-file search" in grounding_prompt
 
 
 def test_targeted_search_context_finds_mid_file_semantic_evidence(tmp_path: Path):
@@ -138,6 +140,29 @@ def test_targeted_search_context_finds_mid_file_semantic_evidence(tmp_path: Path
 
     assert "manual.txt" in snippets
     assert "emergency mutual aid agreement" in snippets
+
+
+def test_targeted_search_context_uses_rubric_numbers(tmp_path: Path):
+    path = tmp_path / "report.txt"
+    path.write_text(
+        "R&D expenses increased by 74.58% year-on-year.",
+        encoding="utf-8",
+    )
+    item = BenchmarkItem(
+        item_id="ctx-numeric-targeted",
+        raw={},
+        task="Task",
+        context={"files": ["report.txt"]},
+    )
+
+    snippets = targeted_search_context(
+        item,
+        tmp_path,
+        ["R&D expense growth percentages"],
+        rubric="Whether R&D expenses increased by 74.58% year-on-year.",
+    )
+
+    assert "74.58" in snippets
 
 
 def test_report_content_rubrics_are_not_structure_overconstraints():

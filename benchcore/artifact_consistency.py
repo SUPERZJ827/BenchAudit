@@ -120,8 +120,12 @@ Verdicts:
   another field, as an enumerated list, or is computable from provided data.
 - generated_content: the rubric checks content the agent should produce from
   judgment or writing, so absence from input data is expected.
+- unverified_due_to_read_limit: the relevant files are truncated, unreadable,
+  encrypted, image-only, or otherwise not sufficiently searchable, so absence
+  cannot be concluded from the visible preview.
 - not_in_inputs: a source field/category/entity required by the rubric is absent
-  from every provided artifact and cannot be derived.
+  from every provided artifact and cannot be derived after considering the
+  targeted full-file search snippets.
 
 Use generated_content when the task itself asks the agent to infer, design,
 define, assign, summarize, or recommend the missing content (for example role
@@ -132,7 +136,7 @@ Do not call not_in_inputs solely because the rubric uses a different word than
 the source files. If the concept is semantically present, use present_or_derivable.
 
 Return ONLY JSON:
-{{"verdict":"present_or_derivable|generated_content|not_in_inputs","reason":"one sentence","confidence":0.0}}
+{{"verdict":"present_or_derivable|generated_content|unverified_due_to_read_limit|not_in_inputs","reason":"one sentence","confidence":0.0}}
 
 TASK:
 {task}
@@ -512,7 +516,7 @@ class GroundedRubricConsistencyChecker(Checker):
         if not missing:
             return []
 
-        focused_context = append_targeted_search_context(item, root, context_text, missing)
+        focused_context = append_targeted_search_context(item, root, context_text, missing, rubric)
         verify_prompt = DATA_GROUNDING_PROMPT.format(
             missing=", ".join(missing),
             task=preview(task or "(missing task)", 1200),
@@ -1066,10 +1070,11 @@ def append_targeted_search_context(
     root: Path | None,
     context_text: str,
     missing_terms: list[str],
+    rubric: str = "",
     *,
     max_chars: int = 4000,
 ) -> str:
-    snippets = targeted_search_context(item, root, missing_terms, max_chars=max_chars)
+    snippets = targeted_search_context(item, root, missing_terms, rubric=rubric, max_chars=max_chars)
     if not snippets:
         return context_text
     return (
@@ -1083,15 +1088,19 @@ def targeted_search_context(
     item: BenchmarkItem,
     root: Path | None,
     missing_terms: list[str],
+    rubric: str = "",
     *,
     max_chars: int = 4000,
 ) -> str:
-    terms = search_terms_from_required(missing_terms)
+    terms = search_terms_from_required(missing_terms, rubric=rubric)
     if not terms:
         return ""
     chunks: list[str] = []
     for path in context_file_paths(item, root):
         results = search_file(path, terms)
+        if results.get("_error"):
+            chunks.append(f"FILE {path.name}\n- search_error: {results['_error']}")
+            continue
         found = [(term, snippet) for term, snippet in results.items() if term != "_error" and snippet]
         if not found:
             continue
@@ -1161,12 +1170,21 @@ SEARCH_STOPWORDS = {
 }
 
 
-def search_terms_from_required(required_terms: list[str], max_terms: int = 48) -> list[str]:
+def search_terms_from_required(
+    required_terms: list[str],
+    *,
+    rubric: str = "",
+    max_terms: int = 64,
+) -> list[str]:
     terms: list[str] = []
-    for raw in required_terms:
+    for raw in [*required_terms, rubric]:
         phrase = normalize_space(str(raw).replace("_", " ").replace("-", " "))
         if len(phrase) >= 3:
             terms.append(phrase)
+        for number in re.findall(r"\b\d[\d,]*(?:\.\d+)?%?\b", phrase):
+            terms.append(number)
+            if number.endswith("%"):
+                terms.append(number[:-1])
         for token in re.findall(r"[A-Za-z][A-Za-z0-9]{3,}|[\u4e00-\u9fff]{2,}", phrase):
             low = token.lower()
             if low not in SEARCH_STOPWORDS:
