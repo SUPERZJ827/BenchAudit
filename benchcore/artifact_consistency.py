@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
-from .file_reader import read_file
+from .file_reader import read_file, search_file
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
@@ -76,7 +76,11 @@ Return only JSON."""
 
 REQUIRED_DATA_PROMPT = """Name the core SOURCE DATA dimensions, categories, columns,
 or fields this rubric needs to be present in the input/context artifacts to be
-verifiable. Use short terms in the same language as the rubric.
+verifiable. Use short natural-language phrases in the same language as the
+rubric or task.
+
+Prefer phrases that might actually appear in source files. Do not invent
+normalized labels, snake_case identifiers, or artificial taxonomy names.
 
 Do not include generic words such as count/total/number/data/name/status/file.
 Return [] if the rubric checks output formatting, filename, sheet name,
@@ -89,6 +93,9 @@ recommendations. Those are generated output requirements, not missing input data
 
 Return ONLY JSON: {{"required":["..."]}}
 
+TASK:
+{task}
+
 RUBRIC:
 {rubric}
 """
@@ -96,14 +103,21 @@ RUBRIC:
 DATA_GROUNDING_SYSTEM_PROMPT = """You verify whether a rubric's required source data
 is present or derivable from the provided benchmark context. Return only JSON."""
 
-DATA_GROUNDING_PROMPT = """A literal search did not find these required source-data terms:
+DATA_GROUNDING_PROMPT = """A lexical search did not find exact matches for these
+required source-data terms:
 {missing}
 
-Decide whether this is a real data gap.
+Decide whether this is a real data gap. The lexical miss above is weak evidence
+only. Before choosing not_in_inputs, actively check semantic equivalence:
+- synonyms, paraphrases, abbreviations, morphology, and translation variants
+  (e.g. aid vs assistance, dismissed vs dissolved);
+- facts listed as an enumeration rather than restated as a count or summary;
+- wording split across nearby sentences, filenames, headings, tables, or fields;
+- values computable from provided records.
 
 Verdicts:
 - present_or_derivable: the data exists under different wording, in filenames, in
-  another field, or is computable from provided data.
+  another field, as an enumerated list, or is computable from provided data.
 - generated_content: the rubric checks content the agent should produce from
   judgment or writing, so absence from input data is expected.
 - not_in_inputs: a source field/category/entity required by the rubric is absent
@@ -114,6 +128,8 @@ define, assign, summarize, or recommend the missing content (for example role
 permissions, responsibility boundaries, checklists, conclusions, or suggestions).
 Do not call that a data gap merely because the exact generated output wording is
 not present in the input files.
+Do not call not_in_inputs solely because the rubric uses a different word than
+the source files. If the concept is semantically present, use present_or_derivable.
 
 Return ONLY JSON:
 {{"verdict":"present_or_derivable|generated_content|not_in_inputs","reason":"one sentence","confidence":0.0}}
@@ -337,6 +353,7 @@ class GroundedRubricConsistencyChecker(Checker):
                 rubric,
                 task,
                 context_text,
+                root,
             ):
                 yield violation
 
@@ -392,10 +409,14 @@ class GroundedRubricConsistencyChecker(Checker):
         rubric: str,
         task: str,
         context_text: str,
+        root: Path | None,
     ) -> Iterable[Violation]:
         if is_structure_rubric(rubric) or not looks_data_bearing(rubric):
             return []
-        extract_prompt = REQUIRED_DATA_PROMPT.format(rubric=preview(rubric, 1200))
+        extract_prompt = REQUIRED_DATA_PROMPT.format(
+            task=preview(task or "(missing task)", 900),
+            rubric=preview(rubric, 1200),
+        )
         try:
             required_raw = self.client.chat_json(REQUIRED_DATA_SYSTEM_PROMPT, extract_prompt)
         except Exception as exc:  # noqa: BLE001 - preserve row-level failure
@@ -434,10 +455,11 @@ class GroundedRubricConsistencyChecker(Checker):
         if not missing:
             return []
 
+        focused_context = append_targeted_search_context(item, root, context_text, missing)
         verify_prompt = DATA_GROUNDING_PROMPT.format(
             missing=", ".join(missing),
             task=preview(task or "(missing task)", 1200),
-            context=preview(context_text, self.context_chars),
+            context=preview(focused_context, self.context_chars + 4000),
             rubric=preview(rubric, 1200),
         )
         result = call_json_multi_majority(
@@ -956,8 +978,14 @@ def resolve_path(value: str, root: Path | None) -> Path | None:
 
 def full_context_text(item: BenchmarkItem, root: Path | None, max_chars: int) -> str:
     chunks: list[str] = []
-    per_file_chars = max(1600, max_chars // max(len(context_pairs(item)) or 1, 1))
-    for label, value in context_pairs(item):
+    pairs = context_pairs(item)
+    entry_count = sum(len(value) if isinstance(value, list) else 1 for _label, value in pairs)
+    inventory_budget = max(0, max_chars // 5)
+    per_entry_chars = max(
+        250,
+        (max_chars - inventory_budget) // max(entry_count, 1) - 180,
+    )
+    for label, value in pairs:
         values = value if isinstance(value, list) else [value]
         inventory = file_inventory(values, root)
         if inventory:
@@ -969,11 +997,134 @@ def full_context_text(item: BenchmarkItem, root: Path | None, max_chars: int) ->
                     chunks.append(
                         f"[{label}#{index}: {entry}]\n"
                         f"{file_metadata(path)}\n"
-                        f"{read_file(path, per_file_chars)}"
+                        f"{read_file(path, per_entry_chars)}"
                     )
                     continue
-            chunks.append(f"[{label}#{index}]\n{preview(entry, per_file_chars)}")
+            chunks.append(f"[{label}#{index}]\n{preview(entry, per_entry_chars)}")
     return preview("\n\n".join(chunks), max_chars)
+
+
+def append_targeted_search_context(
+    item: BenchmarkItem,
+    root: Path | None,
+    context_text: str,
+    missing_terms: list[str],
+    *,
+    max_chars: int = 4000,
+) -> str:
+    snippets = targeted_search_context(item, root, missing_terms, max_chars=max_chars)
+    if not snippets:
+        return context_text
+    return (
+        context_text
+        + "\n\n[TARGETED FULL-FILE SEARCH SNIPPETS]\n"
+        + snippets
+    )
+
+
+def targeted_search_context(
+    item: BenchmarkItem,
+    root: Path | None,
+    missing_terms: list[str],
+    *,
+    max_chars: int = 4000,
+) -> str:
+    terms = search_terms_from_required(missing_terms)
+    if not terms:
+        return ""
+    chunks: list[str] = []
+    for path in context_file_paths(item, root):
+        results = search_file(path, terms)
+        found = [(term, snippet) for term, snippet in results.items() if term != "_error" and snippet]
+        if not found:
+            continue
+        lines = [f"FILE {path.name}"]
+        for term, snippet in found[:12]:
+            lines.append(f"- match `{term}`: {snippet}")
+        chunks.append("\n".join(lines))
+    return preview("\n\n".join(chunks), max_chars)
+
+
+def context_file_paths(item: BenchmarkItem, root: Path | None) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for _label, value in context_pairs(item):
+        values = value if isinstance(value, list) else [value]
+        for entry in values:
+            if not isinstance(entry, str):
+                continue
+            path = resolve_path(entry, root)
+            if path is None or not path.exists():
+                continue
+            key = str(path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            paths.append(path)
+    return paths
+
+
+SEARCH_STOPWORDS = {
+    "about",
+    "after",
+    "also",
+    "and",
+    "available",
+    "before",
+    "company",
+    "correctly",
+    "data",
+    "does",
+    "field",
+    "file",
+    "from",
+    "have",
+    "include",
+    "includes",
+    "input",
+    "into",
+    "list",
+    "listed",
+    "manual",
+    "must",
+    "output",
+    "provided",
+    "required",
+    "rubric",
+    "shall",
+    "should",
+    "source",
+    "that",
+    "the",
+    "their",
+    "these",
+    "this",
+    "those",
+    "with",
+}
+
+
+def search_terms_from_required(required_terms: list[str], max_terms: int = 48) -> list[str]:
+    terms: list[str] = []
+    for raw in required_terms:
+        phrase = normalize_space(str(raw).replace("_", " ").replace("-", " "))
+        if len(phrase) >= 3:
+            terms.append(phrase)
+        for token in re.findall(r"[A-Za-z][A-Za-z0-9]{3,}|[\u4e00-\u9fff]{2,}", phrase):
+            low = token.lower()
+            if low not in SEARCH_STOPWORDS:
+                terms.append(token)
+    out: list[str] = []
+    seen: set[str] = set()
+    for term in terms:
+        key = term.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(term)
+        if len(out) >= max_terms:
+            break
+    return out
 
 
 def file_inventory(values: list[Any], root: Path | None, max_entries: int = 300) -> str:

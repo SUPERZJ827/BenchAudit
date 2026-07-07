@@ -60,8 +60,18 @@ def _pdf(path: Path, max_chars: int, max_pages: int = 8) -> str:
     return f"({n}-page PDF, showing first {min(n, max_pages)} pages)\n" + body[:max_chars]
 
 
+def _head_tail(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    if max_chars <= 200:
+        return text[:max_chars]
+    marker = f"\n...[middle truncated; total_chars={len(text)}]...\n"
+    side = max(1, (max_chars - len(marker)) // 2)
+    return text[:side] + marker + text[-side:]
+
+
 def _plain(path: Path, max_chars: int) -> str:
-    return path.read_text(encoding="utf-8", errors="replace")[:max_chars]
+    return _head_tail(path.read_text(encoding="utf-8", errors="replace"), max_chars)
 
 
 _DISPATCH = {
