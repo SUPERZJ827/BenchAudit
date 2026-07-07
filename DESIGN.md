@@ -234,6 +234,23 @@ python -m benchcore.cli audit \
   --print-summary
 ```
 
+### Workspace-Bench 组件 profile 与审计器分工
+
+Workspace-Bench 是 agentic benchmark，**没有传统 gold answer / reference output**。每个 item 的组件是：
+
+- `task`：自然语言任务
+- `input_files`：真实输入文件（`data/` 目录，多为 docx/pdf/xlsx/csv/md）
+- `output_files` / `output_contract`：agent 应**创建**的文件名与产出契约（无内容）
+- `rubrics` / `evaluator`（type=`workspacebench_rubric`）：一组 yes/no 评分条件——**oracle 是这组条件，不是某一条标准答案**
+
+因此在 Workspace-Bench 上查的是「rubric 里的 oracle 是否有问题」，而不是「模型答案是否等于 gold」。缺陷类型应表述为：
+
+- `task_rubric_mismatch`（rubric overconstraint / rubric-task mismatch）：rubric 要求了 task 未要求的结构/格式/命名/布局
+- `artifact_data_gap`（rubric ungrounded）：rubric 需要的字段/数据/文件在输入中不存在
+- `rubric_target_error`：rubric 写死的数字/事实与从输入独立重算的结果不符
+
+**主线**是 grounded-rubric / cross-artifact 审计（前两类）；**`value_recompute` 只作为少数高置信辅助**，仅对明确能从输入重算的 rubric 有效——Workspace-Bench 的数值 rubric 多在断言**输出文档内容**（"manual 列出 6 项检查"），并非输入可重算，故它在此数据集上 precision 低、不作主 auditor（默认关闭）。
+
 通用 grounded-rubric 审计（Workspace-Bench B1/B5 迁移版）：
 
 ```bash
@@ -266,7 +283,7 @@ python -m benchcore.cli audit \
   --print-summary
 ```
 
-对每条**断言了实质数值**的 rubric（`rubric_values()` 过滤掉标识符/阈值/年份/文件名/月份序号后仍有数值），让 LLM 写 pandas 代码从表格输入（`.xlsx/.xls/.csv`）**独立重算**该值，执行后比对。只有当重算成功且与断言不符时才发 `wrong_gold_answer`（review signal）；重算不可运行或报 `DATA_NOT_AVAILABLE`（所需数据常在非表格输入里）一律静默，data-gap 检测交给 grounded-rubric checker。
+对每条**断言了实质数值**的 rubric（`rubric_values()` 过滤掉标识符/阈值/年份/文件名/月份序号后仍有数值），让 LLM 写 pandas 代码从表格输入（`.xlsx/.xls/.csv`）**独立重算**该值，执行后比对。只有当重算成功且与断言不符时才发 `rubric_target_error`（review signal，非 gold-answer 判定）；重算不可运行或报 `DATA_NOT_AVAILABLE`（所需数据常在非表格输入里）一律静默，data-gap 检测交给 grounded-rubric checker。
 
 ⚠️ **安全**：该 checker 会用 `subprocess` **执行 LLM 生成的代码**、无沙箱，因此默认关闭、须显式 `--value-recompute-audit`，且**只应对可信数据启用**。
 
