@@ -150,11 +150,20 @@ grounded in the task. Return only JSON."""
 STRUCTURE_PROMPT = """This rubric checks output structure, such as filename, sheet
 name, format, section name, directory, or layout. Judge it against the task.
 
+Important: in benchmark rubrics, it is normal for the rubric to operationalize
+a broad task into concrete checks. Do NOT treat the following as over-constraint:
+- checking whether a generated report contains an analysis, summary, conclusion,
+  classification, table value, count, percentage, or extracted fact that can be
+  derived from the inputs;
+- checking whether the answer includes specific evidence-backed content, even
+  if the task phrased the request broadly.
+
 Verdicts:
 - none: the task explicitly asks for this structure, or it is a harmless
   operationalization.
 - over_constrained: the task never asks for this exact structure, so a correct
-  answer could fail only because of the rubric's extra requirement.
+  answer could fail only because of the rubric's extra arbitrary structure,
+  naming, formatting, or wording requirement.
 - task_mismatch: the structure contradicts the task's scope or requested output.
 
 Return ONLY JSON:
@@ -215,8 +224,31 @@ RUBRICS / EVALUATOR:
 """
 
 STRUCTURE_RUBRIC_PATTERN = re.compile(
-    r"工作表|sheet|命名|文件名|格式|结构|包含名为|目录|folder|filename|file name|"
-    r"worksheet|tab name|section|layout|format",
+    r"工作表|命名|文件名|格式|结构|包含名为|目录|标题|"
+    r"\b(?:folder|filename|file name|worksheet|tab name|sheet\s+name|"
+    r"section\s+(?:title|name)|titled|title|layout|format)\b",
+    re.I,
+)
+
+CONTENT_ORACLE_RUBRIC_PATTERN = re.compile(
+    r"\b("
+    r"accurately|correctly|calculate|computed?|extract(?:ed)?|identify|list|mention|"
+    r"state|show|include|contain|summari[sz]e|analy[sz]e|point out|classif(?:y|ication)|"
+    r"count|total|rate|ratio|percentage|amount|value|metric|data|fact|conclusion|"
+    r"analysis|summary|report section|chapter|part"
+    r")\b|"
+    r"准确|正确|计算|提取|识别|列出|提到|说明|指出|包含|总结|分析|分类|"
+    r"数量|总数|比例|占比|金额|数值|指标|数据|事实|结论|章节|部分",
+    re.I,
+)
+
+ARBITRARY_STRUCTURE_RUBRIC_PATTERN = re.compile(
+    r"\b("
+    r"file(?:name)?|file name|directory|folder|worksheet|tab name|sheet\s+name|"
+    r"format|layout|markdown|xlsx?|docx?|pptx?|csv|json|html|"
+    r"section\s+(?:title|name)|titled|title|header|column(?: name)?"
+    r")\b|"
+    r"文件名|目录|文件夹|工作表|表名|格式|布局|标题|列名|命名",
     re.I,
 )
 
@@ -1244,7 +1276,17 @@ def normalize_for_presence(value: Any) -> str:
 
 
 def is_structure_rubric(rubric: str) -> bool:
-    return bool(STRUCTURE_RUBRIC_PATTERN.search(rubric or ""))
+    text = rubric or ""
+    if not STRUCTURE_RUBRIC_PATTERN.search(text):
+        return False
+    if ARBITRARY_STRUCTURE_RUBRIC_PATTERN.search(text):
+        return True
+    # Rubrics often use words like "section" while checking substantive report
+    # content. In Workspace-style benchmarks that is normal oracle behavior, not
+    # an output-structure over-constraint.
+    if CONTENT_ORACLE_RUBRIC_PATTERN.search(text):
+        return False
+    return True
 
 
 def looks_data_bearing(rubric: str) -> bool:
