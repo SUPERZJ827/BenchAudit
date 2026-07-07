@@ -10,6 +10,7 @@ from benchcore.artifact_consistency import (
     extract_rubrics,
     full_context_text,
     is_generated_role_permission_requirement,
+    is_structure_rubric,
     is_material_output_contract_issue,
     static_output_contract_issues,
     targeted_search_context,
@@ -136,6 +137,31 @@ def test_targeted_search_context_finds_mid_file_semantic_evidence(tmp_path: Path
 
     assert "manual.txt" in snippets
     assert "emergency mutual aid agreement" in snippets
+
+
+def test_report_content_rubrics_are_not_structure_overconstraints():
+    assert not is_structure_rubric(
+        "Whether the industry prospect analysis section lists the five development opportunities."
+    )
+    assert not is_structure_rubric(
+        "Does the generated report contain raw material price fluctuation risk analysis?"
+    )
+    assert not is_structure_rubric(
+        "Does the report include a data traceability section at the end of the report?"
+    )
+    assert not is_structure_rubric(
+        "Does the manual classify the reimbursement analysis sheet as Level 2 Sensitive?"
+    )
+
+
+def test_true_output_structure_rubrics_still_route_to_structure_checker():
+    assert is_structure_rubric(
+        "Is the report file saved in Markdown format with a clear multi-level header structure?"
+    )
+    assert is_structure_rubric(
+        "Is the CL-Bench paper section correctly titled CL-Bench: A Benchmark for Context Learning?"
+    )
+    assert is_structure_rubric("输出文件必须包含名为“数据说明”的工作表。")
 
 
 def test_cross_artifact_checker_maps_data_gap_to_violation():
