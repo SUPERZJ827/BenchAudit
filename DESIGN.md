@@ -258,7 +258,6 @@ python -m benchcore.cli audit \
   /path/to/benchmark.jsonl \
   --profile workspacebench \
   --basic-only \
-  --grounded-rubric-audit \
   --llm-config configs/llm_deepseek.json \
   --llm-cache reports/grounded_rubric_cache.jsonl \
   --out reports/grounded_rubric_audit.json \
@@ -266,7 +265,7 @@ python -m benchcore.cli audit \
   --print-summary
 ```
 
-该 checker 将每条 rubric 拆开审计：数据型 rubric 检查其所需 source data 是否存在于输入/context 中；结构型 rubric 检查文件名、sheet 名、章节、格式等要求是否被 task 明确支持。输出统一落到 `artifact_data_gap` 和 `task_rubric_mismatch`，默认作为 review signal。
+`--profile workspacebench` 默认启用 grounded-rubric checker；generic profile 下也可以显式传 `--grounded-rubric-audit`。该 checker 将每条 rubric 拆开审计：数据型 rubric 检查其所需 source data 是否存在于输入/context 中；结构型 rubric 检查文件名、sheet 名、章节、格式等要求是否被 task 明确支持。输出统一落到 `artifact_data_gap` 和 `task_rubric_mismatch`，默认作为 review signal。
 
 B2 数值重算审计（`--value-recompute-audit`）：
 

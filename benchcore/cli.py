@@ -103,7 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     audit_parser.add_argument(
         "--grounded-rubric-audit",
         action="store_true",
-        help="Enable grounded rubric checks against task text and provided context artifacts",
+        help=(
+            "Enable grounded rubric checks against task text and provided context artifacts "
+            "(enabled by default for --profile workspacebench)"
+        ),
     )
     audit_parser.add_argument("--basic-only", action="store_true", help="Disable replay/metamorphic/mutation/dataset methods")
     audit_parser.add_argument(
@@ -192,11 +195,12 @@ def run_audit(args: argparse.Namespace) -> int:
         checkers.extend(DEFAULT_METHOD_CHECKERS)
         dataset_checkers.extend(DEFAULT_DATASET_CHECKERS)
     client = None
+    use_grounded_rubric = args.grounded_rubric_audit or args.profile == "workspacebench"
     if (
         args.llm_audit
         or args.swe_leak_llm_confirm
         or args.cross_artifact_audit
-        or args.grounded_rubric_audit
+        or use_grounded_rubric
         or args.value_recompute_audit
     ):
         client = build_llm_client(args)
@@ -250,7 +254,7 @@ def run_audit(args: argparse.Namespace) -> int:
                 review_threshold=args.llm_review_threshold,
             )
         )
-    if args.grounded_rubric_audit:
+    if use_grounded_rubric:
         checkers.append(
             GroundedRubricConsistencyChecker(
                 client,
