@@ -270,9 +270,9 @@ class ValueRecomputeChecker(Checker):
         if missing:
             yield _violation(
                 item,
-                "wrong_gold_answer",
+                "rubric_target_error",
                 self.confidence,
-                "Rubric's asserted value(s) not reproduced by independent recompute from inputs.",
+                "Rubric's asserted target value(s) not reproduced by independent recompute from inputs.",
                 {
                     "rubric_index": index,
                     "rubric": rubric,

@@ -212,6 +212,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "major",
         "Rubric or evaluator checks requirements not supported by the task specification.",
     ),
+    "rubric_target_error": DefectInfo(
+        "evaluator",
+        "incorrect",
+        "rubric_target_error",
+        "review",
+        "Rubric asserts a target value not reproduced by an independent recompute from the inputs.",
+    ),
     "reference_task_mismatch": DefectInfo(
         "oracle_ground_truth",
         "inconsistent",

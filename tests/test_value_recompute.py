@@ -89,9 +89,9 @@ class ValueRecomputeCheckerTest(unittest.TestCase):
     def test_reproduced_value_yields_no_violation(self):
         self.assertEqual(self._run("输出文件中生日礼金的总人数是否为299人？", 'print("total=299")'), [])
 
-    def test_mismatch_yields_wrong_gold_answer(self):
+    def test_mismatch_yields_rubric_target_error(self):
         v = self._run("输出文件中生日礼金的总人数是否为350人？", 'print("total=299")')
-        self.assertEqual([x.defect_type for x in v], ["wrong_gold_answer"])
+        self.assertEqual([x.defect_type for x in v], ["rubric_target_error"])
         self.assertTrue(v[0].review_only)
         self.assertEqual(v[0].evidence["missing_values"], [350.0])
 
