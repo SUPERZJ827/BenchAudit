@@ -2,13 +2,17 @@ from pathlib import Path
 
 from benchcore.artifact_consistency import (
     CrossArtifactConsistencyChecker,
+    DATA_GROUNDING_PROMPT,
     GroundedRubricConsistencyChecker,
+    REQUIRED_DATA_PROMPT,
     RubricOutputContractConsistencyChecker,
     build_context_preview,
     extract_rubrics,
+    full_context_text,
     is_generated_role_permission_requirement,
     is_material_output_contract_issue,
     static_output_contract_issues,
+    targeted_search_context,
 )
 from benchcore.schema import BenchmarkItem
 
@@ -63,6 +67,75 @@ def test_context_preview_reads_relative_file(tmp_path: Path):
     assert "size_bytes=" in preview
     assert "FILE input.txt" in preview
     assert "hospital grade column is absent" in preview
+
+
+def test_full_context_text_distributes_budget_across_files(tmp_path: Path):
+    first = tmp_path / "first.txt"
+    second = tmp_path / "second.txt"
+    first.write_text("alpha " * 4000, encoding="utf-8")
+    second.write_text(
+        "The company signed an emergency mutual aid agreement with surrounding companies.",
+        encoding="utf-8",
+    )
+    item = BenchmarkItem(
+        item_id="ctx-balanced",
+        raw={},
+        task="Task",
+        context={"files": ["first.txt", "second.txt"]},
+    )
+
+    text = full_context_text(item, tmp_path, 2400)
+
+    assert "first.txt" in text
+    assert "second.txt" in text
+    assert "emergency mutual aid agreement" in text
+
+
+def test_data_grounding_prompts_require_semantic_matching():
+    required_prompt = REQUIRED_DATA_PROMPT.format(
+        task="Summarize the emergency manual.",
+        rubric="Does the manual mention emergency mutual assistance?",
+    )
+    grounding_prompt = DATA_GROUNDING_PROMPT.format(
+        missing="emergency mutual assistance",
+        task="Summarize the emergency manual.",
+        context="The company signed an emergency mutual aid agreement.",
+        rubric="Does the manual mention emergency mutual assistance?",
+    )
+
+    assert "Do not invent" in required_prompt
+    assert "snake_case" in required_prompt
+    assert "TASK:" in required_prompt
+    assert "synonyms" in grounding_prompt
+    assert "aid vs assistance" in grounding_prompt
+    assert "dismissed vs dissolved" in grounding_prompt
+    assert "enumeration" in grounding_prompt
+
+
+def test_targeted_search_context_finds_mid_file_semantic_evidence(tmp_path: Path):
+    path = tmp_path / "manual.txt"
+    path.write_text(
+        "opening\n"
+        + ("filler\n" * 300)
+        + "The company signed an emergency mutual aid agreement with surrounding companies.\n"
+        + ("tail\n" * 300),
+        encoding="utf-8",
+    )
+    item = BenchmarkItem(
+        item_id="ctx-targeted",
+        raw={},
+        task="Task",
+        context={"files": ["manual.txt"]},
+    )
+
+    snippets = targeted_search_context(
+        item,
+        tmp_path,
+        ["emergency mutual assistance agreement with surrounding enterprises"],
+    )
+
+    assert "manual.txt" in snippets
+    assert "emergency mutual aid agreement" in snippets
 
 
 def test_cross_artifact_checker_maps_data_gap_to_violation():
