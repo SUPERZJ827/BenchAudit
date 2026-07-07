@@ -203,7 +203,7 @@ DEFECTS: dict[str, DefectInfo] = {
         "inconsistent",
         "output_evaluator_contract_mismatch",
         "major",
-        "The output contract and evaluator type are inconsistent.",
+        "The output contract and evaluator/rubric requirements are inconsistent.",
     ),
     "task_rubric_mismatch": DefectInfo(
         "evaluator",

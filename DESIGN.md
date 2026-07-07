@@ -247,11 +247,12 @@ Workspace-Bench 是 agentic benchmark，**没有传统 gold answer / reference o
 
 - `task_rubric_mismatch`（rubric overconstraint / rubric-task mismatch）：rubric 要求了 task 未要求的结构/格式/命名/布局
 - `artifact_data_gap`（rubric ungrounded）：rubric 需要的字段/数据/文件在输入中不存在
+- `output_evaluator_contract_mismatch`（rubric-contract mismatch）：rubric/evaluator 要求了 output contract 未声明或相冲突的输出文件、格式、目录、sheet、布局
 - `rubric_target_error`：rubric 写死的数字/事实与从输入独立重算的结果不符
 
-**主线**是 grounded-rubric / cross-artifact 审计（前两类）；**`value_recompute` 只作为少数高置信辅助**，仅对明确能从输入重算的 rubric 有效——Workspace-Bench 的数值 rubric 多在断言**输出文档内容**（"manual 列出 6 项检查"），并非输入可重算，故它在此数据集上 precision 低、不作主 auditor（默认关闭）。
+**主线**是 grounded-rubric / rubric-contract / cross-artifact 审计；**`value_recompute` 只作为少数高置信辅助**，仅对明确能从输入重算的 rubric 有效——Workspace-Bench 的数值 rubric 多在断言**输出文档内容**（"manual 列出 6 项检查"），并非输入可重算，故它在此数据集上 precision 低、不作主 auditor（默认关闭）。
 
-通用 grounded-rubric 审计（Workspace-Bench B1/B5 迁移版）：
+Workspace-Bench 主线审计：
 
 ```bash
 python -m benchcore.cli audit \
@@ -265,7 +266,12 @@ python -m benchcore.cli audit \
   --print-summary
 ```
 
-`--profile workspacebench` 默认启用 grounded-rubric checker；generic profile 下也可以显式传 `--grounded-rubric-audit`。该 checker 将每条 rubric 拆开审计：数据型 rubric 检查其所需 source data 是否存在于输入/context 中；结构型 rubric 检查文件名、sheet 名、章节、格式等要求是否被 task 明确支持。输出统一落到 `artifact_data_gap` 和 `task_rubric_mismatch`，默认作为 review signal。
+`--profile workspacebench` 默认启用两个 LLM-assisted review checker：
+
+- `GroundedRubricConsistencyChecker`：逐条检查 rubric 是否被 task/context 支撑。数据型 rubric 检查其所需 source data 是否存在于输入/context 中；结构型 rubric 检查文件名、sheet 名、章节、格式等要求是否被 task 明确支持。
+- `RubricOutputContractConsistencyChecker`：检查 rubric/evaluator 是否和 `output_contract` 冲突，例如要求额外文件、额外目录、额外 sheet、不同文件名或不同格式。
+
+generic profile 下也可以显式传 `--grounded-rubric-audit` / `--rubric-contract-audit` 单独启用。
 
 B2 数值重算审计（`--value-recompute-audit`）：
 

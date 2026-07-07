@@ -141,6 +141,48 @@ RUBRIC:
 {rubric}
 """
 
+CONTRACT_SYSTEM_PROMPT = """You verify consistency between a benchmark's output
+contract and its rubric/evaluator. Return only JSON."""
+
+CONTRACT_PROMPT = """Audit whether the rubric/evaluator is consistent with the
+declared output contract.
+
+Focus only on concrete output-contract issues:
+- required output files, directories, sheet names, sections, formats, or layouts
+- evaluator/rubric requiring extra output artifacts not declared by the contract
+- evaluator/rubric contradicting the declared file names, output type, or format
+
+Be conservative:
+- Do not flag ordinary content requirements inside a declared output file.
+- Do not flag a rubric simply because it checks quality, correctness, or completeness.
+- If the output contract is intentionally broad, use uncertain unless the conflict is concrete.
+
+Return ONLY JSON:
+{{
+  "status": "consistent|contract_mismatch|uncertain",
+  "issues": [
+    {{
+      "rubric_index": 0,
+      "type": "extra_output|missing_contract|format_conflict|file_name_conflict|layout_conflict",
+      "detail": "specific mismatch",
+      "material": true
+    }}
+  ],
+  "severity": "high|medium|low|none",
+  "confidence": 0.0,
+  "summary": "one sentence"
+}}
+
+TASK:
+{task}
+
+OUTPUT CONTRACT:
+{output_contract}
+
+RUBRICS / EVALUATOR:
+{rubrics}
+"""
+
 STRUCTURE_RUBRIC_PATTERN = re.compile(
     r"工作表|sheet|命名|文件名|格式|结构|包含名为|目录|folder|filename|file name|"
     r"worksheet|tab name|section|layout|format",
@@ -400,6 +442,82 @@ class GroundedRubricConsistencyChecker(Checker):
         ]
 
 
+class RubricOutputContractConsistencyChecker(Checker):
+    """Check whether rubrics/evaluators are aligned with the output contract."""
+
+    name = "rubric_output_contract_consistency"
+
+    def __init__(
+        self,
+        client: LLMClient,
+        *,
+        review_threshold: float = 0.45,
+        rubric_chars: int = 5000,
+        contract_chars: int = 2200,
+    ) -> None:
+        self.client = client
+        self.review_threshold = review_threshold
+        self.rubric_chars = rubric_chars
+        self.contract_chars = contract_chars
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        rubrics = format_rubrics(item)
+        if item.output_contract in (None, "", [], {}) or not rubrics:
+            return []
+        prompt = CONTRACT_PROMPT.format(
+            task=preview(item.task or "(missing task)", 1600),
+            output_contract=preview(item.output_contract, self.contract_chars),
+            rubrics=preview(rubrics, self.rubric_chars),
+        )
+        result = call_json_multi_majority(
+            self.client,
+            CONTRACT_SYSTEM_PROMPT,
+            prompt,
+            key="status",
+            default="uncertain",
+        )
+        if result.get("majority") != "contract_mismatch":
+            return []
+        confidence = as_float(result.get("confidence"), 0.5)
+        if confidence < self.review_threshold:
+            return []
+        issues = normalized_contract_issues(result)
+        if not issues:
+            issues = [
+                {
+                    "type": "contract_mismatch",
+                    "detail": result.get("summary")
+                    or "Rubric/evaluator appears inconsistent with the output contract.",
+                    "material": True,
+                }
+            ]
+        severity = contract_severity(result)
+        out: list[Violation] = []
+        for issue in issues:
+            if issue.get("material") is False:
+                continue
+            out.append(
+                _violation(
+                    item,
+                    "output_evaluator_contract_mismatch",
+                    min(0.9, max(self.review_threshold, confidence)),
+                    issue.get("detail")
+                    or result.get("summary")
+                    or "Rubric/evaluator appears inconsistent with the output contract.",
+                    {
+                        "output_contract": item.output_contract,
+                        "rubrics": extract_rubrics(item),
+                        "contract_issue": issue,
+                        "votes": result.get("votes", []),
+                        "llm_results": result.get("results", []),
+                    },
+                    severity=severity,
+                    review_only=True,
+                    method="rubric_output_contract_consistency",
+                )
+            )
+        return out
+
 def has_enough_artifacts(item: BenchmarkItem) -> bool:
     artifact_count = 0
     if item.task:
@@ -511,6 +629,26 @@ def normalized_issues(result: dict[str, Any]) -> list[dict[str, Any]]:
         elif isinstance(issue, str):
             out.append({"type": "task_self", "detail": issue, "material": True})
     return out
+
+
+def normalized_contract_issues(result: dict[str, Any]) -> list[dict[str, Any]]:
+    issues = result.get("issues", [])
+    if not isinstance(issues, list):
+        return []
+    out = []
+    for issue in issues:
+        if isinstance(issue, dict):
+            out.append(issue)
+        elif isinstance(issue, str):
+            out.append({"type": "contract_mismatch", "detail": issue, "material": True})
+    return out
+
+
+def contract_severity(result: dict[str, Any]) -> str:
+    severity = str(result.get("severity", "medium")).lower()
+    if severity == "high":
+        return "major"
+    return "review"
 
 
 def issue_defect_type(issue: dict[str, Any]) -> str | None:

@@ -3,6 +3,7 @@ from pathlib import Path
 from benchcore.artifact_consistency import (
     CrossArtifactConsistencyChecker,
     GroundedRubricConsistencyChecker,
+    RubricOutputContractConsistencyChecker,
     build_context_preview,
     extract_rubrics,
 )
@@ -190,3 +191,44 @@ def test_grounded_rubric_checker_flags_over_constrained_structure():
     assert violations[0].severity == "review"
     assert violations[0].review_only
     assert violations[0].evidence["grounding_check"] == "output_structure_vs_task"
+
+
+def test_rubric_output_contract_checker_flags_extra_required_output():
+    item = BenchmarkItem(
+        item_id="contract-extra",
+        raw={"rubrics": ["Does the submission also include appendix.xlsx?"]},
+        task="Create a concise report.",
+        output_contract={"type": "workspace_files", "required_files": ["report.md"]},
+        evaluator={
+            "type": "workspacebench_rubric",
+            "rubrics": ["Does the submission also include appendix.xlsx?"],
+        },
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "status": "contract_mismatch",
+                    "issues": [
+                        {
+                            "rubric_index": 0,
+                            "type": "extra_output",
+                            "detail": "Rubric requires appendix.xlsx, but the contract only declares report.md.",
+                            "material": True,
+                        }
+                    ],
+                    "severity": "high",
+                    "confidence": 0.84,
+                    "summary": "Rubric requires an undeclared output file.",
+                }
+            ]
+        ]
+    )
+
+    violations = list(RubricOutputContractConsistencyChecker(client).check(item))
+
+    assert [v.defect_type for v in violations] == ["output_evaluator_contract_mismatch"]
+    assert violations[0].severity == "major"
+    assert violations[0].review_only
+    assert violations[0].detection_method == "rubric_output_contract_consistency"
+    assert violations[0].evidence["contract_issue"]["type"] == "extra_output"
