@@ -7,7 +7,11 @@ import time
 from pathlib import Path
 
 from .adapter import canonicalize_rows, write_canonical_jsonl
-from .artifact_consistency import CrossArtifactConsistencyChecker, GroundedRubricConsistencyChecker
+from .artifact_consistency import (
+    CrossArtifactConsistencyChecker,
+    GroundedRubricConsistencyChecker,
+    RubricOutputContractConsistencyChecker,
+)
 from .auditor import audit_items
 from .comparison import compare_report, write_comparison_markdown
 from .loader import build_items, load_mapping, load_rows
@@ -108,6 +112,14 @@ def main(argv: list[str] | None = None) -> int:
             "(enabled by default for --profile workspacebench)"
         ),
     )
+    audit_parser.add_argument(
+        "--rubric-contract-audit",
+        action="store_true",
+        help=(
+            "Enable checks for rubric/evaluator requirements inconsistent with output_contract "
+            "(enabled by default for --profile workspacebench)"
+        ),
+    )
     audit_parser.add_argument("--basic-only", action="store_true", help="Disable replay/metamorphic/mutation/dataset methods")
     audit_parser.add_argument(
         "--progress-every",
@@ -196,11 +208,13 @@ def run_audit(args: argparse.Namespace) -> int:
         dataset_checkers.extend(DEFAULT_DATASET_CHECKERS)
     client = None
     use_grounded_rubric = args.grounded_rubric_audit or args.profile == "workspacebench"
+    use_rubric_contract = args.rubric_contract_audit or args.profile == "workspacebench"
     if (
         args.llm_audit
         or args.swe_leak_llm_confirm
         or args.cross_artifact_audit
         or use_grounded_rubric
+        or use_rubric_contract
         or args.value_recompute_audit
     ):
         client = build_llm_client(args)
@@ -257,6 +271,13 @@ def run_audit(args: argparse.Namespace) -> int:
     if use_grounded_rubric:
         checkers.append(
             GroundedRubricConsistencyChecker(
+                client,
+                review_threshold=args.llm_review_threshold,
+            )
+        )
+    if use_rubric_contract:
+        checkers.append(
+            RubricOutputContractConsistencyChecker(
                 client,
                 review_threshold=args.llm_review_threshold,
             )
