@@ -6,6 +6,9 @@ from benchcore.artifact_consistency import (
     RubricOutputContractConsistencyChecker,
     build_context_preview,
     extract_rubrics,
+    is_generated_role_permission_requirement,
+    is_material_output_contract_issue,
+    static_output_contract_issues,
 )
 from benchcore.schema import BenchmarkItem
 
@@ -161,6 +164,32 @@ def test_grounded_rubric_checker_flags_absent_required_data():
     assert violations[0].evidence["literal_missing_terms"] == ["医院等级"]
 
 
+def test_generated_role_permission_requirement_is_not_data_gap():
+    item = BenchmarkItem(
+        item_id="ground-generated",
+        raw={
+            "rubrics": [
+                "Does the system administrator have template-level edit access to all reports?"
+            ]
+        },
+        task=(
+            "Infer job responsibilities and corresponding spreadsheet permissions "
+            "such as view, edit, and delete from the collaboration needs."
+        ),
+        context={"table": "columns: report_name, revenue, expense"},
+    )
+    client = FakeLLMClient({"required": ["role", "template edit access", "delete permission"]})
+
+    violations = list(GroundedRubricConsistencyChecker(client).check(item))
+
+    assert violations == []
+    assert is_generated_role_permission_requirement(
+        item.task or "",
+        item.raw["rubrics"][0],
+        ["role", "template edit access", "delete permission"],
+    )
+
+
 def test_grounded_rubric_checker_flags_over_constrained_structure():
     item = BenchmarkItem(
         item_id="ground-structure",
@@ -232,3 +261,147 @@ def test_rubric_output_contract_checker_flags_extra_required_output():
     assert violations[0].review_only
     assert violations[0].detection_method == "rubric_output_contract_consistency"
     assert violations[0].evidence["contract_issue"]["type"] == "extra_output"
+
+
+def test_output_contract_checker_ignores_internal_sheet_when_contract_is_file_level():
+    item = BenchmarkItem(
+        item_id="contract-sheet",
+        raw={"rubrics": ["Does the workbook include a worksheet named Regional Details?"]},
+        task="Create regional_summary.xlsx.",
+        output_contract={"type": "workspace_files", "required_files": ["regional_summary.xlsx"]},
+        evaluator={
+            "type": "workspacebench_rubric",
+            "rubrics": ["Does the workbook include a worksheet named Regional Details?"],
+        },
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "status": "contract_mismatch",
+                    "issues": [
+                        {
+                            "rubric_index": 0,
+                            "type": "extra_output",
+                            "detail": "Rubric expects worksheet named 'Regional Details' not declared in output contract.",
+                            "material": True,
+                        }
+                    ],
+                    "severity": "high",
+                    "confidence": 0.9,
+                }
+            ]
+        ]
+    )
+
+    violations = list(RubricOutputContractConsistencyChecker(client).check(item))
+
+    assert violations == []
+    assert not is_material_output_contract_issue(
+        {
+            "type": "extra_output",
+            "detail": "Rubric expects worksheet named 'Regional Details' not declared in output contract.",
+            "material": True,
+        },
+        item.output_contract,
+    )
+
+
+def test_output_contract_checker_ignores_source_file_access_rubric():
+    item = BenchmarkItem(
+        item_id="contract-source-file",
+        raw={"rubrics": ["Are the three source files successfully located and accessible?"]},
+        task="Create report.xlsx from the three source files.",
+        output_contract={"type": "workspace_files", "required_files": ["report.xlsx"]},
+        evaluator={
+            "type": "workspacebench_rubric",
+            "rubrics": ["Are the three source files successfully located and accessible?"],
+        },
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "status": "contract_mismatch",
+                    "issues": [
+                        {
+                            "rubric_index": 0,
+                            "type": "extra_output",
+                            "detail": "Evaluator requires source files not declared in output contract.",
+                            "material": True,
+                        }
+                    ],
+                    "severity": "high",
+                    "confidence": 0.9,
+                }
+            ]
+        ]
+    )
+
+    violations = list(RubricOutputContractConsistencyChecker(client).check(item))
+
+    assert violations == []
+
+
+def test_static_output_contract_flags_task_directory_not_in_contract():
+    item = BenchmarkItem(
+        item_id="contract-static-dir",
+        raw={"rubrics": ["Was the root folder created?"]},
+        task="Copy the files into a new directory named `project_kickoff_archive`.",
+        output_contract={"type": "workspace_files", "required_files": ["output.md"]},
+        evaluator={"type": "workspacebench_rubric", "rubrics": ["Was the root folder created?"]},
+    )
+
+    issues = static_output_contract_issues(item)
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "extra_output"
+
+
+def test_static_output_contract_flags_input_files_declared_as_outputs():
+    item = BenchmarkItem(
+        item_id="contract-static-inputs",
+        raw={
+            "input_files": [
+                "/tmp/hash_interaction_document_6.txt",
+                "/tmp/hash_interaction_document_8.txt",
+            ],
+            "rubrics": ["Does the generated report contain the standardized form?"],
+        },
+        task="Build a standardized dataset and generate an implementation-ready TXT report.",
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["interaction_document_6.txt", "interaction_document_8.txt"],
+        },
+        evaluator={"type": "workspacebench_rubric", "rubrics": ["Does the generated report contain the standardized form?"]},
+    )
+
+    issues = static_output_contract_issues(item)
+
+    assert len(issues) == 1
+    assert issues[0]["type"] == "file_name_conflict"
+
+
+def test_output_contract_checker_keeps_static_input_files_declared_as_outputs():
+    item = BenchmarkItem(
+        item_id="contract-static-inputs-checker",
+        raw={
+            "input_files": [
+                "/tmp/hash_interaction_document_6.txt",
+                "/tmp/hash_interaction_document_8.txt",
+            ],
+            "rubrics": ["Does the generated report contain the standardized form?"],
+        },
+        task="Build a standardized dataset and generate an implementation-ready TXT report.",
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["interaction_document_6.txt", "interaction_document_8.txt"],
+        },
+        evaluator={"type": "workspacebench_rubric", "rubrics": ["Does the generated report contain the standardized form?"]},
+    )
+    client = FakeLLMClient({"status": "consistent", "confidence": 0.8})
+
+    violations = list(RubricOutputContractConsistencyChecker(client).check(item))
+
+    assert [v.defect_type for v in violations] == ["output_evaluator_contract_mismatch"]
+    assert violations[0].evidence["contract_issue"]["source"] == "static_task_contract"
