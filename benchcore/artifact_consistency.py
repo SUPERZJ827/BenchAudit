@@ -716,6 +716,24 @@ def raw_input_basenames(item: BenchmarkItem) -> set[str]:
     return out
 
 
+def task_named_output_basenames(task: str) -> set[str]:
+    """Basenames of files the task explicitly names as its output (create/generate/save as
+    `foo.md`). Used to tell a save-location directory ('save it under `/x/`') from a directory
+    that is itself the deliverable ('copy them into a new directory named `x`')."""
+    names: set[str] = set()
+    for match in BACKTICK_PATH_PATTERN.finditer(task):
+        artifact = match.group(1).strip()
+        if not artifact or not FILE_EXT_PATTERN.search(artifact):
+            continue
+        before = task[max(0, match.start() - 55): match.start()]
+        if not OUTPUT_CUE_PATTERN.search(before):
+            continue
+        if re.search(r"\b(from|using|under)\s*$", before, re.I) and not re.search(r"\bsave\b", before, re.I):
+            continue
+        names.add(Path(artifact).name.lower())
+    return names
+
+
 def static_output_contract_issues(item: BenchmarkItem) -> list[dict[str, Any]]:
     required = contract_required_files(item.output_contract)
     if not required:
@@ -723,6 +741,9 @@ def static_output_contract_issues(item: BenchmarkItem) -> list[dict[str, Any]]:
     required_norm = {p.strip("/").lower() for p in required}
     required_basenames = {Path(p).name.lower() for p in required}
     task = item.task or ""
+    # When the contract's required file(s) are exactly what the task names as its output, a
+    # directory the task mentions is only a save location, not a missing deliverable.
+    contract_is_named_output = bool(required_basenames) and required_basenames <= task_named_output_basenames(task)
     issues: list[dict[str, Any]] = []
 
     for match in BACKTICK_PATH_PATTERN.finditer(task):
@@ -748,7 +769,7 @@ def static_output_contract_issues(item: BenchmarkItem) -> list[dict[str, Any]]:
                         "source": "static_task_contract",
                     }
                 )
-        elif DIR_CUE_PATTERN.search(window):
+        elif DIR_CUE_PATTERN.search(window) and not contract_is_named_output:
             if not any(artifact_norm in path for path in required_norm):
                 issues.append(
                     {
