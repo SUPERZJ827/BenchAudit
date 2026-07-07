@@ -82,6 +82,10 @@ Do not include generic words such as count/total/number/data/name/status/file.
 Return [] if the rubric checks output formatting, filename, sheet name,
 transcription accuracy, or generated recommendation content rather than a source
 data dimension.
+Return [] if the rubric checks content the task explicitly asks the agent to
+infer, define, design, assign, summarize, or recommend, such as role/permission
+assignments, responsibility boundaries, validation checklists, summaries, or
+recommendations. Those are generated output requirements, not missing input data.
 
 Return ONLY JSON: {{"required":["..."]}}
 
@@ -104,6 +108,12 @@ Verdicts:
   judgment or writing, so absence from input data is expected.
 - not_in_inputs: a source field/category/entity required by the rubric is absent
   from every provided artifact and cannot be derived.
+
+Use generated_content when the task itself asks the agent to infer, design,
+define, assign, summarize, or recommend the missing content (for example role
+permissions, responsibility boundaries, checklists, conclusions, or suggestions).
+Do not call that a data gap merely because the exact generated output wording is
+not present in the input files.
 
 Return ONLY JSON:
 {{"verdict":"present_or_derivable|generated_content|not_in_inputs","reason":"one sentence","confidence":0.0}}
@@ -148,12 +158,17 @@ CONTRACT_PROMPT = """Audit whether the rubric/evaluator is consistent with the
 declared output contract.
 
 Focus only on concrete output-contract issues:
-- required output files, directories, sheet names, sections, formats, or layouts
+- required output files, directories, top-level output names, or top-level formats
 - evaluator/rubric requiring extra output artifacts not declared by the contract
 - evaluator/rubric contradicting the declared file names, output type, or format
 
 Be conservative:
 - Do not flag ordinary content requirements inside a declared output file.
+- Do not flag worksheet names, chart placement, sections, rows, columns, tables,
+  or layout inside an already-declared output file unless the output contract
+  itself explicitly declares those internal structures.
+- Do not flag rubrics that check whether source/input files are accessible; that
+  is not an output-contract mismatch.
 - Do not flag a rubric simply because it checks quality, correctness, or completeness.
 - If the output contract is intentionally broad, use uncertain unless the conflict is concrete.
 
@@ -193,6 +208,20 @@ DATA_BEARING_PATTERN = re.compile(
     r"\d|等级|三级|二级|一级|字段|分布|总数|数量|金额|比例|占比|count|total|sum|"
     r"number|amount|rate|ratio|percentage|column|field|category|breakdown|"
     r"grade|level|tier|class|tertiary|secondary|primary",
+    re.I,
+)
+
+GENERATIVE_TASK_PATTERN = re.compile(
+    r"\b(infer|define|design|assign|analy[sz]e|generate|create|prepare|compile|"
+    r"summarize|recommend|propose)\b|"
+    r"推断|定义|设计|分配|分析|生成|创建|编制|整理|总结|建议|提出",
+    re.I,
+)
+
+ROLE_PERMISSION_PATTERN = re.compile(
+    r"\b(role|roles|permission|permissions|access|responsibilit(?:y|ies)|view|edit|"
+    r"export|print|delete|sharing|authorization|authorized)\b|"
+    r"角色|权限|职责|责任|查看|编辑|导出|打印|删除|共享|授权",
     re.I,
 )
 
@@ -394,6 +423,8 @@ class GroundedRubricConsistencyChecker(Checker):
         ]
         if not required:
             return []
+        if is_generated_role_permission_requirement(task, rubric, required):
+            return []
         context_norm = normalize_for_presence(context_text)
         missing = [
             term
@@ -464,6 +495,7 @@ class RubricOutputContractConsistencyChecker(Checker):
         rubrics = format_rubrics(item)
         if item.output_contract in (None, "", [], {}) or not rubrics:
             return []
+        static_issues = static_output_contract_issues(item)
         prompt = CONTRACT_PROMPT.format(
             task=preview(item.task or "(missing task)", 1600),
             output_contract=preview(item.output_contract, self.contract_chars),
@@ -476,12 +508,12 @@ class RubricOutputContractConsistencyChecker(Checker):
             key="status",
             default="uncertain",
         )
-        if result.get("majority") != "contract_mismatch":
+        if result.get("majority") != "contract_mismatch" and not static_issues:
             return []
         confidence = as_float(result.get("confidence"), 0.5)
-        if confidence < self.review_threshold:
+        if confidence < self.review_threshold and not static_issues:
             return []
-        issues = normalized_contract_issues(result)
+        issues = dedupe_contract_issues([*static_issues, *normalized_contract_issues(result)])
         if not issues:
             issues = [
                 {
@@ -492,31 +524,38 @@ class RubricOutputContractConsistencyChecker(Checker):
                 }
             ]
         severity = contract_severity(result)
-        out: list[Violation] = []
-        for issue in issues:
-            if issue.get("material") is False:
-                continue
-            out.append(
-                _violation(
-                    item,
-                    "output_evaluator_contract_mismatch",
-                    min(0.9, max(self.review_threshold, confidence)),
-                    issue.get("detail")
-                    or result.get("summary")
-                    or "Rubric/evaluator appears inconsistent with the output contract.",
-                    {
-                        "output_contract": item.output_contract,
-                        "rubrics": extract_rubrics(item),
-                        "contract_issue": issue,
-                        "votes": result.get("votes", []),
-                        "llm_results": result.get("results", []),
-                    },
-                    severity=severity,
-                    review_only=True,
-                    method="rubric_output_contract_consistency",
-                )
+        material_issues = [
+            issue for issue in issues if is_material_output_contract_issue(issue, item.output_contract)
+        ]
+        if not material_issues:
+            return []
+        first = material_issues[0]
+        message = (
+            first.get("detail")
+            or result.get("summary")
+            or "Rubric/evaluator appears inconsistent with the output contract."
+        )
+        if len(material_issues) > 1:
+            message = f"{message} (+{len(material_issues) - 1} related contract issue(s))"
+        return [
+            _violation(
+                item,
+                "output_evaluator_contract_mismatch",
+                min(0.9, max(self.review_threshold, confidence)),
+                message,
+                {
+                    "output_contract": item.output_contract,
+                    "rubrics": extract_rubrics(item),
+                    "contract_issue": first,
+                    "contract_issues": material_issues,
+                    "votes": result.get("votes", []),
+                    "llm_results": result.get("results", []),
+                },
+                severity=severity,
+                review_only=True,
+                method="rubric_output_contract_consistency",
             )
-        return out
+        ]
 
 def has_enough_artifacts(item: BenchmarkItem) -> bool:
     artifact_count = 0
@@ -642,6 +681,154 @@ def normalized_contract_issues(result: dict[str, Any]) -> list[dict[str, Any]]:
         elif isinstance(issue, str):
             out.append({"type": "contract_mismatch", "detail": issue, "material": True})
     return out
+
+
+BACKTICK_PATH_PATTERN = re.compile(r"`([^`]+)`")
+FILE_EXT_PATTERN = re.compile(
+    r"\.(?:md|txt|csv|tsv|xlsx|xls|docx|doc|pdf|pptx|ppt|json|html|htm|png|jpg|jpeg|svg|zip)$",
+    re.I,
+)
+DIR_CUE_PATTERN = re.compile(r"\b(directory|folder)\b|目录|文件夹", re.I)
+OUTPUT_CUE_PATTERN = re.compile(
+    r"\b(create|generate|build|prepare|produce|save|copy|output|new|named|called|title[d]?)\b|"
+    r"生成|创建|构建|保存|输出|新的|命名|名为|标题",
+    re.I,
+)
+
+
+def contract_required_files(output_contract: Any) -> list[str]:
+    if isinstance(output_contract, dict):
+        required = output_contract.get("required_files") or output_contract.get("files") or []
+    else:
+        required = []
+    if not isinstance(required, list):
+        return []
+    return [str(path).strip() for path in required if str(path).strip()]
+
+
+def raw_input_basenames(item: BenchmarkItem) -> set[str]:
+    out: set[str] = set()
+    for path in item.raw.get("input_files", []) or []:
+        name = Path(str(path)).name
+        if "_" in name:
+            name = name.split("_", 1)[1]
+        out.add(name)
+    return out
+
+
+def static_output_contract_issues(item: BenchmarkItem) -> list[dict[str, Any]]:
+    required = contract_required_files(item.output_contract)
+    if not required:
+        return []
+    required_norm = {p.strip("/").lower() for p in required}
+    required_basenames = {Path(p).name.lower() for p in required}
+    task = item.task or ""
+    issues: list[dict[str, Any]] = []
+
+    for match in BACKTICK_PATH_PATTERN.finditer(task):
+        artifact = match.group(1).strip()
+        if not artifact:
+            continue
+        artifact_norm = artifact.strip("/").lower()
+        basename = Path(artifact).name.lower()
+        before = task[max(0, match.start() - 55): match.start()]
+        window = task[max(0, match.start() - 40): match.end() + 40]
+        if not OUTPUT_CUE_PATTERN.search(before):
+            continue
+        if re.search(r"\b(from|using|under)\s*$", before, re.I) and not re.search(r"\bsave\b", before, re.I):
+            continue
+        if FILE_EXT_PATTERN.search(artifact):
+            if basename not in required_basenames and artifact_norm not in required_norm:
+                issues.append(
+                    {
+                        "rubric_index": -1,
+                        "type": "file_name_conflict",
+                        "detail": f"Task names required output file `{artifact}`, but output contract requires {required}.",
+                        "material": True,
+                        "source": "static_task_contract",
+                    }
+                )
+        elif DIR_CUE_PATTERN.search(window):
+            if not any(artifact_norm in path for path in required_norm):
+                issues.append(
+                    {
+                        "rubric_index": -1,
+                        "type": "extra_output",
+                        "detail": f"Task names required output directory `{artifact}`, but output contract requires {required}.",
+                        "material": True,
+                        "source": "static_task_contract",
+                    }
+                )
+
+    input_names = {name.lower() for name in raw_input_basenames(item)}
+    if input_names and required and all(Path(path).name.lower() in input_names for path in required):
+        if re.search(r"\b(generate|create|build|prepare)\b.*\b(report|file|dataset|form)\b|生成|创建|构建|报告|文件|表单", task, re.I):
+            issues.append(
+                {
+                    "rubric_index": -1,
+                    "type": "file_name_conflict",
+                    "detail": f"Output contract requires input file(s) {required} instead of the generated output requested by the task.",
+                    "material": True,
+                    "source": "static_task_contract",
+                }
+            )
+    return dedupe_contract_issues(issues)
+
+
+def dedupe_contract_issues(issues: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for issue in issues:
+        key = (str(issue.get("type", "")), normalize_space(str(issue.get("detail", ""))).lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(issue)
+    return out
+
+
+INTERNAL_OUTPUT_CONTRACT_PATTERN = re.compile(
+    r"\b(sheets?|worksheets?|tabs?|sections?|charts?|plots?|tables?|rows?|"
+    r"columns?|cells?|layouts?|slides?|pages?|placement|value checks?|"
+    r"data preservation)\b|"
+    r"工作表|图表|章节|小节|表格|行|列|单元格|布局|版式|位置|页面|幻灯片",
+    re.I,
+)
+
+FILE_OR_DIRECTORY_PATTERN = re.compile(
+    r"\b[\w./ -]+\.(?:md|txt|csv|tsv|xlsx|xls|docx|doc|pdf|pptx|ppt|json|"
+    r"html|htm|png|jpg|jpeg|svg|zip)\b|"
+    r"\bdirector(?:y|ies)\b|\bfolders?\b|目录|文件夹",
+    re.I,
+)
+
+SOURCE_FILE_ACCESS_PATTERN = re.compile(
+    r"\b(source|input)\s+files?\b|"
+    r"\b(source|input)\s+files?\b.*\b(located|accessible|available|present)\b|"
+    r"\b(located|accessible|available|present)\b.*\b(source|input)\s+files?\b|"
+    r"源文件|输入文件",
+    re.I,
+)
+
+
+def contract_declares_internal_structure(output_contract: Any) -> bool:
+    text = normalize_space(json.dumps(output_contract, ensure_ascii=False, sort_keys=True))
+    return bool(INTERNAL_OUTPUT_CONTRACT_PATTERN.search(text))
+
+
+def is_material_output_contract_issue(issue: dict[str, Any], output_contract: Any) -> bool:
+    if issue.get("material") is False:
+        return False
+    kind = str(issue.get("type", "")).strip()
+    detail = normalize_space(str(issue.get("detail", "")))
+    internal_contract = contract_declares_internal_structure(output_contract)
+    if issue.get("source") != "static_task_contract" and SOURCE_FILE_ACCESS_PATTERN.search(detail):
+        return False
+    if not internal_contract and INTERNAL_OUTPUT_CONTRACT_PATTERN.search(detail):
+        return False
+    if kind == "extra_output" and not FILE_OR_DIRECTORY_PATTERN.search(detail):
+        return False
+    return True
 
 
 def contract_severity(result: dict[str, Any]) -> str:
@@ -890,6 +1077,23 @@ def is_structure_rubric(rubric: str) -> bool:
 
 def looks_data_bearing(rubric: str) -> bool:
     return bool(DATA_BEARING_PATTERN.search(rubric or ""))
+
+
+def is_generated_role_permission_requirement(
+    task: str,
+    rubric: str,
+    required: list[str],
+) -> bool:
+    """Role/permission requirements are often output the agent must infer.
+
+    Workspace-style tasks commonly ask the agent to infer responsibilities and
+    access boundaries from business needs. In that case exact role/permission
+    terms are generated output content, not source data that must literally
+    exist in the input files.
+    """
+    task_text = task or ""
+    joined = " ".join([rubric, *required])
+    return bool(GENERATIVE_TASK_PATTERN.search(task_text) and ROLE_PERMISSION_PATTERN.search(joined))
 
 
 def core_grounding_term(term: str) -> str:

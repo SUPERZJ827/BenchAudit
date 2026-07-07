@@ -159,6 +159,9 @@ class TaskSpecChecker(Checker):
 class ContextChecker(Checker):
     name = "context_attachment"
 
+    def __init__(self, *, check_version_risk: bool = True) -> None:
+        self.check_version_risk = check_version_risk
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         for key, value in item.context.items():
             if value in (None, "", [], {}):
@@ -181,6 +184,8 @@ class ContextChecker(Checker):
                         {"field": key, "path": candidate},
                         repair="Fix the attachment path or include the missing artifact.",
                     )
+        if not self.check_version_risk:
+            return
         task = _text(item.task)
         if re.search(r"\b(as of|version|release|updated|latest|current)\b", task, re.I):
             has_version = any(k.lower() in {"version", "source", "date", "release"} for k in item.metadata)
