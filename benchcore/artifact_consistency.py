@@ -151,6 +151,62 @@ RUBRIC:
 STRUCTURE_SYSTEM_PROMPT = """You are the semantic confirmation stage for
 candidate rubric/task mismatch findings. Return only JSON."""
 
+STRICTNESS_SYSTEM_PROMPT = """You are the semantic confirmation stage for
+candidate over-strict rubric findings. Return only JSON."""
+
+STRICTNESS_PROMPT = """A cheap code filter selected this rubric as a POSSIBLE
+over-strict or unsupported evaluator requirement.
+
+Your job is semantic confirmation, not candidate generation. Most candidates
+should be rejected.
+
+Benchmark rubrics are allowed to operationalize a broad task into concrete,
+objective checks. Do NOT flag:
+- objective values, counts, totals, percentages, categories, or facts that are
+  directly present in or computable from the inputs;
+- normal checks that a generated report/manual/slide deck includes analysis,
+  summaries, conclusions, tables, or evidence-backed content requested by the
+  task;
+- file type or output artifact requirements explicitly requested by the task or
+  output contract.
+
+Flag a problem only when the rubric imposes an evaluator requirement that a
+reasonable correct output could fail despite satisfying the task, such as:
+- unsupported_requirement: the rubric requires a specific conclusion, label,
+  role/permission assignment, classification, recommendation, or content detail
+  that is not given by the task and not derivable from the input data.
+- multi_valid_outputs: the task admits many valid designs/analyses/plans, but
+  the rubric hard-codes one arbitrary answer, wording, section, exact list, page,
+  slide, order, chart type, or placement.
+- over_constrained: the rubric pins an exact structure, title, page/slide number,
+  worksheet name, format, or layout not required by the task/contract/context.
+- task_mismatch: the rubric contradicts the task's requested scope or output.
+
+Use none when the requirement is grounded in task text, output contract, or
+provided context, or when the issue is merely a broad/subjective quality check.
+
+Return ONLY JSON:
+{{
+  "defect":"none|unsupported_requirement|multi_valid_outputs|over_constrained|task_mismatch",
+  "strictness_category":"none|unsupported_requirement|multi_valid_outputs|arbitrary_structure|task_mismatch",
+  "evidence":"short quote/reason",
+  "confidence":0.0,
+  "todo":"short human-review instruction if defect is not none, otherwise empty"
+}}
+
+TASK:
+{task}
+
+OUTPUT CONTRACT:
+{output_contract}
+
+CONTEXT / INPUT ARTIFACTS:
+{context}
+
+RUBRIC:
+{rubric}
+"""
+
 STRUCTURE_PROMPT = """A cheap code filter selected this rubric as a POSSIBLE
 rubric/task mismatch because it mentions structure, naming, format, a title, a
 directory, a file, a worksheet, or layout.
@@ -303,6 +359,32 @@ GENERATED_CONTENT_RUBRIC_PATTERN = re.compile(
     re.I,
 )
 
+STRICTNESS_RUBRIC_PATTERN = re.compile(
+    r"\b("
+    r"slide|slides|page|pages|ppt|pptx|powerpoint|first slide|second slide|"
+    r"chart type|pie chart|bar chart|line chart|placement|position|order|"
+    r"exact(?:ly)?|specific(?:ally)?|specific recommendations?|such as|namely|"
+    r"at least\s+\d+|exact title|title[d]?|section title|worksheet|sheet name|"
+    r"role|roles|permission|permissions|responsibilit(?:y|ies)|access|"
+    r"classif(?:y|ies|ication)|category|risk level|priority|p0|p1|"
+    r"recommend(?:ation)?|suggestion|phase|stage|implementation plan|"
+    r"strong department|weak department|best|most promising"
+    r")\b|"
+    r"第.{0,8}(页|张|个|部分|章节)|幻灯片|页面|页码|位置|顺序|"
+    r"精确|具体|特定|例如|包括以下|分别为|名为|标题|工作表|表名|"
+    r"角色|权限|职责|责任|访问|分类|归类|等级|级别|优先级|"
+    r"建议|阶段|计划|指定|固定",
+    re.I,
+)
+
+PRESENTATION_STRICTNESS_PATTERN = re.compile(
+    r"\b(slide|slides|page|pages|ppt|pptx|powerpoint|chart type|"
+    r"placement|position|order|exact(?:ly)?|specific recommendations?)\b|"
+    r"第.{0,8}(页|张|个|部分|章节)|幻灯片|页面|页码|位置|顺序|"
+    r"精确|具体|特定|固定",
+    re.I,
+)
+
 GENERIC_GROUNDING_SUFFIXES = (
     "数量",
     "总数",
@@ -407,7 +489,7 @@ class GroundedRubricConsistencyChecker(Checker):
             return []
         task = item.task or ""
         for index, rubric in enumerate(rubrics):
-            for violation in self._check_structure_rubric(
+            for violation in self._check_strictness_rubric(
                 item,
                 index,
                 rubric,
@@ -425,7 +507,7 @@ class GroundedRubricConsistencyChecker(Checker):
             ):
                 yield violation
 
-    def _check_structure_rubric(
+    def _check_strictness_rubric(
         self,
         item: BenchmarkItem,
         index: int,
@@ -433,38 +515,52 @@ class GroundedRubricConsistencyChecker(Checker):
         task: str,
         context_text: str,
     ) -> Iterable[Violation]:
-        if not is_structure_rubric(rubric) or len(normalize_space(task)) < 8:
+        if not is_strictness_rubric(rubric) or len(normalize_space(task)) < 8:
             return []
-        prompt = STRUCTURE_PROMPT.format(
+        prompt = STRICTNESS_PROMPT.format(
             task=preview(task, 1400),
+            output_contract=preview(item.output_contract, 800) or "(no output contract)",
             context=preview(context_text, 2200),
             rubric=preview(rubric, 1000),
         )
         result = call_json_multi_majority(
             self.client,
-            STRUCTURE_SYSTEM_PROMPT,
+            STRICTNESS_SYSTEM_PROMPT,
             prompt,
             key="defect",
             default="none",
         )
         defect = result.get("majority")
-        if defect not in {"over_constrained", "task_mismatch"}:
+        if defect not in {
+            "unsupported_requirement",
+            "multi_valid_outputs",
+            "over_constrained",
+            "task_mismatch",
+        }:
             return []
         confidence = as_float(result.get("confidence"), 0.0)
         if confidence < self.review_threshold:
             return []
+        category = str(result.get("strictness_category") or strictness_category_for_defect(defect))
+        todo = (
+            result.get("todo")
+            or "TODO: verify whether the rubric requirement is grounded in the task, output contract, or input data."
+        )
         return [
             _violation(
                 item,
                 "task_rubric_mismatch",
                 min(0.9, confidence),
                 result.get("evidence")
-                or "Rubric imposes output structure not clearly supported by the task.",
+                or "Rubric imposes an over-strict requirement not clearly supported by the task.",
                 {
                     "rubric_index": index,
                     "rubric": rubric,
-                    "grounding_check": "output_structure_vs_task",
+                    "grounding_check": "rubric_strictness_vs_task_context",
                     "defect": defect,
+                    "strictness_category": category,
+                    "todo": todo,
+                    "human_review_todo": True,
                     "votes": result.get("votes", []),
                     "llm_results": result.get("results", []),
                 },
@@ -483,7 +579,11 @@ class GroundedRubricConsistencyChecker(Checker):
         context_text: str,
         root: Path | None,
     ) -> Iterable[Violation]:
-        if is_structure_rubric(rubric) or not looks_data_bearing(rubric):
+        if (
+            is_structure_rubric(rubric)
+            or is_presentation_strictness_rubric(rubric)
+            or not looks_data_bearing(rubric)
+        ):
             return []
         extract_prompt = REQUIRED_DATA_PROMPT.format(
             task=preview(task or "(missing task)", 900),
@@ -1358,6 +1458,24 @@ def is_structure_rubric(rubric: str) -> bool:
     if CONTENT_ORACLE_RUBRIC_PATTERN.search(text):
         return False
     return True
+
+
+def is_strictness_rubric(rubric: str) -> bool:
+    text = rubric or ""
+    return bool(is_structure_rubric(text) or STRICTNESS_RUBRIC_PATTERN.search(text))
+
+
+def is_presentation_strictness_rubric(rubric: str) -> bool:
+    return bool(PRESENTATION_STRICTNESS_PATTERN.search(rubric or ""))
+
+
+def strictness_category_for_defect(defect: Any) -> str:
+    value = str(defect or "").strip()
+    if value == "over_constrained":
+        return "arbitrary_structure"
+    if value in {"unsupported_requirement", "multi_valid_outputs", "task_mismatch"}:
+        return value
+    return "none"
 
 
 def looks_data_bearing(rubric: str) -> bool:

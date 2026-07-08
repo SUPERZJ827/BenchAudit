@@ -110,6 +110,11 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
             lines.append(f"  - {v['message']}")
             if v.get("suggested_repair"):
                 lines.append(f"  - Repair: {v['suggested_repair']}")
+            if isinstance(v.get("evidence"), dict) and v["evidence"].get("todo"):
+                todo = str(v["evidence"]["todo"]).strip()
+                if todo.lower().startswith("todo:"):
+                    todo = todo.split(":", 1)[1].strip()
+                lines.append(f"  - TODO: {todo}")
             if v.get("evidence"):
                 compact = json.dumps(v["evidence"], ensure_ascii=False)
                 if len(compact) > 500:
