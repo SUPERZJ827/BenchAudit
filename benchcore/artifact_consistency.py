@@ -292,6 +292,17 @@ ROLE_PERMISSION_PATTERN = re.compile(
     re.I,
 )
 
+GENERATED_CONTENT_RUBRIC_PATTERN = re.compile(
+    r"\b("
+    r"classif(?:y|ies|ication)|categor(?:y|ize|ization)|risk classification|"
+    r"analysis|analy[sz]e|conclusion|recommend(?:ation)?|suggestion|"
+    r"checklist|phase|plan|strategy|work plan|implementation|workflow|"
+    r"metric|performance metric|priority|p0|p1"
+    r")\b|"
+    r"分类|归类|分析|结论|建议|清单|阶段|计划|策略|工作计划|实施|流程|指标|优先级",
+    re.I,
+)
+
 GENERIC_GROUNDING_SUFFIXES = (
     "数量",
     "总数",
@@ -515,6 +526,8 @@ class GroundedRubricConsistencyChecker(Checker):
         ]
         if not missing:
             return []
+        if is_generated_content_requirement(task, rubric, required):
+            return []
 
         focused_context = append_targeted_search_context(item, root, context_text, missing, rubric)
         verify_prompt = DATA_GROUNDING_PROMPT.format(
@@ -531,6 +544,11 @@ class GroundedRubricConsistencyChecker(Checker):
             default="present_or_derivable",
         )
         if result.get("majority") != "not_in_inputs":
+            return []
+        reason = str(result.get("reason") or "")
+        if data_gap_reason_is_not_aligned_with_rubric(reason, rubric):
+            return []
+        if targeted_search_refutes_data_gap(reason, focused_context, rubric):
             return []
         confidence = max(self.review_threshold, as_float(result.get("confidence"), 0.7))
         return [
@@ -894,7 +912,9 @@ def dedupe_contract_issues(issues: list[dict[str, Any]]) -> list[dict[str, Any]]
 INTERNAL_OUTPUT_CONTRACT_PATTERN = re.compile(
     r"\b(sheets?|worksheets?|tabs?|sections?|charts?|plots?|tables?|rows?|"
     r"columns?|cells?|layouts?|slides?|pages?|placement|value checks?|"
-    r"data preservation)\b|"
+    r"data preservation|visual content|image content|speech bubble|question mark|"
+    r"icon content|picture content|visual elements?|file size|naming pattern|"
+    r"color description|shape details?|content details?)\b|"
     r"工作表|图表|章节|小节|表格|行|列|单元格|布局|版式|位置|页面|幻灯片",
     re.I,
 )
@@ -916,7 +936,15 @@ SOURCE_FILE_ACCESS_PATTERN = re.compile(
 
 
 def contract_declares_internal_structure(output_contract: Any) -> bool:
-    text = normalize_space(json.dumps(output_contract, ensure_ascii=False, sort_keys=True))
+    if isinstance(output_contract, dict):
+        contract_for_structure = {
+            key: value
+            for key, value in output_contract.items()
+            if key not in {"required_files", "files"}
+        }
+    else:
+        contract_for_structure = output_contract
+    text = normalize_space(json.dumps(contract_for_structure, ensure_ascii=False, sort_keys=True))
     return bool(INTERNAL_OUTPUT_CONTRACT_PATTERN.search(text))
 
 
@@ -1351,6 +1379,80 @@ def is_generated_role_permission_requirement(
     task_text = task or ""
     joined = " ".join([rubric, *required])
     return bool(GENERATIVE_TASK_PATTERN.search(task_text) and ROLE_PERMISSION_PATTERN.search(joined))
+
+
+def is_generated_content_requirement(task: str, rubric: str, required: list[str]) -> bool:
+    """Generated analysis structures are not source-data gaps.
+
+    If the task asks the agent to analyze/classify/plan/summarize and the rubric
+    checks the resulting classification/checklist/plan/metrics, absence of that
+    exact output structure from the input files is expected.
+    """
+    task_text = task or ""
+    joined = " ".join([rubric, *required])
+    if not GENERATIVE_TASK_PATTERN.search(task_text):
+        return False
+    if not GENERATED_CONTENT_RUBRIC_PATTERN.search(joined):
+        return False
+    # Keep concrete source-value checks alive: numbers often indicate a value the
+    # rubric expects to be extracted or recomputed, not just a generated section.
+    if re.search(r"\b\d[\d,]*(?:\.\d+)?%?\b", rubric):
+        return False
+    return True
+
+
+GRADE_TERMS = re.compile(
+    r"\b(tertiary|secondary|primary|grade classification|hospital grade)\b|"
+    r"三级|二级|一级|等级",
+    re.I,
+)
+
+
+def data_gap_reason_is_not_aligned_with_rubric(reason: str, rubric: str) -> bool:
+    """Drop LLM reasons that clearly discuss a different rubric in the same item."""
+    if not reason:
+        return False
+    # Common Workspace-Bench failure: the checker audits a simple total-count
+    # rubric but explains a data gap for a different grade-breakdown rubric.
+    return bool(GRADE_TERMS.search(reason) and not GRADE_TERMS.search(rubric or ""))
+
+
+ABSENCE_REASON_PATTERN = re.compile(
+    r"\b(not present|not found|absent|missing|not in|no .*?(?:given|found|provided)|"
+    r"cannot be derived|no derivable)\b|不存在|缺失|未找到|没有|无法推导",
+    re.I,
+)
+
+
+def targeted_search_refutes_data_gap(reason: str, focused_context: str, rubric: str) -> bool:
+    """A data-gap claim is unsafe when full-file snippets show the allegedly missing value."""
+    if not reason or not ABSENCE_REASON_PATTERN.search(reason):
+        return False
+    if "[TARGETED FULL-FILE SEARCH SNIPPETS]" not in focused_context:
+        return False
+    reason_norm = normalize_for_presence(reason)
+    found_terms = {
+        normalize_for_presence(term)
+        for term in re.findall(r"- match `([^`]+)`:", focused_context)
+    }
+    for number in substantive_numeric_terms(rubric):
+        norm = normalize_for_presence(number)
+        if norm and norm in reason_norm and norm in found_terms:
+            return True
+    return False
+
+
+def substantive_numeric_terms(text: str) -> list[str]:
+    out: list[str] = []
+    for number in re.findall(r"\b\d[\d,]*(?:\.\d+)?%?\b", text or ""):
+        plain = number.rstrip("%").replace(",", "")
+        try:
+            value = float(plain)
+        except ValueError:
+            continue
+        if number.endswith("%") or "." in number or "," in number or abs(value) >= 1000:
+            out.append(number)
+    return out
 
 
 def core_grounding_term(term: str) -> str:

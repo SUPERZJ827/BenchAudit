@@ -8,12 +8,15 @@ from benchcore.artifact_consistency import (
     RubricOutputContractConsistencyChecker,
     STRUCTURE_PROMPT,
     build_context_preview,
+    data_gap_reason_is_not_aligned_with_rubric,
     extract_rubrics,
     full_context_text,
+    is_generated_content_requirement,
     is_generated_role_permission_requirement,
     is_structure_rubric,
     is_material_output_contract_issue,
     static_output_contract_issues,
+    targeted_search_refutes_data_gap,
     targeted_search_context,
 )
 from benchcore.schema import BenchmarkItem
@@ -330,6 +333,55 @@ def test_generated_role_permission_requirement_is_not_data_gap():
     )
 
 
+def test_generated_classification_requirement_is_not_data_gap():
+    item = BenchmarkItem(
+        item_id="ground-generated-classification",
+        raw={"rubrics": ["Is the risk classification clearly divided into market, operational, and financial risk?"]},
+        task="Analyze the annual statement and classify the risks into market, operational, and financial categories.",
+        context={"table": "columns: revenue, profit, cash_flow"},
+    )
+    client = FakeLLMClient({"required": ["market risk", "operational risk", "financial risk"]})
+
+    violations = list(GroundedRubricConsistencyChecker(client).check(item))
+
+    assert violations == []
+    assert is_generated_content_requirement(
+        item.task or "",
+        item.raw["rubrics"][0],
+        ["market risk", "operational risk", "financial risk"],
+    )
+
+
+def test_data_gap_reason_for_different_rubric_is_dropped():
+    assert data_gap_reason_is_not_aligned_with_rubric(
+        "The provided input lacks hospital grade classification such as tertiary, secondary, and primary.",
+        "Is the total number of hospitals in the central region 11,548?",
+    )
+    assert not data_gap_reason_is_not_aligned_with_rubric(
+        "The input lacks tertiary, secondary, and primary hospital grades.",
+        "In the eastern region, are there 1,057 tertiary hospitals and 4,530 secondary hospitals?",
+    )
+
+
+def test_targeted_search_refutes_missing_numeric_claim():
+    focused = (
+        "preview\n\n[TARGETED FULL-FILE SEARCH SNIPPETS]\n"
+        "FILE meeting_minutes_02.txt\n"
+        "- match `4.5`: inventory turnover rate 4.5 times, equipment failure rate 0.2%\n"
+    )
+
+    assert targeted_search_refutes_data_gap(
+        "The inventory turnover rate for February 2024 is not present; no value of 4.5 times is given.",
+        focused,
+        "Is the inventory turnover rate data sequentially 4.2 times, 4.5 times, and 4.8 times?",
+    )
+    assert not targeted_search_refutes_data_gap(
+        "The revenue is 1,001,592,071.53 rather than RMB 492 million.",
+        focused,
+        "Does the report extract revenue of RMB 492 million?",
+    )
+
+
 def test_grounded_rubric_checker_flags_over_constrained_structure():
     item = BenchmarkItem(
         item_id="ground-structure",
@@ -489,6 +541,58 @@ def test_output_contract_checker_ignores_internal_sheet_when_contract_is_file_le
         {
             "type": "extra_output",
             "detail": "Rubric expects worksheet named 'Regional Details' not declared in output contract.",
+            "material": True,
+        },
+        item.output_contract,
+    )
+
+
+def test_output_contract_checker_ignores_declared_image_internal_content():
+    item = BenchmarkItem(
+        item_id="contract-image-content",
+        raw={"rubrics": ["Does question_mark-speech_bubble.png show a speech-bubble shape containing a black question mark?"]},
+        task="Rename the icons so they can be identified clearly.",
+        output_contract={"type": "workspace_files", "required_files": ["question_mark-speech_bubble.png", "table-green.png"]},
+        evaluator={
+            "type": "workspacebench_rubric",
+            "rubrics": ["Does question_mark-speech_bubble.png show a speech-bubble shape containing a black question mark?"],
+        },
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "status": "contract_mismatch",
+                    "issues": [
+                        {
+                            "rubric_index": 0,
+                            "type": "format_conflict",
+                            "detail": "Rubric requires specific visual content (speech bubble, question mark) not declared in output contract.",
+                            "material": True,
+                        }
+                    ],
+                    "severity": "high",
+                    "confidence": 0.9,
+                }
+            ]
+        ]
+    )
+
+    violations = list(RubricOutputContractConsistencyChecker(client).check(item))
+
+    assert violations == []
+    assert not is_material_output_contract_issue(
+        {
+            "type": "file_name_conflict",
+            "detail": "Rubric requires filenames to describe main visual elements, not declared in output contract",
+            "material": True,
+        },
+        item.output_contract,
+    )
+    assert not is_material_output_contract_issue(
+        {
+            "type": "format_conflict",
+            "detail": "Rubric requires specific file size for question_mark-speech_bubble.png (503 KB) not declared in output contract",
             "material": True,
         },
         item.output_contract,
