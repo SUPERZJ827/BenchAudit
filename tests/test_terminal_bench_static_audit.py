@@ -1,6 +1,7 @@
 from scripts.audit_terminal_bench21_static import (
     created_test_paths,
     duplicate_numbered_steps,
+    extract_instruction_output_paths,
     extract_test_exists_paths,
 )
 
@@ -36,3 +37,31 @@ def test_duplicate_numbered_steps_detects_repeated_labels():
 """
 
     assert duplicate_numbered_steps(instruction) == ["2"]
+
+
+def test_instruction_output_paths_ignore_versions_urls_and_classes():
+    instruction = """
+Generate a report comparing version 1.36.8 with example.com references.
+Include SetValRequest and KVStore examples in the writeup.
+"""
+
+    assert extract_instruction_output_paths(instruction) == set()
+
+
+def test_instruction_output_paths_keep_explicit_relative_files():
+    instruction = """
+Write the final answer to `result.json`.
+Create a binary executable called `doomgeneric_mips`.
+The input file `data.txt` is already provided.
+"""
+
+    assert extract_instruction_output_paths(instruction) == {"/app/result.json", "/app/doomgeneric_mips"}
+
+
+def test_instruction_output_paths_skip_inputs_before_or_after_output_clause():
+    instruction = """
+You're given an image at `/app/code.png`. Write the result to `/app/output.txt`.
+Create a file called "/app/solution.txt" with the word found in "secret_file.txt" in the "secrets.7z" archive.
+"""
+
+    assert extract_instruction_output_paths(instruction) == {"/app/output.txt", "/app/solution.txt"}

@@ -23,9 +23,16 @@ OUTPUT_VERBS_RE = re.compile(
 )
 INPUT_CONTEXT_RE = re.compile(
     r"\b(given|provided|located|available|already|input|database|do not modify|"
-    r"usage|run|execute|verify|test|read from)\b",
+    r"usage|run|execute|verify|test|read from|found in|source|archive)\b",
     re.I,
 )
+FILEISH_EXT_RE = re.compile(r"\.[A-Za-z0-9_+-]{1,12}$")
+NON_FILE_EXTS = {
+    ".com",
+    ".org",
+    ".net",
+    ".io",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,10 +69,15 @@ def audit_repo(repo: Path, limit: int | None) -> list[dict[str, Any]]:
             continue
         instruction = instruction_path.read_text(encoding="utf-8", errors="replace")
         test_text = read_test_text(task_dir)
-        instruction_paths = extract_paths(instruction)
+        instruction_paths = extract_paths(instruction, include_relative=True)
         output_paths = extract_instruction_output_paths(instruction)
         test_exist_paths = extract_test_exists_paths(test_text)
-        hidden = sorted(test_exist_paths - instruction_paths - created_test_paths(test_text))
+        created_paths = created_test_paths(test_text)
+        hidden = sorted(
+            path
+            for path in test_exist_paths
+            if path not in created_paths and not path_is_covered(path, instruction_paths)
+        )
         untested = sorted(output_paths - extract_paths(test_text))
         duplicate_steps = duplicate_numbered_steps(instruction)
         for path in hidden:
@@ -128,9 +140,11 @@ def read_test_text(task_dir: Path) -> str:
     return "\n".join(chunks)
 
 
-def extract_paths(text: str) -> set[str]:
+def extract_paths(text: str, *, include_relative: bool = False) -> set[str]:
     paths = {clean_path(match.group(0)) for match in APP_PATH_RE.finditer(text)}
     paths.update(extract_pathlib_join_paths(text).values())
+    if include_relative:
+        paths.update(extract_relative_app_paths(text))
     return {path for path in paths if path not in {"/app", "/app/"}}
 
 
@@ -141,11 +155,22 @@ def clean_path(path: str) -> str:
 def extract_instruction_output_paths(instruction: str) -> set[str]:
     paths: set[str] = set()
     for line in instruction.splitlines():
-        line_paths = extract_paths(line)
+        verb_match = OUTPUT_VERBS_RE.search(line)
+        if not verb_match:
+            continue
+        line_paths = extract_paths(line, include_relative=False)
+        line_paths.update(extract_explicit_relative_output_paths(line, verb_match.start()))
         if not line_paths:
             continue
-        if OUTPUT_VERBS_RE.search(line):
-            paths.update(line_paths)
+        # If an input path appears before the output verb in the same sentence,
+        # do not treat it as the requested output. Example: "texts at /app/data.txt,
+        # Write the resulting line to /app/result.txt".
+        for path in line_paths:
+            pos = path_position_in_line(path, line)
+            if pos != -1 and pos < verb_match.start() and INPUT_CONTEXT_RE.search(line):
+                continue
+            if pos == -1 or pos >= verb_match.start() or not likely_input_path(path, line):
+                paths.add(path)
     return paths
 
 
@@ -218,16 +243,136 @@ def extract_pathlib_join_paths(text: str, *, include_vars: bool = False) -> dict
 
 def likely_input_path(path: str, instruction: str) -> bool:
     for line in instruction.splitlines():
-        if path in line and INPUT_CONTEXT_RE.search(line) and not OUTPUT_VERBS_RE.search(line):
+        if (
+            path_position_in_line(path, line) != -1
+            and INPUT_CONTEXT_RE.search(line)
+            and not OUTPUT_VERBS_RE.search(line)
+        ):
             return True
     return False
+
+
+def path_position_in_line(path: str, line: str) -> int:
+    candidates = [path]
+    if path.startswith("/app/"):
+        candidates.append(path.removeprefix("/app/"))
+    positions = [line.find(candidate) for candidate in candidates if candidate]
+    positions = [pos for pos in positions if pos != -1]
+    return min(positions) if positions else -1
 
 
 def duplicate_numbered_steps(instruction: str) -> list[str]:
     counts: dict[str, int] = {}
     for match in NUMBERED_STEP_RE.finditer(instruction):
-        counts[match.group(1)] = counts.get(match.group(1), 0) + 1
+        number = match.group(1)
+        current = int(number)
+        previous = max((int(key) for key in counts), default=0)
+        if current == 1 and previous > 1:
+            counts = {}
+        counts[number] = counts.get(number, 0) + 1
     return sorted(number for number, count in counts.items() if count > 1)
+
+
+def extract_relative_app_paths(text: str) -> set[str]:
+    paths: set[str] = set()
+    # File names with extensions, including paths like examples/foo/bar.txt.
+    for match in re.finditer(r"(?<![\w/.-])([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+)(?![\w/.-])", text):
+        value = match.group(1).strip("./")
+        if not value or value.startswith(("http:", "https:")):
+            continue
+        if value.startswith("app/"):
+            value = value.removeprefix("app/")
+        if not value.startswith("/"):
+            paths.add(f"/app/{value}")
+    # Extensionless executables/files explicitly introduced by naming verbs.
+    for match in re.finditer(
+        r"(?:called|named|file called|file named|binary executable called)\s+[`'\"]?([A-Za-z0-9_.-]+)[`'\"]?",
+        text,
+        re.I,
+    ):
+        value = match.group(1).strip("./")
+        if value and "." not in value and "/" not in value:
+            paths.add(f"/app/{value}")
+    return {clean_path(path) for path in paths}
+
+
+def extract_explicit_relative_output_paths(line: str, verb_start: int) -> set[str]:
+    """Extract relative output paths only when the instruction explicitly names them.
+
+    This deliberately stays narrower than `extract_relative_app_paths`: a broad
+    relative extractor is useful for grounding hidden test paths, but output
+    coverage should not treat versions, URLs, class names, or input filenames as
+    required generated artifacts.
+    """
+    paths: set[str] = set()
+    tail = line[verb_start:]
+    for match in re.finditer(r"[`'\"]([^`'\"]+)[`'\"]", tail):
+        value = match.group(1).strip()
+        prefix = tail[max(0, match.start() - 60) : match.start()]
+        verb_matches = list(OUTPUT_VERBS_RE.finditer(prefix))
+        if not verb_matches:
+            continue
+        if INPUT_CONTEXT_RE.search(prefix[verb_matches[-1].end() :]):
+            continue
+        if not is_relative_output_token(value):
+            continue
+        paths.add(normalize_app_path(value))
+    for match in re.finditer(
+        r"(?:called|named|file called|file named|binary executable called)\s+[`'\"]?([A-Za-z0-9_.-]+)[`'\"]?",
+        tail,
+        re.I,
+    ):
+        value = match.group(1).strip("./")
+        if is_extensionless_output_name(value):
+            paths.add(normalize_app_path(value))
+    return {clean_path(path) for path in paths}
+
+
+def is_relative_output_token(value: str) -> bool:
+    value = value.strip()
+    if not value or value.startswith(("/", "http:", "https:")):
+        return False
+    value = value.strip("./")
+    if " " in value:
+        return False
+    if value.count("/") > 5:
+        return False
+    suffix = Path(value).suffix.lower()
+    if not suffix or suffix in NON_FILE_EXTS:
+        return False
+    if re.fullmatch(r"\d+(?:\.\d+)+", value):
+        return False
+    return bool(FILEISH_EXT_RE.search(value))
+
+
+def is_extensionless_output_name(value: str) -> bool:
+    if not value or "/" in value or "." in value:
+        return False
+    if len(value) < 3 or len(value) > 40:
+        return False
+    if re.search(r"[A-Z]", value):
+        return False
+    return bool(re.search(r"[-_]", value) or value.endswith(("bin", "cli", "tool")))
+
+
+def normalize_app_path(value: str) -> str:
+    value = value.strip().strip("./")
+    if value.startswith("app/"):
+        value = value.removeprefix("app/")
+    return f"/app/{value}"
+
+
+def path_is_covered(path: str, instruction_paths: set[str]) -> bool:
+    if path in instruction_paths:
+        return True
+    for candidate in instruction_paths:
+        if candidate in {"/app", "/app/"}:
+            continue
+        # Directory-style coverage: "Clone Caffe to /app/caffe" covers tests
+        # under /app/caffe/...
+        if path.startswith(candidate.rstrip("/") + "/"):
+            return True
+    return False
 
 
 def finding(
