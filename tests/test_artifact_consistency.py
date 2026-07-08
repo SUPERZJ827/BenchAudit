@@ -14,6 +14,7 @@ from benchcore.artifact_consistency import (
     is_generated_content_requirement,
     is_generated_role_permission_requirement,
     is_structure_rubric,
+    is_strictness_rubric,
     is_material_output_contract_issue,
     static_output_contract_issues,
     targeted_search_refutes_data_gap,
@@ -191,6 +192,18 @@ def test_true_output_structure_rubrics_still_route_to_structure_checker():
         "Is the CL-Bench paper section correctly titled CL-Bench: A Benchmark for Context Learning?"
     )
     assert is_structure_rubric("输出文件必须包含名为“数据说明”的工作表。")
+
+
+def test_strictness_rubrics_include_slide_position_and_multi_valid_outputs():
+    assert is_strictness_rubric(
+        "Does page 4 of the PPT include a retention rate data table?"
+    )
+    assert is_strictness_rubric(
+        "Does the report include a phased implementation plan with at least 3 stages, clearly distinguishing emergency rectification, system building, and continuous optimization?"
+    )
+    assert is_strictness_rubric(
+        "Does the reimbursement review role have view-only access and export permission prohibited?"
+    )
 
 
 def test_structure_prompt_is_semantic_confirmation_stage():
@@ -411,7 +424,41 @@ def test_grounded_rubric_checker_flags_over_constrained_structure():
     assert [v.defect_type for v in violations] == ["task_rubric_mismatch"]
     assert violations[0].severity == "review"
     assert violations[0].review_only
-    assert violations[0].evidence["grounding_check"] == "output_structure_vs_task"
+    assert violations[0].evidence["grounding_check"] == "rubric_strictness_vs_task_context"
+    assert violations[0].evidence["human_review_todo"] is True
+    assert violations[0].evidence["strictness_category"] == "arbitrary_structure"
+
+
+def test_grounded_rubric_checker_flags_multi_valid_output_strictness():
+    item = BenchmarkItem(
+        item_id="ground-multi-valid",
+        raw={
+            "rubrics": [
+                "Does page 4 of the PPT include a retention rate data table, and does page 5 include exactly three retention suggestions?"
+            ]
+        },
+        task="Analyze employee retention and create a PPT report.",
+        context={"table": "columns: employee_id, department, retention_rate"},
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "defect": "multi_valid_outputs",
+                    "strictness_category": "multi_valid_outputs",
+                    "evidence": "The task asks for a PPT report, but not exact page numbers or exactly three suggestions.",
+                    "confidence": 0.84,
+                    "todo": "TODO: verify whether exact PPT page placement is required by the task.",
+                }
+            ]
+        ]
+    )
+
+    violations = list(GroundedRubricConsistencyChecker(client).check(item))
+
+    assert [v.defect_type for v in violations] == ["task_rubric_mismatch"]
+    assert violations[0].evidence["strictness_category"] == "multi_valid_outputs"
+    assert "TODO" in violations[0].evidence["todo"]
 
 
 def test_grounded_rubric_checker_drops_low_confidence_structure_claim():
