@@ -15,6 +15,7 @@ from benchcore.artifact_consistency import (
     is_generated_role_permission_requirement,
     is_structure_rubric,
     is_strictness_rubric,
+    keep_strictness_result,
     is_material_output_contract_issue,
     static_output_contract_issues,
     targeted_search_refutes_data_gap,
@@ -212,6 +213,30 @@ def test_objective_data_oracles_do_not_route_to_strictness():
     )
     assert not is_strictness_rubric(
         "Does the report state that there are 8 negative-variance items, specifically item 1, item 2, item 4, item 7, item 8, item 9, item 13, and item 14?"
+    )
+
+
+def test_strictness_result_keeps_only_strong_unsupported_cases():
+    assert keep_strictness_result(
+        "unsupported_requirement",
+        "unsupported_requirement",
+        "Does the copied file have exactly 4000 bytes?",
+        {"confidence": 0.9},
+        0.45,
+    )
+    assert keep_strictness_result(
+        "unsupported_requirement",
+        "unsupported_requirement",
+        "Does the reimbursement review role have edit access and export prohibited?",
+        {"confidence": 0.85},
+        0.45,
+    )
+    assert not keep_strictness_result(
+        "unsupported_requirement",
+        "unsupported_requirement",
+        "Does the report include recommendations for supplier management?",
+        {"confidence": 0.9},
+        0.45,
     )
 
 

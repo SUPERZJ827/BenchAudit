@@ -595,9 +595,9 @@ class GroundedRubricConsistencyChecker(Checker):
         }:
             return []
         confidence = as_float(result.get("confidence"), 0.0)
-        if confidence < self.review_threshold:
-            return []
         category = str(result.get("strictness_category") or strictness_category_for_defect(defect))
+        if not keep_strictness_result(defect, category, rubric, result, self.review_threshold):
+            return []
         todo = (
             result.get("todo")
             or "TODO: verify whether the rubric requirement is grounded in the task, output contract, or input data."
@@ -1583,6 +1583,47 @@ def strictness_category_for_defect(defect: Any) -> str:
     if value in {"unsupported_requirement", "multi_valid_outputs", "task_mismatch"}:
         return value
     return "none"
+
+
+STRONG_UNSUPPORTED_RUBRIC_PATTERN = re.compile(
+    r"\b("
+    r"exact(?:ly)?|at least\s+\d+|file size|bytes?|"
+    r"role|roles|permission|permissions|access|responsibilit(?:y|ies)|"
+    r"sensitive|classification level|level\s+\d+|"
+    r"column names?|worksheet|sheet name|section title|exact title|"
+    r"specific phrase|exact wording"
+    r")\b|"
+    r"精确|至少\s*\d+|文件大小|字节|角色|权限|职责|责任|访问|"
+    r"敏感|等级|级别|列名|工作表|表名|章节标题|准确标题|具体措辞|固定措辞",
+    re.I,
+)
+
+
+def keep_strictness_result(
+    defect: Any,
+    category: str,
+    rubric: str,
+    result: dict[str, Any],
+    threshold: float,
+) -> bool:
+    """Favor precision for over-strict rubric findings.
+
+    Unsupported-requirement is the noisiest label: it often means only "the task
+    did not explicitly ask for this". Keep it only with stronger confidence and
+    strong lexical evidence of exact/arbitrary constraints. Structure and
+    multi-valid-output findings are closer to the desired failure mode.
+    """
+    confidence = as_float(result.get("confidence"), 0.0)
+    if confidence < threshold:
+        return False
+    defect_s = str(defect or "")
+    if defect_s == "unsupported_requirement" or category == "unsupported_requirement":
+        if confidence < 0.8:
+            return False
+        return bool(STRONG_UNSUPPORTED_RUBRIC_PATTERN.search(rubric or ""))
+    if category in {"multi_valid_outputs", "arbitrary_structure", "task_mismatch"}:
+        return confidence >= max(threshold, 0.65)
+    return defect_s in {"over_constrained", "task_mismatch"} and confidence >= max(threshold, 0.65)
 
 
 def looks_data_bearing(rubric: str) -> bool:
