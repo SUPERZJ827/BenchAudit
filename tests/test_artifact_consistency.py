@@ -206,6 +206,15 @@ def test_strictness_rubrics_include_slide_position_and_multi_valid_outputs():
     )
 
 
+def test_objective_data_oracles_do_not_route_to_strictness():
+    assert not is_strictness_rubric(
+        "Does the report count 6 approved purchase orders, namely PO #1013, #1006, #1007, #1012, #1005, and #1011?"
+    )
+    assert not is_strictness_rubric(
+        "Does the report state that there are 8 negative-variance items, specifically item 1, item 2, item 4, item 7, item 8, item 9, item 13, and item 14?"
+    )
+
+
 def test_structure_prompt_is_semantic_confirmation_stage():
     prompt = STRUCTURE_PROMPT.format(
         task="Generate an annual report analysis.",
@@ -404,18 +413,11 @@ def test_grounded_rubric_checker_flags_over_constrained_structure():
     )
     client = FakeLLMClient(
         [
-            [
-                {
-                    "defect": "over_constrained",
-                    "evidence": "The task asks for an Excel output but not this exact sheet.",
-                    "confidence": 0.78,
-                },
-                {
-                    "defect": "over_constrained",
-                    "evidence": "The sheet name is not grounded in the task.",
-                    "confidence": 0.8,
-                },
-            ]
+            {
+                "defect": "over_constrained",
+                "evidence": "The task asks for an Excel output but not this exact sheet.",
+                "confidence": 0.78,
+            }
         ]
     )
 
@@ -442,15 +444,13 @@ def test_grounded_rubric_checker_flags_multi_valid_output_strictness():
     )
     client = FakeLLMClient(
         [
-            [
-                {
-                    "defect": "multi_valid_outputs",
-                    "strictness_category": "multi_valid_outputs",
-                    "evidence": "The task asks for a PPT report, but not exact page numbers or exactly three suggestions.",
-                    "confidence": 0.84,
-                    "todo": "TODO: verify whether exact PPT page placement is required by the task.",
-                }
-            ]
+            {
+                "defect": "multi_valid_outputs",
+                "strictness_category": "multi_valid_outputs",
+                "evidence": "The task asks for a PPT report, but not exact page numbers or exactly three suggestions.",
+                "confidence": 0.84,
+                "todo": "TODO: verify whether exact PPT page placement is required by the task.",
+            }
         ]
     )
 

@@ -385,6 +385,33 @@ PRESENTATION_STRICTNESS_PATTERN = re.compile(
     re.I,
 )
 
+OBJECTIVE_DATA_ORACLE_PATTERN = re.compile(
+    r"\b("
+    r"count|total|number|amount|rate|ratio|percentage|sum|average|"
+    r"records?|orders?|items?|tasks?|participants?|employees?|hospitals?|"
+    r"purchase orders?|inbound|outbound|variance|priority counts?|"
+    r"state|show|list|identify|extract|calculate|computed?"
+    r")\b|"
+    r"数量|总数|金额|比例|占比|记录|订单|采购单|项目|任务|员工|医院|"
+    r"入库|出库|差异|列出|识别|提取|计算|统计",
+    re.I,
+)
+
+NON_OBJECTIVE_STRICTNESS_PATTERN = re.compile(
+    r"\b("
+    r"slide|slides|page|pages|ppt|pptx|chart type|placement|position|"
+    r"title|worksheet|sheet name|format|layout|section|"
+    r"role|permission|access|responsibilit(?:y|ies)|"
+    r"classif(?:y|ies|ication)|risk level|priority|p0|p1|"
+    r"recommend(?:ation)?|suggestion|phase|stage|plan|strategy|"
+    r"exact wording|phrase|horizontal|vertical"
+    r")\b|"
+    r"幻灯片|页面|页码|位置|标题|工作表|表名|格式|布局|章节|"
+    r"角色|权限|职责|责任|访问|分类|归类|等级|级别|优先级|"
+    r"建议|阶段|计划|策略|措辞|水平|垂直",
+    re.I,
+)
+
 GENERIC_GROUNDING_SUFFIXES = (
     "数量",
     "总数",
@@ -523,7 +550,7 @@ class GroundedRubricConsistencyChecker(Checker):
             context=preview(context_text, 2200),
             rubric=preview(rubric, 1000),
         )
-        result = call_json_multi_majority(
+        result = call_json_single(
             self.client,
             STRICTNESS_SYSTEM_PROMPT,
             prompt,
@@ -1462,7 +1489,18 @@ def is_structure_rubric(rubric: str) -> bool:
 
 def is_strictness_rubric(rubric: str) -> bool:
     text = rubric or ""
+    if is_objective_data_oracle_rubric(text):
+        return False
     return bool(is_structure_rubric(text) or STRICTNESS_RUBRIC_PATTERN.search(text))
+
+
+def is_objective_data_oracle_rubric(rubric: str) -> bool:
+    text = rubric or ""
+    if not OBJECTIVE_DATA_ORACLE_PATTERN.search(text):
+        return False
+    if NON_OBJECTIVE_STRICTNESS_PATTERN.search(text):
+        return False
+    return True
 
 
 def is_presentation_strictness_rubric(rubric: str) -> bool:
@@ -1619,4 +1657,31 @@ def call_json_multi_majority(
     merged["majority"] = majority
     merged["votes"] = votes
     merged["results"] = dict_results
+    return merged
+
+
+def call_json_single(
+    client: LLMClient,
+    system: str,
+    user: str,
+    *,
+    key: str,
+    default: str,
+) -> dict[str, Any]:
+    try:
+        result = client.chat_json(system, user)
+    except Exception as exc:  # noqa: BLE001 - convert to row-local uncertain result
+        return {
+            "majority": default,
+            "votes": [],
+            "results": [{"error": f"{type(exc).__name__}: {exc}"}],
+            "confidence": 0.0,
+        }
+    if not isinstance(result, dict):
+        return {"majority": default, "votes": [], "results": [], "confidence": 0.0}
+    vote = str(result.get(key)).strip() if result.get(key) not in (None, "") else default
+    merged = dict(result)
+    merged["majority"] = vote
+    merged["votes"] = [vote]
+    merged["results"] = [result]
     return merged
