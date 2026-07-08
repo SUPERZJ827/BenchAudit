@@ -164,6 +164,9 @@ Benchmark rubrics are allowed to operationalize a broad task into concrete,
 objective checks. Do NOT flag:
 - objective values, counts, totals, percentages, categories, or facts that are
   directly present in or computable from the inputs;
+- specific names, labels, recommendations, categories, file contents, counts,
+  or structural details when they are explicitly present in the input artifacts
+  or can be inferred from them;
 - normal checks that a generated report/manual/slide deck includes analysis,
   summaries, conclusions, tables, or evidence-backed content requested by the
   task;
@@ -184,6 +187,22 @@ reasonable correct output could fail despite satisfying the task, such as:
 
 Use none when the requirement is grounded in task text, output contract, or
 provided context, or when the issue is merely a broad/subjective quality check.
+
+Critical rule: "the task did not explicitly say this exact detail" is NOT enough
+to flag over-strictness. If the detail is supported by input files, file names,
+tables, headings, policies, meeting notes, screenshots, or can be computed or
+reasonably inferred from them, return none. Only flag when the requirement lacks
+support in BOTH the task/contract and the input/context, or when many equally
+valid outputs would satisfy the task but the rubric accepts only one arbitrary
+choice.
+
+Examples that should usually be flagged if not grounded:
+- the task asks for a PPT/report, but the rubric requires content on page/slide X;
+- the task asks for a chart, but the rubric requires a horizontal bar chart;
+- the task asks for recommendations, but the rubric accepts only one specific
+  recommendation or exactly N recommendations;
+- the task asks for a table/manual/report, but the rubric requires exact section
+  titles, worksheet names, ordering, or wording.
 
 Return ONLY JSON:
 {{
@@ -522,6 +541,7 @@ class GroundedRubricConsistencyChecker(Checker):
                 rubric,
                 task,
                 context_text,
+                root,
             ):
                 yield violation
             for violation in self._check_data_grounding(
@@ -541,13 +561,22 @@ class GroundedRubricConsistencyChecker(Checker):
         rubric: str,
         task: str,
         context_text: str,
+        root: Path | None,
     ) -> Iterable[Violation]:
         if not is_strictness_rubric(rubric) or len(normalize_space(task)) < 8:
             return []
+        focused_context = append_targeted_search_context(
+            item,
+            root,
+            context_text,
+            strictness_grounding_terms(rubric),
+            rubric,
+            max_chars=5000,
+        )
         prompt = STRICTNESS_PROMPT.format(
             task=preview(task, 1400),
             output_contract=preview(item.output_contract, 800) or "(no output contract)",
-            context=preview(context_text, 2200),
+            context=preview(focused_context, 5200),
             rubric=preview(rubric, 1000),
         )
         result = call_json_single(
@@ -1353,6 +1382,46 @@ def search_terms_from_required(
         seen.add(key)
         out.append(term)
         if len(out) >= max_terms:
+            break
+    return out
+
+
+def strictness_grounding_terms(rubric: str) -> list[str]:
+    """Extract terms to search before confirming an over-strict rubric.
+
+    A strictness finding is only credible after checking whether the allegedly
+    arbitrary detail is grounded in the input artifacts. These terms feed
+    targeted full-file search snippets into the LLM confirmation prompt.
+    """
+    text = normalize_space(rubric)
+    terms: list[str] = []
+    for quoted in re.findall(r"[`'\"]([^`'\"]{2,120})[`'\"]", text):
+        terms.append(quoted)
+    for number in re.findall(r"\b\d[\d,]*(?:\.\d+)?%?\b", text):
+        terms.append(number)
+        if number.endswith("%"):
+            terms.append(number[:-1])
+    for filename in re.findall(
+        r"\b[\w./ -]+\.(?:md|txt|csv|tsv|xlsx|xls|docx|doc|pdf|pptx|ppt|json|html|htm|png|jpg|jpeg|svg|zip)\b",
+        text,
+        flags=re.I,
+    ):
+        value = filename.strip()
+        terms.append(value)
+        terms.append(Path(value).name)
+    for token in re.findall(r"[A-Za-z][A-Za-z0-9_-]{4,}|[\u4e00-\u9fff]{2,}", text):
+        low = token.lower()
+        if low not in SEARCH_STOPWORDS:
+            terms.append(token)
+    out: list[str] = []
+    seen: set[str] = set()
+    for term in terms:
+        key = normalize_for_presence(term)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(term)
+        if len(out) >= 48:
             break
     return out
 
