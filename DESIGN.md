@@ -273,6 +273,23 @@ python -m benchcore.cli audit \
 
 generic profile 下也可以显式传 `--grounded-rubric-audit` / `--rubric-contract-audit` 单独启用。
 
+Investigator 证据复核（OpenAI-style flagged subset deep review）：
+
+```bash
+python -m benchcore.cli investigate \
+  /path/to/benchmark.jsonl \
+  --report reports/grounded_rubric_audit.json \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/investigator_cache.jsonl \
+  --out reports/investigation.json \
+  --md reports/investigation.md \
+  --print-summary
+```
+
+`investigate` 不再产生新候选，而是对已有 audit report 里的每条 candidate 做证据复核：重新读取 task、output contract、rubric/evaluator、输入文件 preview，并对 candidate finding 中的关键词、数字、文件名做 targeted full-file search。输出 `likely_true / false_positive / uncertain`、任务证据、输入证据、rubric 证据、contract 证据、反证和建议动作。
+
+这一步用于把高召回 scanner 的原始队列压成更可信的 review queue。它显式执行几个 Workspace-Bench 规则：输入中存在或可推出的细节不算 over-strict；语义等价不算 data gap；保存路径目录不能直接当成额外输出；rubric 写出可计算答案值本身不是缺陷。
+
 B2 数值重算审计（`--value-recompute-audit`）：
 
 ```bash
