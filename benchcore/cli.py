@@ -28,6 +28,11 @@ from .llm_auditor import (
 )
 from .code_verifier import CodeExecVerifier
 from .llm_client import LLMClient, load_llm_config
+from .investigator import (
+    investigate_audit_report,
+    write_investigation_json,
+    write_investigation_markdown,
+)
 from .methods import DEFAULT_DATASET_CHECKERS, DEFAULT_METHOD_CHECKERS
 from .report import build_report, write_json_report, write_markdown_report
 from .sampling import (
@@ -164,6 +169,34 @@ def main(argv: list[str] | None = None) -> int:
     compare_parser.add_argument("--md", help="Optional comparison Markdown")
     compare_parser.add_argument("--print-summary", action="store_true")
     compare_parser.set_defaults(func=run_compare)
+
+    investigate_parser = subparsers.add_parser(
+        "investigate",
+        help="Run an evidence-grounded investigator pass over audit report candidates",
+    )
+    investigate_parser.add_argument("input", help="Original benchmark file used for audit")
+    investigate_parser.add_argument("--report", required=True, help="Audit JSON report to investigate")
+    investigate_parser.add_argument("--root", help="Root directory for relative attachments")
+    investigate_parser.add_argument("--out", required=True, help="Output investigation JSON")
+    investigate_parser.add_argument("--md", help="Optional Markdown investigation report")
+    investigate_parser.add_argument("--llm-config", help="LLM config JSON")
+    investigate_parser.add_argument("--llm-cache", help="LLM response cache JSONL")
+    investigate_parser.add_argument("--llm-dry-run", action="store_true", help="Do not call API")
+    investigate_parser.add_argument("--include-defect", action="append", help="Only investigate selected defect type")
+    investigate_parser.add_argument("--include-method", action="append", help="Only investigate selected detection method")
+    investigate_parser.add_argument("--min-confidence", type=float, default=0.0)
+    investigate_parser.add_argument("--offset", type=int, default=0)
+    investigate_parser.add_argument("--limit", type=int)
+    investigate_parser.add_argument("--max-context-chars", type=int, default=18000)
+    investigate_parser.add_argument("--workers", type=int, default=1, help="Parallel investigator workers")
+    investigate_parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=10,
+        help="Print investigation progress every N candidates; use 0 to disable",
+    )
+    investigate_parser.add_argument("--print-summary", action="store_true")
+    investigate_parser.set_defaults(func=run_investigate)
 
     sample_parser = subparsers.add_parser("sample", help="Create a reproducible stratified sample")
     sample_parser.add_argument("input", help="Original benchmark file")
@@ -438,6 +471,31 @@ def run_compare(args: argparse.Namespace) -> int:
             indent=2,
             ensure_ascii=False,
         ))
+    return 0
+
+
+def run_investigate(args: argparse.Namespace) -> int:
+    input_path = Path(args.input)
+    client = build_llm_client(args)
+    report = investigate_audit_report(
+        input_path=input_path,
+        report_path=Path(args.report),
+        client=client,
+        root=Path(args.root) if args.root else input_path.parent,
+        include_defects=set(args.include_defect or []),
+        include_methods=set(args.include_method or []),
+        min_confidence=args.min_confidence,
+        offset=args.offset,
+        limit=args.limit,
+        max_context_chars=args.max_context_chars,
+        workers=max(args.workers, 1),
+        progress_every=args.progress_every,
+    )
+    write_investigation_json(Path(args.out), report)
+    if args.md:
+        write_investigation_markdown(Path(args.md), report)
+    if args.print_summary:
+        print(json.dumps(report["summary"], indent=2, ensure_ascii=False))
     return 0
 
 

@@ -10,3 +10,9 @@ datasets/
 experiments/*.jsonl
 experiments/*.json
 experiments/*.manifest.json
+
+# personal / large / non-code (auto-added)
+.claude/
+resume.tex
+*.zip
+IEEE-conference-template-062824/

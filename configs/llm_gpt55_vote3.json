@@ -1,0 +1,12 @@
+{
+  "model": "openai/gpt-5.5",
+  "base_url": "https://openrouter.ai/api/v1",
+  "api_key_env": "OPENROUTER_API_KEY",
+  "temperature": 0.0,
+  "timeout": 180,
+  "max_tokens": 5000,
+  "n_votes": 3,
+  "vote_temperature": 0.3,
+  "cache_path": "reports/gpt55_vote3_cache.jsonl",
+  "dry_run": false
+}

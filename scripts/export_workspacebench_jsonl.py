@@ -10,6 +10,7 @@ from typing import Any
 
 DATASET_PRESETS = {
     "lite": ("Workspace-Bench/Workspace-Bench-Lite", "lite"),
+    "full": ("Workspace-Bench/Workspace-Bench", "full"),
 }
 
 
@@ -92,7 +93,7 @@ def with_benchcore_fields(
         "tested_capabilities": tested_capabilities,
     }
     if download_inputs and absolute_id is not None:
-        input_files = workspace_lite_input_files(dataset_path, int(absolute_id))
+        input_files = workspace_input_files(dataset_path, int(absolute_id))
         out["input_files"] = [str(path) for path in input_files]
 
     metadata = out.get("metadata") if isinstance(out.get("metadata"), dict) else {}
@@ -104,18 +105,26 @@ def with_benchcore_fields(
     return out
 
 
-def workspace_lite_input_files(dataset_path: str, absolute_id: int) -> list[Path]:
+def workspace_input_files(dataset_path: str, absolute_id: int) -> list[Path]:
     from huggingface_hub import snapshot_download
 
+    if dataset_path.endswith("Workspace-Bench-Lite"):
+        task_dirs = ["task_lite_clean_en"]
+    else:
+        # The full benchmark stores both English and Chinese task folders. The
+        # rows exported by HuggingFace here are English, so prefer task_clean_en
+        # and keep task_clean_cn as a fallback for future variants.
+        task_dirs = ["task_clean_en", "task_clean_cn"]
     root = snapshot_download(
         dataset_path,
         repo_type="dataset",
-        allow_patterns=[f"task_lite_clean_en/{absolute_id}/**"],
+        allow_patterns=[f"{task_dir}/{absolute_id}/**" for task_dir in task_dirs],
     )
-    data_dir = Path(root) / "task_lite_clean_en" / str(absolute_id) / "data"
-    if not data_dir.exists():
-        return []
-    return sorted(path for path in data_dir.iterdir() if path.is_file())
+    for task_dir in task_dirs:
+        data_dir = Path(root) / task_dir / str(absolute_id) / "data"
+        if data_dir.exists():
+            return sorted(path for path in data_dir.iterdir() if path.is_file())
+    return []
 
 
 def parse_json_field(value: Any, default: Any) -> Any:
