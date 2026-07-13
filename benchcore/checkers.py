@@ -329,14 +329,35 @@ class EvaluatorChecker(Checker):
             if contract["cardinality"] in {"set", "compound"}
             else contract["kind"]
         )
-        if item.evaluator in (None, "", [], {}) and item.gold not in (None, ""):
-            severity = "minor" if inferred in {"choice", "numeric", "normalized_exact"} else "major"
+        evaluator_missing = item.evaluator in (None, "", [], {})
+        has_gold = item.gold not in (None, "")
+        has_output_contract = item.output_contract not in (None, "", [], {})
+        if evaluator_missing and (has_gold or has_output_contract):
+            # Agent benchmarks commonly have no scalar gold: tests/rubrics are
+            # the oracle. A declared output contract without any evaluator is
+            # therefore a structural scoring gap, not merely a generic review
+            # risk. This also makes remove_evaluator mutations observable
+            # without consulting synthetic provenance metadata.
+            is_agent_contract = has_output_contract and not has_gold
+            severity = (
+                "major"
+                if is_agent_contract
+                else ("minor" if inferred in {"choice", "numeric", "normalized_exact"} else "major")
+            )
             yield _violation(
                 item,
                 "missing_evaluator",
-                0.5,
-                f"No explicit evaluator was found; inferred evaluator type is {inferred}.",
-                {"inferred_evaluator": inferred},
+                0.95 if is_agent_contract else 0.5,
+                (
+                    "An output contract is declared, but no evaluator/tests/rubric can determine success."
+                    if is_agent_contract
+                    else f"No explicit evaluator was found; inferred evaluator type is {inferred}."
+                ),
+                {
+                    "inferred_evaluator": inferred,
+                    "output_contract": item.output_contract,
+                    "agent_style_contract": is_agent_contract,
+                },
                 severity=severity,
                 review_only=severity == "minor",
                 repair="Declare evaluator type, normalization, aliases, tests, or rubric.",
@@ -374,7 +395,7 @@ class EvaluatorChecker(Checker):
                 severity="review",
                 repair="Use normalized exact match, answer extraction, or accepted aliases.",
             )
-        if item.evaluator in (None, "", [], {}) and item.output_contract in (None, "", [], {}) and not item.choices:
+        if evaluator_missing and not has_output_contract and not item.choices:
             yield _violation(
                 item,
                 "underconstrained_evaluator_risk",

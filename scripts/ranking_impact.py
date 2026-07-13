@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from benchcore.ranking_impact import (
     leaderboard,
+    load_investigation_task_set,
     load_task_set,
     load_trials,
     ranking_impact,
@@ -23,6 +24,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--trials", required=True, help="Per-trial JSONL with task_id, agent/model, reward")
     parser.add_argument("--exclude-tasks", help="Task ids to remove; txt/csv/json/jsonl supported")
+    parser.add_argument("--exclude-investigation", help="Investigation JSON; selected issue tasks are removed")
+    parser.add_argument(
+        "--investigation-verdict",
+        action="append",
+        default=["likely_true"],
+        help="Verdict to exclude from --exclude-investigation; repeatable",
+    )
+    parser.add_argument(
+        "--investigation-category",
+        action="append",
+        default=[],
+        help="Issue category to exclude from --exclude-investigation; repeatable",
+    )
+    parser.add_argument("--investigation-min-confidence", type=float, default=0.0)
     parser.add_argument("--exclude-task", action="append", default=[], help="Single task id to remove; repeatable")
     parser.add_argument("--out-json", required=True)
     parser.add_argument("--out-csv", help="System delta CSV")
@@ -49,6 +64,13 @@ def main() -> None:
     exclude_tasks = set(args.exclude_task)
     if args.exclude_tasks:
         exclude_tasks |= load_task_set(Path(args.exclude_tasks))
+    if args.exclude_investigation:
+        exclude_tasks |= load_investigation_task_set(
+            Path(args.exclude_investigation),
+            verdicts=set(args.investigation_verdict or []),
+            issue_categories=set(args.investigation_category or []),
+            min_confidence=args.investigation_min_confidence,
+        )
     payload = ranking_impact(trials, exclude_tasks)
     write_json(Path(args.out_json), payload)
     if args.out_csv:

@@ -35,14 +35,24 @@ def build_report(
     violations: list[Violation],
     mapping: FieldMapping,
     methods_run: list[str] | None = None,
+    run_metadata: dict[str, Any] | None = None,
+    benchmark_package: dict[str, Any] | None = None,
+    audit_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    report = {
         "input_path": input_path,
         "summary": summarize(items, violations),
         "field_mapping": asdict(mapping),
         "methods_run": methods_run or [],
         "violations": [asdict(v) for v in violations],
     }
+    if run_metadata:
+        report["run_metadata"] = run_metadata
+    if benchmark_package:
+        report["benchmark_package"] = benchmark_package
+    if audit_plan:
+        report["audit_plan"] = audit_plan
+    return report
 
 
 def write_json_report(path: Path, report: dict[str, Any]) -> None:
@@ -69,7 +79,38 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
     lines.append(f"- Affected items: `{summary['affected_items']}`")
     if report.get("methods_run"):
         lines.append(f"- Methods run: `{', '.join(report['methods_run'])}`")
+    metadata = report.get("run_metadata") or {}
+    if metadata:
+        lines.append(f"- Elapsed seconds: `{metadata.get('elapsed_seconds', 'unknown')}`")
+        git = metadata.get("git") or {}
+        if git.get("commit"):
+            dirty = " dirty" if git.get("dirty") else ""
+            lines.append(f"- Git commit: `{git['commit']}{dirty}`")
+        llm = metadata.get("llm") or {}
+        if llm.get("model"):
+            lines.append(
+                f"- LLM: `{llm['model']}` "
+                f"(API attempts={llm.get('api_attempts', 0)}, cache hits={llm.get('cache_hits', 0)})"
+            )
     lines.append("")
+    audit_plan = report.get("audit_plan") or {}
+    if audit_plan:
+        lines.append("## Audit Coverage")
+        lines.append("")
+        lines.append(
+            f"- Detected family: `{audit_plan.get('family', 'unknown')}` "
+            f"(confidence={audit_plan.get('family_confidence', 0):.2f})"
+        )
+        plan_summary = audit_plan.get("summary") or {}
+        lines.append(f"- Executed checks: `{plan_summary.get('executed', 0)}`")
+        lines.append(f"- Selected checks not run: `{plan_summary.get('selected', 0)}`")
+        lines.append(f"- Skipped checks: `{plan_summary.get('skipped', 0)}`")
+        lines.append(f"- Unsupported checks: `{plan_summary.get('unsupported', 0)}`")
+        for key, value in sorted((audit_plan.get("artifact_coverage") or {}).items()):
+            lines.append(f"- `{key}`: `{value}`")
+        for warning in audit_plan.get("unknowns") or []:
+            lines.append(f"- Unknown: {warning}")
+        lines.append("")
     lines.append("## Artifact Distribution")
     lines.append("")
     for key, value in sorted(summary["artifact_distribution"].items()):

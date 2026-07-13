@@ -14,6 +14,85 @@ Evaluator / Rubric / Tests
 
 暂时不把复杂 agent 环境、工具、交互、trace、provenance 作为第一阶段主线。
 
+## 0. 通用 Package 扫描与审计规划
+
+除了直接审计 JSONL/JSON/CSV，当前可以先扫描一个未知 benchmark 文件、目录或
+repository，生成 artifact inventory、自动 family 判断、可执行 checker 和未覆盖项：
+
+```bash
+python -m benchcore.cli plan /path/to/benchmark \
+  --out reports/audit_plan.json \
+  --md reports/audit_plan.md
+```
+
+如果本次允许使用 LLM 或安全执行环境，可显式声明：
+
+```bash
+python -m benchcore.cli plan /path/to/benchmark \
+  --llm \
+  --execution \
+  --out reports/audit_plan.json
+```
+
+计划会区分 `selected`、`skipped` 和 `unsupported`，并覆盖 task、context、environment、
+tools、interaction、output、oracle、evaluator、trace、provenance 十类 artifact。
+现有 `audit` JSON/Markdown 报告也会包含 `benchmark_package` 与 `audit_plan`，因此
+“没有发现 violation”和“缺少 artifact、实际没有检查”不会混为一谈。
+
+`audit` 默认使用 `--profile auto`。它会结合文件 inventory 与记录中的 schema、
+evaluator、output contract，自动路由 `generic`、`swebench`、`workspacebench` 或
+`terminalbench`，并让 audit plan 过滤实际执行的 checker：
+
+```bash
+python -m benchcore.cli audit benchmark.jsonl \
+  --profile auto \
+  --out reports/audit.json \
+  --md reports/audit.md
+```
+
+Profile 使用增量/减量组合：SWE-bench 在公共结构检查之上增加 solution-leak；
+Workspace/Terminal 只关闭不适用的标量 gold 假设，仍检查 evaluator/tests/rubric。
+自动识别本身不会触发付费 LLM 请求；LLM 审计仍需显式 flag。显式
+`--profile workspacebench` 保留原有的 grounded-rubric 深审默认行为。
+
+### 合成缺陷回归集
+
+在缺少大规模人工标签时，可以从原 benchmark 生成确定、可重放且带 provenance 的
+缺陷样本，用来测 checker recall 和防止回归：
+
+```bash
+python -m benchcore.cli inject-defects benchmark.jsonl \
+  --seed 20260712 \
+  --mutations-per-item 2 \
+  --out experiments/injected.jsonl \
+  --manifest-out experiments/injected.manifest.json
+```
+
+当前 operator 包括 `remove_task`、`remove_gold`、`wrong_gold`、
+`duplicate_choice`、`remove_context` 和 `remove_evaluator`。每条输出都记录源 item、
+变异字段、前后 SHA-256、seed 和预期 defect type。
+
+审计变异数据后可直接计算 exact expected-defect recall：
+
+```bash
+python -m benchcore.cli score-injections \
+  --manifest experiments/injected.manifest.json \
+  --report reports/injected_audit.json \
+  --out reports/injected_recall.json
+```
+
+`tests/fixtures/synthetic_audit_seed.jsonl` 是固定的轻量回归集；pytest 会要求其中
+所有 structural mutation 的 exact recall 为 100%，用于阻止 checker/profile 回退。
+
+### 执行安全边界
+
+`benchcore.execution` 提供默认拒绝本地执行的 `LocalProcessRunner` 和只读 workspace、
+无网络、去 capability、资源受限的 Docker/Podman `ContainerRunner`；
+`benchcore.harness.CommandHarnessAdapter` 提供统一 command/exit-code harness 接口。
+本地 runner 只有调用方显式设置 `allow_local_process=True` 时才运行，并明确标记为
+`trusted_local_process`，不能视为安全 sandbox。表格 code verifier 额外进行 AST 安全
+检查，但处理任意外部代码时仍必须使用容器后端。
+
 ## 1. 输入格式
 
 支持：

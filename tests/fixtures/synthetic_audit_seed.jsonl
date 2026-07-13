@@ -1,0 +1,2 @@
+{"id":"mcq-1","task":"What is 2 + 2?","context":"","choices":["3","4","5","6"],"gold":"B","output_contract":{"type":"choice"},"evaluator":{"type":"choice_match"}}
+{"id":"agent-1","task":"Read the provided file and create report.md.","context":"source facts","choices":null,"gold":null,"output_contract":{"type":"workspace_files","required_files":["report.md"]},"evaluator":{"type":"workspacebench_rubric","rubrics":["Was report.md created?"]}}

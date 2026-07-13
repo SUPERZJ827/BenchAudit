@@ -67,6 +67,30 @@ class LLMClientTest(unittest.TestCase):
         self.assertEqual(result, {"status": "ok"})
         self.assertEqual(client.calls, 2)
 
+    def test_repeated_calls_use_independent_vote_slots_and_record_usage(self):
+        client = StubLLMClient(
+            [
+                {
+                    "choices": [{"message": {"content": '{"verdict":"likely_true"}'}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12},
+                },
+                {
+                    "choices": [{"message": {"content": '{"verdict":"false_positive"}'}}],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 3, "total_tokens": 14},
+                },
+            ]
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            client.cache_path = Path(tmp) / "cache.jsonl"
+            with mock.patch.dict("os.environ", {"STUB_API_KEY": "test"}):
+                results = client.chat_json_repeated("system", "user", 2)
+
+        self.assertEqual([row["verdict"] for row in results], ["likely_true", "false_positive"])
+        stats = client.run_stats()
+        self.assertEqual(client.calls, 2)
+        self.assertEqual(stats["prompt_tokens"], 21)
+        self.assertEqual(stats["total_tokens"], 26)
+
 
 if __name__ == "__main__":
     unittest.main()

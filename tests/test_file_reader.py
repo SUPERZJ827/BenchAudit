@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import benchcore.file_reader as file_reader
 
 from benchcore.file_reader import read_file, search_file
 
@@ -36,3 +37,13 @@ def test_xlsx_reader_and_search_cover_rows_beyond_preview_head(tmp_path: Path):
     assert "山东凯马汽车" in preview
     assert hits["山东凯马汽车"] is not None
     assert hits["-8343"] is not None
+
+
+def test_legacy_doc_reader_does_not_route_binary_doc_to_python_docx(tmp_path: Path, monkeypatch):
+    path = tmp_path / "legacy.doc"
+    path.write_bytes(b"legacy")
+    monkeypatch.setattr(file_reader.shutil, "which", lambda name: None)
+
+    text = read_file(path)
+
+    assert "legacy .doc parsing unavailable" in text

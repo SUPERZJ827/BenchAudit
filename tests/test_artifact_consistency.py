@@ -2,9 +2,11 @@ from pathlib import Path
 
 from benchcore.artifact_consistency import (
     CrossArtifactConsistencyChecker,
+    COVERAGE_PROMPT,
     DATA_GROUNDING_PROMPT,
     GroundedRubricConsistencyChecker,
     REQUIRED_DATA_PROMPT,
+    RubricCoverageChecker,
     RubricOutputContractConsistencyChecker,
     STRUCTURE_PROMPT,
     build_context_preview,
@@ -119,6 +121,14 @@ def test_data_grounding_prompts_require_semantic_matching():
     assert "enumeration" in grounding_prompt
     assert "unverified_due_to_read_limit" in grounding_prompt
     assert "targeted full-file search" in grounding_prompt
+
+
+def test_coverage_prompt_requires_collective_rubric_reasoning():
+    assert "COLLECTIVELY" in COVERAGE_PROMPT
+    assert "inclusion checks" in COVERAGE_PROMPT
+    assert "exclusion checks" in COVERAGE_PROMPT
+    assert "without omission" in COVERAGE_PROMPT
+    assert "hypothetical branches" in COVERAGE_PROMPT
 
 
 def test_targeted_search_context_finds_mid_file_semantic_evidence(tmp_path: Path):
@@ -769,3 +779,45 @@ def test_output_contract_checker_keeps_static_input_files_declared_as_outputs():
 
     assert [v.defect_type for v in violations] == ["output_evaluator_contract_mismatch"]
     assert violations[0].evidence["contract_issue"]["source"] == "static_task_contract"
+
+
+def test_rubric_coverage_checker_flags_missing_central_obligation():
+    item = BenchmarkItem(
+        item_id="coverage-missing",
+        raw={"rubrics": ["Does the report include sales analysis?"]},
+        task="Create a report covering sales analysis and export analysis.",
+        output_contract={"type": "workspace_files", "required_files": ["report.docx"]},
+        evaluator={"type": "workspacebench_rubric", "rubrics": ["Does the report include sales analysis?"]},
+    )
+    client = FakeLLMClient(
+        [
+            [
+                {
+                    "status": "undercovered",
+                    "missing_obligations": ["export analysis"],
+                    "covered_obligations": ["sales analysis"],
+                    "evidence": "The task requires export analysis but no rubric checks it.",
+                    "confidence": 0.88,
+                }
+            ]
+        ]
+    )
+
+    violations = list(RubricCoverageChecker(client).check(item))
+
+    assert [v.defect_type for v in violations] == ["underconstrained_evaluator_risk"]
+    assert violations[0].detection_method == "rubric_coverage"
+    assert violations[0].review_only
+    assert violations[0].evidence["missing_obligations"] == ["export analysis"]
+
+
+def test_rubric_coverage_checker_ignores_covered_task():
+    item = BenchmarkItem(
+        item_id="coverage-covered",
+        raw={"rubrics": ["Does the report include sales analysis and export analysis?"]},
+        task="Create a report covering sales analysis and export analysis.",
+        evaluator={"type": "workspacebench_rubric", "rubrics": ["Does the report include sales analysis and export analysis?"]},
+    )
+    client = FakeLLMClient([[{"status": "covered", "confidence": 0.92}]])
+
+    assert list(RubricCoverageChecker(client).check(item)) == []

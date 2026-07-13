@@ -9,6 +9,24 @@ from scripts.prepare_pilot_datasets import normalize_asdiv_answer, ratio_aliases
 
 
 class AnswerContractTest(unittest.TestCase):
+    def test_agent_output_contract_without_evaluator_is_structural_gap(self) -> None:
+        item = BenchmarkItem(
+            item_id="agent",
+            raw={},
+            task="Create report.md.",
+            output_contract={"type": "workspace_files", "required_files": ["report.md"]},
+            gold=None,
+            evaluator=None,
+        )
+
+        violations = list(EvaluatorChecker().check(item))
+
+        missing = [v for v in violations if v.defect_type == "missing_evaluator"]
+        self.assertEqual(len(missing), 1)
+        self.assertEqual(missing[0].severity, "major")
+        self.assertFalse(missing[0].review_only)
+        self.assertTrue(missing[0].evidence["agent_style_contract"])
+
     def test_set_answer_is_order_insensitive(self) -> None:
         evaluator = {"type": "denotation_set_match"}
         gold = ["Honda Motor", "SC Tottori", "Ehime FC"]

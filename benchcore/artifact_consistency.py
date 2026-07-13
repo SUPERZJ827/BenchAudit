@@ -317,6 +317,77 @@ RUBRICS / EVALUATOR:
 {rubrics}
 """
 
+COVERAGE_SYSTEM_PROMPT = """You are a benchmark evaluator coverage auditor.
+Return only JSON."""
+
+COVERAGE_PROMPT = """Check whether the rubric/evaluator covers the central
+requirements of the task.
+
+This is a LOW-COVERAGE check, not an over-strictness check.
+
+Flag undercoverage only when the task has a central, answer-affecting
+requirement that is not checked by any rubric/evaluator item. Examples:
+- task asks to produce multiple named deliverables but rubrics check only one;
+- task asks for analysis of several listed topics but rubrics omit a central topic;
+- task asks for constraints such as source scope, timeframe, comparison target,
+  required file type, or required output placement, but rubrics never check them;
+- task asks for an executable/interactive artifact, but rubrics only check that a
+  file exists or superficial formatting.
+
+Do NOT flag:
+- optional wording such as "preferably", "if possible", "can include";
+- broad quality dimensions where the rubric checks reasonable concrete proxies;
+- a task detail that is indirectly covered by a rubric checking the final output;
+- missing exact numeric oracle values; that is not coverage, it is answer checking.
+- hypothetical branches that are not triggered by the provided inputs, such as
+  unreadable-file behavior when every provided file is readable;
+- "all files/all entries" concerns when the rubrics enumerate every file or entry
+  present in the provided inputs;
+- partial/example-level omissions when other rubric items collectively enforce
+  completeness through total counts, inclusion checks, exclusion checks, or
+  generic "all/no omission/without missing entries" checks.
+
+Important: judge the rubric set COLLECTIVELY, not one rubric at a time. A central
+task requirement is covered when the combined rubric items would reject a bad
+output through any of these mechanisms:
+- direct checks of the requirement;
+- an exact expected total plus inclusion/exclusion constraints;
+- a completeness rubric such as "all entries/files/targets are included" or
+  "without omission";
+- output-contract checks for the required filename, directory, file type, or
+  deliverable.
+
+Judge the COMPLETE evaluator, not only the natural-language rubric list:
+- if output_contract declares the exact required filename or file type, treat it
+  as covered unless there is concrete evidence that the harness ignores it;
+- a save-directory-only omission is harness-dependent, so return uncertain when
+  the available artifacts do not reveal whether the harness enforces paths;
+- if a rubric checks a different filename/path than the task, that is a conflict,
+  not ordinary low coverage, and may still be reported with concrete evidence.
+
+If a candidate gap is only "not explicitly checked in the exact same words" but
+the combined rubrics make the failure impossible or very unlikely to pass, return
+covered.
+
+Return ONLY JSON:
+{{
+  "status": "covered|undercovered|uncertain",
+  "missing_obligations": ["central task obligation not checked by rubrics"],
+  "covered_obligations": ["central obligation that is checked"],
+  "evidence": "short explanation with task/rubric references",
+  "confidence": 0.0
+}}
+
+TASK:
+{task}
+
+OUTPUT CONTRACT:
+{output_contract}
+
+RUBRICS / EVALUATOR:
+{rubrics}
+"""
+
 STRUCTURE_RUBRIC_PATTERN = re.compile(
     r"工作表|命名|文件名|格式|结构|包含名为|目录|标题|"
     r"\b(?:folder|filename|file name|worksheet|tab name|sheet\s+name|"
@@ -811,6 +882,68 @@ class RubricOutputContractConsistencyChecker(Checker):
                 severity=severity,
                 review_only=True,
                 method="rubric_output_contract_consistency",
+            )
+        ]
+
+
+class RubricCoverageChecker(Checker):
+    """Check whether rubrics/evaluators under-cover central task requirements."""
+
+    name = "rubric_coverage"
+
+    def __init__(
+        self,
+        client: LLMClient,
+        *,
+        review_threshold: float = 0.55,
+        rubric_chars: int = 7000,
+    ) -> None:
+        self.client = client
+        self.review_threshold = review_threshold
+        self.rubric_chars = rubric_chars
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        task = normalize_space(item.task or "")
+        rubrics = format_rubrics(item)
+        if len(task) < 20 or not rubrics:
+            return []
+        prompt = COVERAGE_PROMPT.format(
+            task=preview(task, 2400),
+            output_contract=preview(item.output_contract, 1600) or "(no output contract)",
+            rubrics=preview(rubrics, self.rubric_chars),
+        )
+        result = call_json_multi_majority(
+            self.client,
+            COVERAGE_SYSTEM_PROMPT,
+            prompt,
+            key="status",
+            default="covered",
+        )
+        if result.get("majority") != "undercovered":
+            return []
+        confidence = as_float(result.get("confidence"), 0.0)
+        if confidence < self.review_threshold:
+            return []
+        missing = normalized_text_list(result.get("missing_obligations"))
+        if not missing:
+            return []
+        evidence = result.get("evidence") or "; ".join(missing[:3])
+        return [
+            _violation(
+                item,
+                "underconstrained_evaluator_risk",
+                min(0.9, max(self.review_threshold, confidence)),
+                f"Rubric/evaluator may under-cover central task requirement(s): {evidence}",
+                {
+                    "coverage_check": "task_obligations_vs_rubric",
+                    "missing_obligations": missing,
+                    "covered_obligations": normalized_text_list(result.get("covered_obligations")),
+                    "votes": result.get("votes", []),
+                    "llm_results": result.get("results", []),
+                },
+                severity="review",
+                review_only=True,
+                method="rubric_coverage",
             )
         ]
 
@@ -1532,6 +1665,27 @@ def as_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def normalized_text_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        raw = value
+    elif value in (None, ""):
+        raw = []
+    else:
+        raw = [value]
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        text = normalize_space(item)
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+    return out
 
 
 def normalize_space(value: Any) -> str:

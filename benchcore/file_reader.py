@@ -9,6 +9,8 @@ how to interpret them.
 from __future__ import annotations
 
 import warnings
+import shutil
+import subprocess
 from functools import lru_cache
 from pathlib import Path
 
@@ -47,6 +49,26 @@ def _docx(path: Path, max_chars: int) -> str:
     if tables:
         body += "\n[tables]\n" + "\n".join(tables[:24])
     return f"({len(d.paragraphs)} paras, {len(d.tables)} tables)\n" + body[:max_chars]
+
+
+def _doc(path: Path, max_chars: int) -> str:
+    """Read legacy binary Word documents when antiword is available."""
+    executable = shutil.which("antiword")
+    if not executable:
+        return "legacy .doc parsing unavailable (install antiword or convert the file to .docx)"
+    result = subprocess.run(
+        [executable, str(path)],
+        capture_output=True,
+        text=True,
+        errors="replace",
+        timeout=20,
+        shell=False,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or "antiword failed").strip()
+        raise ValueError(detail[:300])
+    return _head_tail(result.stdout, max_chars)
 
 
 def _pptx(path: Path, max_chars: int) -> str:
@@ -94,7 +116,7 @@ def _plain(path: Path, max_chars: int) -> str:
 
 _DISPATCH = {
     ".xlsx": _xlsx, ".xls": _xlsx,
-    ".docx": _docx, ".doc": _docx,
+    ".docx": _docx, ".doc": _doc,
     ".pptx": _pptx,
     ".pdf": _pdf,
     ".csv": _plain, ".txt": _plain, ".md": _plain, ".json": _plain,
@@ -127,9 +149,11 @@ def _searchable_text(path_str: str, max_pages: int | None = None) -> str:
             return "\n".join((p.extract_text() or "") for p in pages)
     if ext in (".xlsx", ".xls"):
         return _xlsx_full_text(path)
-    if ext in (".docx", ".doc"):
+    if ext == ".docx":
         from docx import Document
         return "\n".join(p.text for p in Document(str(path)).paragraphs)
+    if ext == ".doc":
+        return _doc(path, 200000)
     return read_file(path, 200000)
 
 
