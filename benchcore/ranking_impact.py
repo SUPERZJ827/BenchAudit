@@ -158,6 +158,39 @@ def load_task_set(path: Path) -> set[str]:
     return normalize_task_ids(path.read_text(encoding="utf-8").splitlines())
 
 
+def load_investigation_task_set(
+    path: Path,
+    *,
+    verdicts: set[str] | None = None,
+    issue_categories: set[str] | None = None,
+    min_confidence: float = 0.0,
+) -> set[str]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = data.get("investigations", data if isinstance(data, list) else [])
+    if not isinstance(rows, list):
+        raise ValueError(f"Cannot read investigations from {path}")
+    verdicts_norm = {v.strip() for v in verdicts or set() if v.strip()}
+    categories_norm = {c.strip() for c in issue_categories or set() if c.strip()}
+    task_ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if verdicts_norm and str(row.get("verdict", "")).strip() not in verdicts_norm:
+            continue
+        if categories_norm and str(row.get("issue_category", "")).strip() not in categories_norm:
+            continue
+        try:
+            confidence = float(row.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        if confidence < min_confidence:
+            continue
+        value = row.get("task_id") or row.get("item_id")
+        if value:
+            task_ids.add(str(value))
+    return normalize_task_ids(task_ids)
+
+
 def pairwise_flips(original: list[LeaderboardRow], cleaned: list[LeaderboardRow]) -> int:
     original_rank = {row.system_id: row.rank for row in original}
     cleaned_rank = {row.system_id: row.rank for row in cleaned}
@@ -219,4 +252,3 @@ def write_leaderboard_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(f, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-

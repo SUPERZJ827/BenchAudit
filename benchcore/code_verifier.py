@@ -12,6 +12,7 @@ answer up).
 from __future__ import annotations
 
 import io
+import os
 import re
 import subprocess
 import sys
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .checkers import Checker
+from .code_safety import UnsafeGeneratedCode, validate_generated_table_code
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
@@ -86,7 +88,15 @@ def _table_markdown(item: BenchmarkItem) -> str | None:
 
 
 def _run_code(csv_data: str, code: str, timeout: int = 12) -> tuple[str | None, str | None]:
-    """Execute generated code against df in an isolated subprocess."""
+    """Execute validated code in a restricted *trusted-local* subprocess.
+
+    AST validation blocks common file/network/process escape paths. This is not
+    an OS sandbox; arbitrary external benchmark code must use ContainerRunner.
+    """
+    try:
+        validate_generated_table_code(code)
+    except UnsafeGeneratedCode as exc:
+        return None, f"unsafe_code: {exc}"
     wrapper = (
         "import io, sys\nimport pandas as pd\nimport numpy as np\n"
         f"df = pd.read_csv(io.StringIO({csv_data!r}), dtype=str).fillna('')\n"
@@ -95,23 +105,28 @@ def _run_code(csv_data: str, code: str, timeout: int = 12) -> tuple[str | None, 
         + textwrap.indent(code, "    ")
         + "\nexcept Exception as e:\n    print('__ERR__:' + repr(e))\n"
     )
-    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-        f.write(wrapper)
-        path = f.name
-    try:
-        proc = subprocess.run(
-            [sys.executable, path], capture_output=True, text=True, timeout=timeout,
-        )
-        out = (proc.stdout or "").strip()
-        if "__ERR__:" in out:
-            return None, out.split("__ERR__:", 1)[1]
-        if proc.returncode != 0:
-            return None, (proc.stderr or "nonzero exit").strip()[:300]
-        return out, None
-    except subprocess.TimeoutExpired:
-        return None, "timeout"
-    finally:
-        Path(path).unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix="benchcore-code-") as directory:
+        path = Path(directory) / "compute.py"
+        path.write_text(wrapper, encoding="utf-8")
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONIOENCODING": "utf-8"}
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-I", str(path)],
+                cwd=directory,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                shell=False,
+            )
+            out = (proc.stdout or "").strip()
+            if "__ERR__:" in out:
+                return None, out.split("__ERR__:", 1)[1]
+            if proc.returncode != 0:
+                return None, (proc.stderr or "nonzero exit").strip()[:300]
+            return out, None
+        except subprocess.TimeoutExpired:
+            return None, "timeout"
 
 
 class CodeExecVerifier(Checker):

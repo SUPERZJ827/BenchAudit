@@ -1,4 +1,11 @@
-from benchcore.ranking_impact import TrialResult, leaderboard, ranking_impact
+import json
+
+from benchcore.ranking_impact import (
+    TrialResult,
+    leaderboard,
+    load_investigation_task_set,
+    ranking_impact,
+)
 
 
 def test_leaderboard_ranks_by_average_reward():
@@ -38,3 +45,43 @@ def test_ranking_impact_reports_score_and_rank_deltas():
     assert round(deltas["sys1"]["score_delta"], 6) == round(0.75 - 0.5, 6)
     assert deltas["sys2"]["rank_delta"] == 1
     assert round(deltas["sys2"]["score_delta"], 6) == round(0.5 - (2.0 / 3.0), 6)
+
+
+def test_load_investigation_task_set_filters_verdict_category_and_confidence(tmp_path):
+    path = tmp_path / "investigation.json"
+    path.write_text(
+        json.dumps(
+            {
+                "investigations": [
+                    {
+                        "item_id": "workspacebench-1",
+                        "verdict": "likely_true",
+                        "issue_category": "contract_mismatch",
+                        "confidence": 0.95,
+                    },
+                    {
+                        "item_id": "workspacebench-2",
+                        "verdict": "likely_true",
+                        "issue_category": "data_gap",
+                        "confidence": 0.7,
+                    },
+                    {
+                        "item_id": "workspacebench-3",
+                        "verdict": "false_positive",
+                        "issue_category": "contract_mismatch",
+                        "confidence": 0.99,
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    task_ids = load_investigation_task_set(
+        path,
+        verdicts={"likely_true"},
+        issue_categories={"contract_mismatch"},
+        min_confidence=0.9,
+    )
+
+    assert task_ids == {"workspacebench-1"}

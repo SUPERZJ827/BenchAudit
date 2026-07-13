@@ -273,6 +273,23 @@ python -m benchcore.cli audit \
 
 generic profile 下也可以显式传 `--grounded-rubric-audit` / `--rubric-contract-audit` 单独启用。
 
+Rubric coverage / under-checking 审计（对应 OpenAI low-coverage tests）：
+
+```bash
+python -m benchcore.cli audit \
+  /path/to/benchmark.jsonl \
+  --profile workspacebench \
+  --basic-only \
+  --rubric-coverage-audit \
+  --llm-config configs/llm_deepseek.json \
+  --llm-cache reports/rubric_coverage_cache.jsonl \
+  --out reports/rubric_coverage_audit.json \
+  --md reports/rubric_coverage_audit.md \
+  --print-summary
+```
+
+`RubricCoverageChecker` 从 task 中抽取中心要求，并检查 rubric/evaluator 是否覆盖这些要求。它只标记 `underconstrained_evaluator_risk`，用于发现 evaluator/rubric **过松或漏测**的问题，例如任务要求多个交付物/多个分析维度/失败分支处理，但 rubric 只检查其中一部分。它默认关闭，因为这类判断比 contract mismatch 更主观，建议先小样本验证后再扩全量。
+
 Investigator 证据复核（OpenAI-style flagged subset deep review）：
 
 ```bash
@@ -289,6 +306,64 @@ python -m benchcore.cli investigate \
 `investigate` 不再产生新候选，而是对已有 audit report 里的每条 candidate 做证据复核：重新读取 task、output contract、rubric/evaluator、输入文件 preview，并对 candidate finding 中的关键词、数字、文件名做 targeted full-file search。输出 `likely_true / false_positive / uncertain`、任务证据、输入证据、rubric 证据、contract 证据、反证和建议动作。
 
 这一步用于把高召回 scanner 的原始队列压成更可信的 review queue。它显式执行几个 Workspace-Bench 规则：输入中存在或可推出的细节不算 over-strict；语义等价不算 data gap；保存路径目录不能直接当成额外输出；rubric 写出可计算答案值本身不是缺陷。
+
+默认使用严谨复核模式：每个候选运行 3 次带独立 cache slot 的 investigator pass，严格多数聚合后再运行 evidence verifier。Evidence verifier 把 investigator 的引用当作不可信 claim，重新核对 task/input/rubric/contract；共识结论和证据结论不一致时自动降为 `uncertain`。保存目录是否漏测依赖 harness 行为，若没有证据证明错误目录也能通过 evaluator，则只能标为 `harness_dependent` / `uncertain`。
+
+快速消融可以关闭这些质量门：
+
+```bash
+python -m benchcore.cli investigate ... \
+  --investigator-passes 1 \
+  --no-evidence-verifier
+```
+
+严谨模式报告额外保存：每次独立原始响应、verdict votes、agreement、证据验证结果、模型配置、API/cache 调用数、token、耗时和 git commit。可以据此计算准确率-成本曲线，而不是只比较最终候选数量。
+
+构建正式 gold study 时必须同时抽取 scanner 未标记任务，否则只能估计 precision、无法估计 false-negative rate 和 recall：
+
+```bash
+python -m benchcore.cli gold-study \
+  datasets/workspacebench/full.jsonl \
+  --report reports/workspace_full388_v17_scanner_audit.json \
+  --investigation reports/workspace_full388_v17_investigation_full.json \
+  --flagged-size 60 \
+  --unflagged-size 60 \
+  --seed 20260710 \
+  --out reports/workspace_gold120.jsonl \
+  --md reports/workspace_gold120.md
+```
+
+输出保存 source/report/investigation SHA-256、sampling stratum 和空白人工标签。标注员必须打开原始输入文件；不能只复述 investigator evidence。
+
+Forensic evidence bundle（人工/agent 深审证据包）：
+
+```bash
+python -m benchcore.cli forensic \
+  /path/to/benchmark.jsonl \
+  --item-id workspacebench-7 \
+  --report reports/grounded_rubric_audit.json \
+  --investigation reports/investigation.json \
+  --out reports/forensic_workspacebench_7.json \
+  --md reports/forensic_workspacebench_7.md
+```
+
+`forensic` 不调用 LLM，也不改变判断。它把单个任务的 task、output contract、rubrics、scanner candidates、investigator verdicts、targeted full-file search 证据打包，方便人工复核或后续 tool-using agent 深审。用途是把 OpenAI-style investigator review 的“可查证证据包”固化下来，尤其适合 `uncertain`、`需人工核输入` 和争议较大的 data-gap case。
+
+Ranking impact（问题任务对榜单的影响）：
+
+```bash
+python scripts/ranking_impact.py \
+  --trials /path/to/per_task_trials.jsonl \
+  --exclude-investigation reports/investigation.json \
+  --investigation-verdict likely_true \
+  --investigation-category contract_mismatch \
+  --investigation-category data_gap \
+  --investigation-min-confidence 0.9 \
+  --out-json reports/ranking_impact_cleaned.json \
+  --out-csv reports/ranking_impact_cleaned.csv
+```
+
+`ranking_impact.py` 可以直接从 investigation report 中抽取需要剔除/清洗的问题任务，重新计算每个 system 的平均分、rank delta、score delta、pairwise flips、Kendall tau 和 Spearman rho。这样可以把“发现 benchmark 问题”推进到“这些问题是否改变模型/agent 排名”的量化分析。
 
 B2 数值重算审计（`--value-recompute-audit`）：
 
