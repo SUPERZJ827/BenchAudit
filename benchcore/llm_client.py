@@ -7,9 +7,10 @@ import os
 import ssl
 import threading
 import time
+from concurrent.futures import Future
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 
@@ -26,12 +27,41 @@ class LLMConfig:
     dry_run: bool = False
     n_votes: int = 1          # 1 = no voting; 3 = majority-vote (3 calls with vote_temperature)
     vote_temperature: float = 0.3  # temperature used for voting calls (must be > 0 for variance)
+    # Some OpenAI-compatible providers expose a thinking-mode toggle.  Keep it
+    # opt-in so providers that do not implement the extension never receive an
+    # unknown request field.  Constrained schema projection normally benefits
+    # from the cheaper, less verbose non-thinking mode.
+    thinking: str | None = None
+    max_api_attempts: int | None = None
+    # Soft stop based on usage already reported by the provider.  It is not a
+    # hard reservation: one in-flight request may cross it, and providers that
+    # omit usage cannot be governed by this counter.  ``max_api_attempts`` is
+    # the exact cross-thread request ceiling.
+    observed_token_stop: int | None = None
+
+
+@dataclass(frozen=True)
+class _InFlight:
+    future: Future[dict[str, Any]]
+    owner_thread_id: int
+
+
+_CACHE_MISS = object()
 
 
 def load_llm_config(path: str | None = None) -> LLMConfig:
     data: dict[str, Any] = {}
     if path:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
+    thinking = data.get("thinking")
+    if thinking not in {None, "enabled", "disabled"}:
+        raise ValueError("thinking must be 'enabled', 'disabled', or omitted")
+    max_api_attempts = _optional_positive_int(
+        data.get("max_api_attempts"), name="max_api_attempts"
+    )
+    observed_token_stop = _optional_positive_int(
+        data.get("observed_token_stop"), name="observed_token_stop"
+    )
     return LLMConfig(
         model=data.get("model", "deepseek-v4-flash"),
         base_url=data.get("base_url", "https://api.deepseek.com"),
@@ -44,6 +74,9 @@ def load_llm_config(path: str | None = None) -> LLMConfig:
         dry_run=bool(data.get("dry_run", False)),
         n_votes=max(1, int(data.get("n_votes", 1))),
         vote_temperature=float(data.get("vote_temperature", 0.3)),
+        thinking=thinking,
+        max_api_attempts=max_api_attempts,
+        observed_token_stop=observed_token_stop,
     )
 
 
@@ -52,15 +85,21 @@ class LLMClient:
         self.config = config
         self.cache: dict[str, Any] = {}
         self._cache_lock = threading.Lock()
+        self._inflight: dict[str, _InFlight] = {}
         self._stats_lock = threading.Lock()
         self._stats: dict[str, int] = {
             "cache_hits": 0,
+            "singleflight_waits": 0,
+            "singleflight_shared_results": 0,
+            "singleflight_shared_failures": 0,
             "api_attempts": 0,
             "api_successes": 0,
             "api_failures": 0,
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,
+            "invalid_responses": 0,
+            "truncated_responses": 0,
         }
         self.cache_path = Path(config.cache_path) if config.cache_path else None
         if self.cache_path and self.cache_path.exists():
@@ -72,11 +111,17 @@ class LLMClient:
 
     def chat_json(self, system: str, user: str) -> dict[str, Any]:
         key = self._cache_key(system, user)
-        with self._cache_lock:
-            cached = self.cache.get(key)
-        if cached is not None:
-            self._increment_stat("cache_hits")
-            return dict(cached)
+        return self._singleflight_json(
+            key,
+            lambda: self._chat_json_uncached(system, user, key),
+        )
+
+    def _chat_json_uncached(
+        self,
+        system: str,
+        user: str,
+        key: str,
+    ) -> dict[str, Any]:
         if self.config.dry_run:
             result = {
                 "gold_status": "uncertain",
@@ -103,13 +148,28 @@ class LLMClient:
             "max_tokens": self.config.max_tokens,
             "response_format": {"type": "json_object"},
         }
+        if self.config.thinking is not None:
+            body["thinking"] = {"type": self.config.thinking}
         invalid_responses = []
         for attempt in range(self.config.max_retries):
             raw = self._post_chat_completions(body, api_key)
+            # A provider response consumes tokens even when its JSON payload is
+            # malformed or truncated.  Cost/accounting gates must include those
+            # failed attempts rather than recording only the eventual success.
+            self._record_usage(raw)
+            diagnostic = _response_diagnostic(raw)
+            if diagnostic.get("finish_reason") == "length":
+                self._increment_stat("invalid_responses")
+                self._increment_stat("truncated_responses")
+                raise RuntimeError(
+                    "LLM JSON response was truncated; refusing an identical "
+                    f"blind retry: {diagnostic}"
+                )
             try:
                 result = _extract_json_result(raw)
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-                invalid_responses.append(_response_diagnostic(raw))
+                invalid_responses.append(diagnostic)
+                self._increment_stat("invalid_responses")
                 if attempt + 1 < self.config.max_retries:
                     time.sleep(2**attempt)
                     continue
@@ -117,7 +177,6 @@ class LLMClient:
                     "LLM did not return valid JSON after response retries: "
                     f"{invalid_responses}"
                 ) from exc
-            self._record_usage(raw)
             self._write_cache(key, result)
             return result
         raise RuntimeError("LLM response retry loop ended unexpectedly")
@@ -141,7 +200,7 @@ class LLMClient:
                 else conn_cls(parsed.netloc, timeout=self.config.timeout)
             )
             try:
-                self._increment_stat("api_attempts")
+                self._begin_api_attempt()
                 conn.request("POST", path, payload, headers)
                 response = conn.getresponse()
                 text = response.read().decode("utf-8")
@@ -197,11 +256,18 @@ class LLMClient:
     def _chat_json_vote(self, system: str, user: str, vote_index: int) -> dict[str, Any]:
         """Single voting call: uses vote_temperature and a vote-specific cache key."""
         key = self._vote_cache_key(system, user, vote_index)
-        with self._cache_lock:
-            cached = self.cache.get(key)
-        if cached is not None:
-            self._increment_stat("cache_hits")
-            return dict(cached)
+        return self._singleflight_json(
+            key,
+            lambda: self._chat_json_vote_uncached(system, user, vote_index, key),
+        )
+
+    def _chat_json_vote_uncached(
+        self,
+        system: str,
+        user: str,
+        vote_index: int,
+        key: str,
+    ) -> dict[str, Any]:
         if self.config.dry_run:
             result: dict[str, Any] = {
                 "gold_status": "uncertain",
@@ -230,13 +296,25 @@ class LLMClient:
             "max_tokens": self.config.max_tokens,
             "response_format": {"type": "json_object"},
         }
+        if self.config.thinking is not None:
+            body["thinking"] = {"type": self.config.thinking}
         invalid_responses: list[dict[str, Any]] = []
         for attempt in range(self.config.max_retries):
             raw = self._post_chat_completions(body, api_key)
+            self._record_usage(raw)
+            diagnostic = _response_diagnostic(raw)
+            if diagnostic.get("finish_reason") == "length":
+                self._increment_stat("invalid_responses")
+                self._increment_stat("truncated_responses")
+                raise RuntimeError(
+                    f"LLM vote {vote_index} JSON response was truncated; "
+                    f"refusing an identical blind retry: {diagnostic}"
+                )
             try:
                 result = _extract_json_result(raw)
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-                invalid_responses.append(_response_diagnostic(raw))
+                invalid_responses.append(diagnostic)
+                self._increment_stat("invalid_responses")
                 if attempt + 1 < self.config.max_retries:
                     time.sleep(2**attempt)
                     continue
@@ -244,16 +322,102 @@ class LLMClient:
                     f"LLM vote {vote_index} did not return valid JSON after retries: "
                     f"{invalid_responses}"
                 ) from exc
-            self._record_usage(raw)
             self._write_cache(key, result)
             return result
         raise RuntimeError("LLM vote retry loop ended unexpectedly")
+
+    def _singleflight_json(
+        self,
+        key: str,
+        operation: Callable[[], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Run at most one concurrent operation for a cache key.
+
+        The cache lookup and flight registration are one atomic critical
+        section. Followers wait outside the lock and observe the leader's exact
+        result or failure. Failed calls are deliberately not cached: callers
+        arriving after the failed flight has ended may retry normally.
+        """
+
+        thread_id = threading.get_ident()
+        cached: Any = _CACHE_MISS
+        with self._cache_lock:
+            if key in self.cache:
+                cached = self.cache[key]
+                flight = None
+                leader = False
+            else:
+                flight = self._inflight.get(key)
+                if flight is None:
+                    flight = _InFlight(
+                        future=Future(),
+                        owner_thread_id=thread_id,
+                    )
+                    self._inflight[key] = flight
+                    leader = True
+                else:
+                    leader = False
+
+        if cached is not _CACHE_MISS:
+            self._increment_stat("cache_hits")
+            return dict(cached)
+        assert flight is not None
+        if not leader:
+            if flight.owner_thread_id == thread_id:
+                raise RuntimeError(
+                    "recursive LLM request for the same cache key would deadlock"
+                )
+            self._increment_stat("singleflight_waits")
+            try:
+                shared = flight.future.result()
+            except BaseException:
+                self._increment_stat("singleflight_shared_failures")
+                raise
+            self._increment_stat("singleflight_shared_results")
+            return dict(shared)
+
+        try:
+            result = operation()
+            if not isinstance(result, dict):
+                raise TypeError(
+                    "single-flight LLM operation must return a JSON object"
+                )
+        except BaseException as exc:
+            self._finish_flight(key, flight, exception=exc)
+            raise
+        self._finish_flight(key, flight, result=result)
+        return dict(result)
+
+    def _finish_flight(
+        self,
+        key: str,
+        flight: "_InFlight",
+        *,
+        result: dict[str, Any] | None = None,
+        exception: BaseException | None = None,
+    ) -> None:
+        """Publish one terminal flight outcome and remove only that flight."""
+
+        if (result is None) == (exception is None):
+            raise ValueError("exactly one flight result or exception is required")
+        if exception is not None:
+            flight.future.set_exception(exception)
+        else:
+            flight.future.set_result(result)
+        with self._cache_lock:
+            if self._inflight.get(key) is flight:
+                del self._inflight[key]
 
     def _cache_key(self, system: str, user: str) -> str:
         payload = json.dumps(
             {
                 "model": self.config.model,
+                "base_url": self.config.base_url.rstrip("/"),
                 "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+                "dry_run": self.config.dry_run,
+                "response_format": "json_object",
+                "thinking": self.config.thinking,
                 "system": system,
                 "user": user,
             },
@@ -266,7 +430,12 @@ class LLMClient:
         payload = json.dumps(
             {
                 "model": self.config.model,
+                "base_url": self.config.base_url.rstrip("/"),
                 "temperature": self.config.vote_temperature,
+                "max_tokens": self.config.max_tokens,
+                "dry_run": self.config.dry_run,
+                "response_format": "json_object",
+                "thinking": self.config.thinking,
                 "vote_index": vote_index,
                 "system": system,
                 "user": user,
@@ -280,33 +449,69 @@ class LLMClient:
         with self._cache_lock:
             if key in self.cache:
                 return
-            self.cache[key] = response
-            if not self.cache_path:
-                return
-            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-            with self.cache_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps({"key": key, "response": response}, ensure_ascii=False) + "\n")
+            # Publish to memory only after the persistent-cache append succeeds.
+            # Otherwise a concurrent caller could observe a cache hit while the
+            # leader and its already-waiting followers receive a write error.
+            if self.cache_path:
+                self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.cache_path.open("a", encoding="utf-8") as f:
+                    f.write(
+                        json.dumps(
+                            {"key": key, "response": response},
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+            self.cache[key] = dict(response)
 
     def _increment_stat(self, key: str, value: int = 1) -> None:
         with self._stats_lock:
             self._stats[key] = self._stats.get(key, 0) + value
 
+    def _begin_api_attempt(self) -> None:
+        """Enforce an exact call cap and a clearly named observed-usage stop."""
+
+        with self._stats_lock:
+            attempts = self._stats.get("api_attempts", 0)
+            total_tokens = self._stats.get("total_tokens", 0)
+            if (
+                self.config.max_api_attempts is not None
+                and attempts >= self.config.max_api_attempts
+            ):
+                raise RuntimeError(
+                    "LLM API-attempt budget exhausted before provider call "
+                    f"({attempts}/{self.config.max_api_attempts})"
+                )
+            if (
+                self.config.observed_token_stop is not None
+                and total_tokens >= self.config.observed_token_stop
+            ):
+                raise RuntimeError(
+                    "LLM observed-token stop reached before provider call "
+                    f"({total_tokens}/{self.config.observed_token_stop})"
+                )
+            self._stats["api_attempts"] = attempts + 1
+
     def _record_usage(self, raw: dict[str, Any]) -> None:
         usage = raw.get("usage") if isinstance(raw, dict) else None
         if not isinstance(usage, dict):
             return
-        mapping = {
-            "prompt_tokens": "prompt_tokens",
-            "completion_tokens": "completion_tokens",
-            "total_tokens": "total_tokens",
-        }
+        def parsed(name: str) -> int:
+            try:
+                return max(0, int(usage.get(name, 0) or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        prompt_tokens = parsed("prompt_tokens")
+        completion_tokens = parsed("completion_tokens")
+        if "total_tokens" in usage:
+            total_tokens = parsed("total_tokens")
+        else:
+            total_tokens = prompt_tokens + completion_tokens
         with self._stats_lock:
-            for source, target in mapping.items():
-                try:
-                    value = int(usage.get(source, 0) or 0)
-                except (TypeError, ValueError):
-                    value = 0
-                self._stats[target] = self._stats.get(target, 0) + value
+            self._stats["prompt_tokens"] += prompt_tokens
+            self._stats["completion_tokens"] += completion_tokens
+            self._stats["total_tokens"] += total_tokens
 
     def run_stats(self) -> dict[str, Any]:
         """Return reproducibility-safe runtime metadata (never includes API keys)."""
@@ -321,6 +526,12 @@ class LLMClient:
             "vote_temperature": self.config.vote_temperature,
             "max_tokens": self.config.max_tokens,
             "configured_votes": self.config.n_votes,
+            "thinking": self.config.thinking,
+            "max_api_attempts": self.config.max_api_attempts,
+            "observed_token_stop": self.config.observed_token_stop,
+            "observed_token_stop_semantics": (
+                "soft stop after provider-reported usage; not a concurrent hard cap"
+            ),
             "cache_path": str(self.cache_path) if self.cache_path else None,
             "cache_entries": cache_entries,
             **counters,
@@ -352,15 +563,20 @@ def _response_diagnostic(raw: dict[str, Any]) -> dict[str, Any]:
     try:
         message = raw["choices"][0]["message"]
     except (KeyError, IndexError, TypeError):
-        return {"response_shape": str(type(raw)), "response": str(raw)[:500]}
+        return {"response_shape": str(type(raw))}
     content = message.get("content")
+    reasoning = message.get("reasoning") or message.get("reasoning_content")
     return {
         "finish_reason": raw.get("choices", [{}])[0].get("finish_reason"),
         "content_type": type(content).__name__,
-        "content_excerpt": str(content)[:300],
-        "reasoning_excerpt": str(
-            message.get("reasoning")
-            or message.get("reasoning_content")
-            or ""
-        )[:300],
+        "content_chars": len(content) if isinstance(content, str) else None,
+        "reasoning_chars": len(reasoning) if isinstance(reasoning, str) else None,
     }
+
+
+def _optional_positive_int(value: Any, *, name: str) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"{name} must be a positive integer or omitted")
+    return value

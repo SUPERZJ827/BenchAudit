@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 from benchcore.artifact_consistency import (
     CrossArtifactConsistencyChecker,
@@ -23,6 +24,7 @@ from benchcore.artifact_consistency import (
     targeted_search_refutes_data_gap,
     targeted_search_context,
 )
+from benchcore.auditor import audit_items_with_ledger
 from benchcore.schema import BenchmarkItem
 
 
@@ -98,6 +100,83 @@ def test_full_context_text_distributes_budget_across_files(tmp_path: Path):
     assert "first.txt" in text
     assert "second.txt" in text
     assert "emergency mutual aid agreement" in text
+
+
+def test_cross_artifact_blocks_absolute_path_before_prompt_construction(tmp_path: Path):
+    item = BenchmarkItem(
+        item_id="absolute-escape",
+        raw={"rubrics": ["Summarize the supplied file."]},
+        task="Summarize the supplied file.",
+        context={"files": ["/etc/passwd"]},
+    )
+    client = FakeLLMClient({"status": "consistent"})
+    checker = CrossArtifactConsistencyChecker(client, allowed_roots=[tmp_path])
+
+    with (
+        patch("benchcore.artifact_consistency.read_file") as read_file,
+        patch("benchcore.artifact_consistency.search_file") as search_file,
+    ):
+        result = audit_items_with_ledger(
+            [item],
+            root=tmp_path,
+            checkers=[checker],
+        )
+
+    assert result.violations == []
+    assert result.ledger[0].status == "security_blocked"
+    assert result.ledger[0].details["blocked_path_count"] == 1
+    assert result.ledger[0].details["blocked_paths"][0]["declared_basename"] == "passwd"
+    read_file.assert_not_called()
+    search_file.assert_not_called()
+    assert client.calls == []
+
+
+def test_cross_artifact_blocks_relative_parent_escape_before_read(tmp_path: Path):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    (tmp_path / "outside.txt").write_text("must never reach the prompt", encoding="utf-8")
+    item = BenchmarkItem(
+        item_id="relative-escape",
+        raw={"rubrics": ["Summarize the supplied file."]},
+        task="Summarize the supplied file.",
+        context={"files": ["../outside.txt"]},
+    )
+    client = FakeLLMClient({"status": "consistent"})
+
+    result = audit_items_with_ledger(
+        [item],
+        root=allowed,
+        checkers=[CrossArtifactConsistencyChecker(client, allowed_roots=[allowed])],
+    )
+
+    assert result.ledger[0].status == "security_blocked"
+    assert result.ledger[0].details["blocked_paths"][0]["reason"] == "outside_allowed_roots"
+    assert client.calls == []
+
+
+def test_grounded_rubric_blocks_symlink_escape_before_read(tmp_path: Path):
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("must never reach the prompt", encoding="utf-8")
+    (allowed / "linked.txt").symlink_to(outside)
+    item = BenchmarkItem(
+        item_id="symlink-escape",
+        raw={"rubrics": ["The report must state the total value 12."]},
+        task="Create a report from the supplied file.",
+        context={"files": ["linked.txt"]},
+    )
+    client = FakeLLMClient({"required": ["total value"]})
+
+    result = audit_items_with_ledger(
+        [item],
+        root=allowed,
+        checkers=[GroundedRubricConsistencyChecker(client, allowed_roots=[allowed])],
+    )
+
+    assert result.ledger[0].status == "security_blocked"
+    assert result.ledger[0].details["blocked_paths"][0]["reason"] == "outside_allowed_roots"
+    assert client.calls == []
 
 
 def test_data_grounding_prompts_require_semantic_matching():

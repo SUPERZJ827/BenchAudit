@@ -18,6 +18,8 @@ from .evaluators import (
 )
 from .schema import BenchmarkItem, Violation
 from .taxonomy import DEFECTS
+from .promotion import enforce_promotion_policy
+from .coverage import AuditEligibility
 
 
 REFERENCE_PATTERNS = {
@@ -92,7 +94,7 @@ def _violation(
 ) -> Violation:
     info = DEFECTS[defect_type]
     chosen_severity = severity or info.default_severity
-    return Violation(
+    violation = Violation(
         item_id=item.item_id,
         artifact=artifact or info.artifact,
         mechanism=info.mechanism,
@@ -105,11 +107,29 @@ def _violation(
         evidence=evidence or {},
         suggested_repair=repair,
         review_only=(chosen_severity == "review") if review_only is None else review_only,
+        row_uid=item.row_uid,
+        source_row_sha256=item.source_row_sha256,
     )
+    return enforce_promotion_policy(violation, item)
 
 
 class Checker:
     name = "checker"
+
+    def audit_eligibility(
+        self,
+        item: BenchmarkItem,
+        root: Path | None = None,
+    ) -> AuditEligibility:
+        """Return explicit applicability when a checker can prove it.
+
+        Existing checkers historically used an empty iterable for both
+        inapplicability and a completed no-finding run.  The conservative
+        compatibility default therefore keeps eligibility unknown while still
+        allowing the check to run.  New checkers should override this method.
+        """
+
+        return AuditEligibility.unknown()
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         raise NotImplementedError
@@ -121,6 +141,11 @@ class TaskSpecChecker(Checker):
     def __init__(self, *, check_ambiguity: bool = True) -> None:
         self.check_ambiguity = check_ambiguity
 
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return AuditEligibility.applicable(
+            "task presence and specification integrity are defined for every canonical item"
+        )
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         task = _text(item.task).strip()
         if not task:
@@ -129,6 +154,10 @@ class TaskSpecChecker(Checker):
                 "missing_task",
                 1.0,
                 "Task specification is missing.",
+                {
+                    "evidence_level": "canonical_task_absence",
+                    "proof_schema_version": "1.0",
+                },
                 repair="Add a question, instruction, or problem statement.",
             )
             return
@@ -166,6 +195,11 @@ class ContextChecker(Checker):
 
     def __init__(self, *, check_version_risk: bool = True) -> None:
         self.check_version_risk = check_version_risk
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return AuditEligibility.applicable(
+            "context attachment and version checks accept empty or populated context"
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         for key, value in item.context.items():
@@ -208,6 +242,11 @@ class ContextChecker(Checker):
 
 class OutputContractChecker(Checker):
     name = "expected_output"
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return AuditEligibility.applicable(
+            "output-contract presence and consistency are defined for every canonical item"
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if (
@@ -267,6 +306,11 @@ class OutputContractChecker(Checker):
 class OracleChecker(Checker):
     name = "oracle_ground_truth"
 
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return AuditEligibility.applicable(
+            "oracle presence and basic validity are defined for every scalar-answer item profile"
+        )
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, ""):
             yield _violation(
@@ -285,7 +329,12 @@ class OracleChecker(Checker):
                     "invalid_choice_gold",
                     0.98,
                     "Gold choice cannot be mapped to the available answer choices.",
-                    {"gold": item.gold, "choices": item.choices},
+                    {
+                        "gold": item.gold,
+                        "choices": item.choices,
+                        "evidence_level": "choice_gold_domain_replay",
+                        "proof_schema_version": "1.0",
+                    },
                     repair="Correct the gold label or the choice list.",
                 )
             normalized = {}
@@ -314,13 +363,25 @@ class OracleChecker(Checker):
                 "wrong_gold_answer",
                 0.95,
                 "Simple executable arithmetic evidence disagrees with the gold answer.",
-                {"gold": item.gold, "computed_value": arithmetic_value, "task": item.task},
+                {
+                    "gold": item.gold,
+                    "computed_value": arithmetic_value,
+                    "task": item.task,
+                    "safe_expression_replayed": True,
+                    "evidence_level": "safe_arithmetic_replay",
+                    "proof_schema_version": "1.0",
+                },
                 repair="Review and correct the gold answer or reference solution.",
             )
 
 
 class EvaluatorChecker(Checker):
     name = "evaluator"
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return AuditEligibility.applicable(
+            "evaluator presence and declared answer behavior are defined for every canonical item"
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
@@ -382,7 +443,13 @@ class EvaluatorChecker(Checker):
                 "overstrict_evaluator",
                 0.9,
                 "Evaluator rejects declared accepted answer aliases.",
-                {"aliases_rejected": alias_rejected, "gold": item.gold, "evaluator": item.evaluator},
+                {
+                    "aliases_rejected": alias_rejected,
+                    "gold": item.gold,
+                    "evaluator": item.evaluator,
+                    "evidence_level": "declared_alias_replay",
+                    "proof_schema_version": "1.0",
+                },
                 repair="Update evaluator normalization or accepted-alternative handling.",
             )
         elif rejected and inferred in {"exact"}:

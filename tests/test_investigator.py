@@ -7,7 +7,9 @@ from benchcore.investigator import (
     apply_harness_dependency_gate,
     investigate_audit_report,
     investigation_terms,
+    load_report_items,
     refine_investigation_report,
+    summarize_investigation_rows,
     write_investigation_markdown,
 )
 from benchcore.llm_client import LLMConfig, LLMClient
@@ -73,6 +75,7 @@ def test_investigator_loads_item_and_returns_verdict(tmp_path: Path):
                 "violations": [
                     {
                         "item_id": "wb-1",
+                        "row_uid": "source-row-00000000",
                         "artifact": "context_attachment",
                         "mechanism": "missing",
                         "defect_type": "artifact_data_gap",
@@ -115,6 +118,72 @@ def test_investigator_loads_item_and_returns_verdict(tmp_path: Path):
     assert result["summary"]["verdict_distribution"] == {"false_positive": 1}
     assert result["investigations"][0]["item_id"] == "wb-1"
     assert "emergency mutual aid agreement" in client.calls[0][1]
+
+
+def test_report_item_index_never_collapses_duplicate_item_ids(tmp_path: Path):
+    input_path = tmp_path / "duplicates.jsonl"
+    write_jsonl(input_path, [
+        {"item_id": "duplicate", "task": "first task"},
+        {"item_id": "duplicate", "task": "second task"},
+    ])
+    report = {
+        "field_mapping": {
+            "item_id": "item_id",
+            "task": "task",
+            "context": [],
+            "metadata": [],
+        }
+    }
+
+    items = load_report_items(input_path, report)
+
+    assert "duplicate" not in items
+    assert items.resolve({"item_id": "duplicate"}) is None
+    assert items.resolve({
+        "item_id": "duplicate", "row_uid": "source-row-00000000",
+    }).task == "first task"
+    assert items.resolve({
+        "item_id": "duplicate", "row_uid": "source-row-00000001",
+    }).task == "second task"
+    assert items.resolve({
+        "item_id": "wrong-id", "row_uid": "source-row-00000000",
+    }) is None
+
+
+def test_report_item_index_rejects_unique_legacy_row_without_row_uid(tmp_path: Path):
+    input_path = tmp_path / "unique.jsonl"
+    write_jsonl(input_path, [{"item_id": "unique", "task": "task"}])
+    items = load_report_items(input_path, {
+        "field_mapping": {"item_id": "item_id", "task": "task"},
+    })
+
+    assert items.resolve({"item_id": "unique"}) is None
+
+
+def test_investigation_summary_counts_duplicate_ids_by_row_uid():
+    rows = [
+        {
+            "item_id": "duplicate", "row_uid": "source-row-00000000",
+            "verdict": "likely_true", "issue_category": "other",
+            "defect_type": "wrong_gold_answer", "agreement": 1.0,
+            "evidence_verdict": "supported",
+        },
+        {
+            "item_id": "duplicate", "row_uid": "source-row-00000001",
+            "verdict": "likely_true", "issue_category": "other",
+            "defect_type": "wrong_gold_answer", "agreement": 1.0,
+            "evidence_verdict": "supported",
+        },
+    ]
+
+    summary = summarize_investigation_rows(
+        rows,
+        input_path="items.jsonl",
+        report_path="audit.json",
+        total_candidates=2,
+    )
+
+    assert summary["likely_true_items"] == 2
 
 
 def test_investigation_terms_extract_rubric_and_message_terms():
@@ -322,6 +391,7 @@ def test_rigorous_investigation_records_passes_and_verification(tmp_path: Path):
         },
         "violations": [{
             "item_id": "wb-2",
+            "row_uid": "source-row-00000000",
             "artifact": "evaluator",
             "defect_type": "output_evaluator_contract_mismatch",
             "confidence": 0.9,

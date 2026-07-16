@@ -54,7 +54,7 @@ def test_solution_leak_checker_emits_hints_only_when_problem_statement_is_clean(
     ]
 
 
-def test_solution_leak_checker_confirms_with_llm_verdict():
+def test_solution_leak_checker_keeps_llm_semantic_verdict_at_review_tier():
     client = FakeLLMClient(
         {
             "verdict": "solution_leaked",
@@ -65,7 +65,9 @@ def test_solution_leak_checker_confirms_with_llm_verdict():
     violations = list(SolutionLeakChecker(client).check(make_item()))
 
     finding = next(v for v in violations if v.defect_type == "solution_leak")
-    assert not finding.review_only
+    assert finding.review_only
+    assert finding.evidence_tier == "review"
+    assert finding.proof_kind == "model_judgment"
     assert finding.severity == "major"
     assert finding.detection_method == "solution_leak_literal+llm_confirm"
     assert finding.evidence["llm_result"]["verdict"] == "solution_leaked"

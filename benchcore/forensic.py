@@ -13,6 +13,7 @@ from .artifact_consistency import (
     strictness_grounding_terms,
 )
 from .loader import build_items, load_mapping, load_rows
+from .investigator import validate_report_source_identity
 from .schema import BenchmarkItem, FieldMapping
 
 
@@ -20,16 +21,33 @@ def build_forensic_bundle(
     *,
     input_path: Path,
     item_id: str,
+    row_uid: str | None = None,
     report_path: Path | None = None,
     investigation_path: Path | None = None,
     root: Path | None = None,
     max_context_chars: int = 30000,
 ) -> dict[str, Any]:
     report = load_optional_json(report_path)
-    item = load_item(input_path, item_id, report)
+    item, duplicate_item_id = _load_item_with_identity(
+        input_path, item_id, report, row_uid=row_uid,
+    )
     root = root or input_path.parent
-    violations = select_item_rows(report, "violations", item_id)
-    investigations = select_item_rows(load_optional_json(investigation_path), "investigations", item_id)
+    violations = select_item_rows(
+        report,
+        "violations",
+        item_id,
+        row_uid=item.row_uid,
+        source_row_sha256=item.source_row_sha256,
+        duplicate_item_id=duplicate_item_id,
+    )
+    investigations = select_item_rows(
+        load_optional_json(investigation_path),
+        "investigations",
+        item_id,
+        row_uid=item.row_uid,
+        source_row_sha256=item.source_row_sha256,
+        duplicate_item_id=duplicate_item_id,
+    )
     terms = forensic_terms(item, violations, investigations)
     base_context = full_context_text(item, root, max_context_chars)
     evidence_context = append_targeted_search_context(
@@ -42,6 +60,8 @@ def build_forensic_bundle(
     )
     return {
         "item_id": item.item_id,
+        "row_uid": item.row_uid,
+        "source_row_sha256": item.source_row_sha256,
         "task": item.task,
         "output_contract": item.output_contract,
         "rubrics": extract_rubrics(item),
@@ -54,13 +74,51 @@ def build_forensic_bundle(
     }
 
 
-def load_item(input_path: Path, item_id: str, report: dict[str, Any] | None) -> BenchmarkItem:
+def load_item(
+    input_path: Path,
+    item_id: str,
+    report: dict[str, Any] | None,
+    *,
+    row_uid: str | None = None,
+) -> BenchmarkItem:
+    item, _ = _load_item_with_identity(
+        input_path, item_id, report, row_uid=row_uid,
+    )
+    return item
+
+
+def _load_item_with_identity(
+    input_path: Path,
+    item_id: str,
+    report: dict[str, Any] | None,
+    *,
+    row_uid: str | None,
+) -> tuple[BenchmarkItem, bool]:
+    if report is not None:
+        validate_report_source_identity(input_path, report)
     rows = load_rows(input_path)
     mapping = mapping_from_report(report) if report else load_mapping(None, rows)
-    items = {str(item.item_id): item for item in build_items(rows, mapping)}
-    if item_id not in items:
+    matches = [
+        item for item in build_items(rows, mapping)
+        if str(item.item_id) == str(item_id)
+    ]
+    if not matches:
         raise ValueError(f"item_id {item_id!r} not found in {input_path}")
-    return items[item_id]
+    duplicate_item_id = len(matches) > 1
+    if row_uid in (None, ""):
+        if duplicate_item_id:
+            available = ", ".join(str(item.row_uid) for item in matches)
+            raise ValueError(
+                f"item_id {item_id!r} is ambiguous; pass row_uid explicitly "
+                f"(available: {available})"
+            )
+        return matches[0], False
+    exact = [item for item in matches if str(item.row_uid) == str(row_uid)]
+    if len(exact) != 1:
+        raise ValueError(
+            f"row_uid {row_uid!r} does not identify item_id {item_id!r} in {input_path}"
+        )
+    return exact[0], duplicate_item_id
 
 
 def mapping_from_report(report: dict[str, Any] | None) -> FieldMapping:
@@ -84,13 +142,47 @@ def load_optional_json(path: Path | None) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def select_item_rows(payload: dict[str, Any] | None, key: str, item_id: str) -> list[dict[str, Any]]:
+def select_item_rows(
+    payload: dict[str, Any] | None,
+    key: str,
+    item_id: str,
+    *,
+    row_uid: str | None = None,
+    source_row_sha256: str | None = None,
+    duplicate_item_id: bool = False,
+) -> list[dict[str, Any]]:
     if not payload:
         return []
     rows = payload.get(key, [])
     if not isinstance(rows, list):
         return []
-    return [row for row in rows if isinstance(row, dict) and str(row.get("item_id")) == item_id]
+    candidates = [
+        row for row in rows
+        if isinstance(row, dict) and str(row.get("item_id")) == str(item_id)
+    ]
+    if any(
+        row.get("row_uid") in (None, "") for row in candidates
+    ):
+        raise ValueError(
+            f"{key} contains item_id {item_id!r} without row_uid, so it cannot "
+            "be joined safely to a live source record"
+        )
+    selected = [
+        row for row in candidates
+        if row.get("row_uid") in (None, "")
+        or (
+            row_uid not in (None, "")
+            and str(row.get("row_uid")) == str(row_uid)
+        )
+    ]
+    if any(
+        row.get("source_row_sha256") not in (None, "", source_row_sha256)
+        for row in selected
+    ):
+        raise ValueError(
+            f"{key} source-row hash does not match the selected live record"
+        )
+    return selected
 
 
 def forensic_terms(
@@ -139,7 +231,10 @@ def write_forensic_markdown(path: Path, bundle: dict[str, Any]) -> None:
     for row in bundle.get("investigations", []):
         by_verdict[str(row.get("verdict", "unknown"))] += 1
     lines: list[str] = []
-    lines.append(f"# Forensic Evidence Bundle: `{bundle['item_id']}`")
+    identity = str(bundle["item_id"])
+    if bundle.get("row_uid") not in (None, ""):
+        identity += f" [{bundle['row_uid']}]"
+    lines.append(f"# Forensic Evidence Bundle: `{identity}`")
     lines.append("")
     lines.append("## Summary")
     lines.append("")

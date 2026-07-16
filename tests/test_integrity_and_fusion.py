@@ -270,7 +270,8 @@ class IntegrityAndFusionTest(unittest.TestCase):
 
         fuse_llm_evidence([gold_violation, option_violation], [item])
 
-        self.assertFalse(gold_violation.review_only)
+        self.assertTrue(gold_violation.review_only)
+        self.assertEqual(gold_violation.evidence_tier, "review")
         self.assertTrue(option_violation.review_only)
 
     def test_llm_observations_are_not_reinjected_into_prompts(self) -> None:
@@ -388,7 +389,7 @@ class IntegrityAndFusionTest(unittest.TestCase):
         self.assertEqual(len(violations), 1)
         self.assertTrue(violations[0].review_only)
 
-    def test_evidence_gold_full_confirms_three_way_wrong_gold(self) -> None:
+    def test_evidence_gold_full_prioritizes_three_way_wrong_gold_for_review(self) -> None:
         client = FakeLLMClient(
             [
                 {
@@ -442,7 +443,8 @@ class IntegrityAndFusionTest(unittest.TestCase):
         self.assertEqual(len(client.calls), 5)
         self.assertEqual(len(violations), 1)
         self.assertEqual(violations[0].defect_type, "wrong_gold_answer")
-        self.assertFalse(violations[0].review_only)
+        self.assertTrue(violations[0].review_only)
+        self.assertEqual(violations[0].evidence_tier, "review")
         result = violations[0].evidence["llm_result"]
         self.assertEqual(result["evidence_votes"], ["wrong_gold_answer"] * 3)
         self.assertEqual(result["evidence_agreement"], 1.0)
@@ -509,7 +511,7 @@ class IntegrityAndFusionTest(unittest.TestCase):
         self.assertTrue(violations[0].review_only)
         self.assertTrue(violations[0].evidence["llm_result"]["needs_expert"])
 
-    def test_general_knowledge_mislabeled_as_external_can_be_confirmed(self) -> None:
+    def test_general_knowledge_mislabeled_as_external_stays_in_review(self) -> None:
         client = FakeLLMClient(
             [
                 {
@@ -570,7 +572,8 @@ class IntegrityAndFusionTest(unittest.TestCase):
         violations = list(EvidenceGoldLLMAuditor(client, mode="cascade").check(item))
 
         self.assertEqual(len(violations), 1)
-        self.assertFalse(violations[0].review_only)
+        self.assertTrue(violations[0].review_only)
+        self.assertEqual(violations[0].evidence_tier, "review")
 
     def test_answer_option_matching_uses_equivalence_not_weak_implication(self) -> None:
         item = BenchmarkItem(

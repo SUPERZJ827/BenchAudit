@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+import threading
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -483,7 +484,19 @@ class BaseLLMAuditor(Checker):
         self.client = client
         self.confirm_threshold = confirm_threshold
         self.review_threshold = review_threshold
-        self.last_error: str | None = None
+        # A checker instance is shared by ``audit_items`` worker threads.  Keep
+        # per-call diagnostics thread-local so one item's provider failure can
+        # never be attached to another item's violation.
+        self._thread_state = threading.local()
+        self.last_error = None
+
+    @property
+    def last_error(self) -> str | None:
+        return getattr(self._thread_state, "last_error", None)
+
+    @last_error.setter
+    def last_error(self, value: str | None) -> None:
+        self._thread_state.last_error = value
 
     def query(self, item: BenchmarkItem) -> dict[str, Any] | None:
         self.last_error = None
