@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -8,7 +9,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .artifact_consistency import (
     append_targeted_search_context,
@@ -162,6 +163,11 @@ INDEPENDENT INVESTIGATOR RESULTS:
 @dataclass
 class Investigation:
     item_id: str
+    # ``item_id`` is benchmark-controlled and may be duplicated.  Preserve the
+    # auditor-assigned record identity so investigation results can be joined
+    # back to the exact source row without silently collapsing cases.
+    row_uid: str | None
+    source_row_sha256: str | None
     artifact: str
     defect_type: str
     detection_method: str
@@ -190,12 +196,51 @@ class Investigation:
     source_violation: dict[str, Any]
 
 
+class ReportItemIndex(dict[str, BenchmarkItem]):
+    """Resolve report rows without collapsing duplicate benchmark item IDs."""
+
+    def __init__(self, items: list[BenchmarkItem]) -> None:
+        groups: dict[str, list[BenchmarkItem]] = defaultdict(list)
+        for item in items:
+            groups[str(item.item_id)].append(item)
+        super().__init__({
+            item_id: group[0]
+            for item_id, group in groups.items()
+            if len(group) == 1
+        })
+        self.by_row_uid = {
+            str(item.row_uid): item
+            for item in items
+            if item.row_uid is not None
+        }
+        self.ambiguous_item_ids = {
+            item_id for item_id, group in groups.items() if len(group) > 1
+        }
+
+    def resolve(self, finding: dict[str, Any]) -> BenchmarkItem | None:
+        row_uid = finding.get("row_uid")
+        # A report row without source identity is not joinable evidence, even
+        # when its benchmark-owned item_id happens to be unique today.
+        if row_uid in (None, ""):
+            return None
+        item = self.by_row_uid.get(str(row_uid))
+        if item is None or str(item.item_id) != str(finding.get("item_id")):
+            return None
+        claimed_hash = finding.get("source_row_sha256")
+        if claimed_hash not in (None, "") and str(claimed_hash) != str(
+            item.source_row_sha256
+        ):
+            return None
+        return item
+
+
 def investigate_audit_report(
     *,
     input_path: Path,
     report_path: Path,
     client: LLMClient,
     root: Path | None = None,
+    allowed_roots: Iterable[Path] | None = None,
     include_defects: set[str] | None = None,
     include_methods: set[str] | None = None,
     min_confidence: float = 0.0,
@@ -230,6 +275,7 @@ def investigate_audit_report(
                     items=items,
                     client=client,
                     root=root,
+                    allowed_roots=allowed_roots,
                     max_context_chars=max_context_chars,
                     investigator_passes=investigator_passes,
                     investigator_quorum=investigator_quorum,
@@ -248,6 +294,7 @@ def investigate_audit_report(
                     items=items,
                     client=client,
                     root=root,
+                    allowed_roots=allowed_roots,
                     max_context_chars=max_context_chars,
                     investigator_passes=investigator_passes,
                     investigator_quorum=investigator_quorum,
@@ -272,27 +319,29 @@ def investigate_audit_report(
 def investigate_one_selected_violation(
     violation: dict[str, Any],
     *,
-    items: dict[str, BenchmarkItem],
+    items: ReportItemIndex,
     client: LLMClient,
     root: Path | None,
+    allowed_roots: Iterable[Path] | None,
     max_context_chars: int,
     investigator_passes: int,
     investigator_quorum: int | None,
     verifier_client: LLMClient | None,
 ) -> Investigation:
-        item = items.get(str(violation.get("item_id")))
-        if item is None:
-            return missing_item_investigation(violation)
-        return investigate_violation(
-            item,
-            violation,
-            client,
-            root=root,
-            max_context_chars=max_context_chars,
-            investigator_passes=investigator_passes,
-            investigator_quorum=investigator_quorum,
-            verifier_client=verifier_client,
-        )
+    item = items.resolve(violation)
+    if item is None:
+        return missing_item_investigation(violation)
+    return investigate_violation(
+        item,
+        violation,
+        client,
+        root=root,
+        allowed_roots=allowed_roots,
+        max_context_chars=max_context_chars,
+        investigator_passes=investigator_passes,
+        investigator_quorum=investigator_quorum,
+        verifier_client=verifier_client,
+    )
 
 
 def maybe_print_progress(completed: int, total: int, started: float, every: int) -> None:
@@ -322,7 +371,8 @@ def format_duration(seconds: float) -> str:
     return f"{seconds}s"
 
 
-def load_report_items(input_path: Path, report: dict[str, Any]) -> dict[str, BenchmarkItem]:
+def load_report_items(input_path: Path, report: dict[str, Any]) -> ReportItemIndex:
+    validate_report_source_identity(input_path, report)
     rows = load_rows(input_path)
     mapping_data = report.get("field_mapping") or {}
     mapping = FieldMapping(
@@ -336,7 +386,35 @@ def load_report_items(input_path: Path, report: dict[str, Any]) -> dict[str, Ben
         evaluator=mapping_data.get("evaluator"),
         metadata=list(mapping_data.get("metadata") or []),
     )
-    return {str(item.item_id): item for item in build_items(rows, mapping)}
+    return ReportItemIndex(build_items(rows, mapping))
+
+
+def validate_report_source_identity(
+    input_path: Path,
+    report: dict[str, Any],
+) -> None:
+    """Reject a report joined against source bytes other than those audited."""
+
+    identity = report.get("source_identity")
+    if identity is None:  # Backward compatibility; row-level ambiguity still fails closed.
+        return
+    if not isinstance(identity, dict):
+        raise ValueError("audit report source_identity must be an object")
+    if identity.get("schema_version") != "source-row-identity-v1":
+        raise ValueError("unsupported audit report source_identity schema")
+    if identity.get("row_uid_scheme") != "zero_based_original_source_index":
+        raise ValueError("unsupported audit report row_uid scheme")
+    expected = str(identity.get("input_sha256") or "")
+    if len(expected) != 64 or any(char not in "0123456789abcdef" for char in expected):
+        raise ValueError("audit report source_identity has no valid input SHA-256")
+    digest = hashlib.sha256()
+    with input_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != expected:
+        raise ValueError(
+            "audit report was produced from different input bytes; refusing row join"
+        )
 
 
 def select_violations(
@@ -373,12 +451,19 @@ def investigate_violation(
     client: LLMClient,
     *,
     root: Path | None,
+    allowed_roots: Iterable[Path] | None = None,
     max_context_chars: int,
     investigator_passes: int = 1,
     investigator_quorum: int | None = None,
     verifier_client: LLMClient | None = None,
 ) -> Investigation:
-    context = investigation_context(item, violation, root=root, max_chars=max_context_chars)
+    context = investigation_context(
+        item,
+        violation,
+        root=root,
+        allowed_roots=allowed_roots,
+        max_chars=max_context_chars,
+    )
     user = INVESTIGATOR_USER_PROMPT.format(
         item_id=item.item_id,
         task=preview(item.task, 3000) or "(no task text)",
@@ -617,9 +702,12 @@ def investigation_context(
     violation: dict[str, Any],
     *,
     root: Path | None,
+    allowed_roots: Iterable[Path] | None = None,
     max_chars: int,
 ) -> str:
-    base = full_context_text(item, root, max_chars)
+    base = full_context_text(
+        item, root, max_chars, allowed_roots=allowed_roots,
+    )
     terms = investigation_terms(violation)
     return append_targeted_search_context(
         item,
@@ -628,6 +716,7 @@ def investigation_context(
         terms,
         rubric=str((violation.get("evidence") or {}).get("rubric", "")),
         max_chars=max(3000, max_chars // 3),
+        allowed_roots=allowed_roots,
     )
 
 
@@ -683,6 +772,16 @@ def investigation_from_result(
         verdict_votes = dict(Counter(normalize_verdict(row.get("verdict")) for row in independent_results))
     return Investigation(
         item_id=str(violation.get("item_id", "")),
+        row_uid=(
+            str(violation["row_uid"])
+            if violation.get("row_uid") not in (None, "")
+            else None
+        ),
+        source_row_sha256=(
+            str(violation["source_row_sha256"])
+            if violation.get("source_row_sha256") not in (None, "")
+            else None
+        ),
         artifact=str(violation.get("artifact", "")),
         defect_type=str(violation.get("defect_type", "")),
         detection_method=str(violation.get("detection_method", "")),
@@ -780,6 +879,14 @@ def summarize_investigation_rows(
     report_path: str,
     total_candidates: int,
 ) -> dict[str, Any]:
+    def row_identity(row: dict[str, Any]) -> tuple[str, str]:
+        row_uid = row.get("row_uid")
+        if row_uid not in (None, ""):
+            return ("row_uid", str(row_uid))
+        # Backward compatibility for investigation reports produced before
+        # row_uid was recorded.  New reports always take the branch above.
+        return ("item_id", str(row.get("item_id", "")))
+
     return {
         "input_path": str(input_path),
         "source_report": str(report_path),
@@ -788,9 +895,15 @@ def summarize_investigation_rows(
         "verdict_distribution": dict(Counter(row["verdict"] for row in rows)),
         "issue_category_distribution": dict(Counter(row["issue_category"] for row in rows)),
         "defect_distribution": dict(Counter(row["defect_type"] for row in rows)),
-        "likely_true_items": len({row["item_id"] for row in rows if row["verdict"] == "likely_true"}),
-        "false_positive_items": len({row["item_id"] for row in rows if row["verdict"] == "false_positive"}),
-        "uncertain_items": len({row["item_id"] for row in rows if row["verdict"] == "uncertain"}),
+        "likely_true_items": len({
+            row_identity(row) for row in rows if row["verdict"] == "likely_true"
+        }),
+        "false_positive_items": len({
+            row_identity(row) for row in rows if row["verdict"] == "false_positive"
+        }),
+        "uncertain_items": len({
+            row_identity(row) for row in rows if row["verdict"] == "uncertain"
+        }),
         "mean_agreement": (
             sum(float(row.get("agreement", 0.0)) for row in rows) / len(rows)
             if rows else 0.0
@@ -852,9 +965,9 @@ def write_investigation_markdown(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     summary = report["summary"]
     investigations = report["investigations"]
-    by_item: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    by_item: dict[tuple[str, str | None], list[dict[str, Any]]] = defaultdict(list)
     for row in investigations:
-        by_item[row["item_id"]].append(row)
+        by_item[(str(row["item_id"]), row.get("row_uid"))].append(row)
 
     lines: list[str] = []
     lines.append("# Benchmark Issue Investigation Report")
@@ -882,8 +995,9 @@ def write_investigation_markdown(path: Path, report: dict[str, Any]) -> None:
     lines.append("")
     lines.append("## Cases")
     lines.append("")
-    for item_id, rows in by_item.items():
-        lines.append(f"### `{item_id}`")
+    for (item_id, row_uid), rows in by_item.items():
+        heading = item_id if row_uid in (None, "") else f"{item_id} [{row_uid}]"
+        lines.append(f"### `{heading}`")
         lines.append("")
         for row in rows:
             lines.append(

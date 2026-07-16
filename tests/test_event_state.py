@@ -26,7 +26,8 @@ class EventStateTest(unittest.TestCase):
         }
         violations = list(event_state_violations(item, result, 0.75, 0.45))
         self.assertEqual(len(violations), 1)
-        self.assertFalse(violations[0].review_only)
+        self.assertTrue(violations[0].review_only)
+        self.assertEqual(violations[0].evidence_tier, "review")
         findings = violations[0].evidence["llm_result"]["programmatic_event_state_findings"]
         self.assertEqual(findings[0]["finding_type"], "removal_exceeds_available")
 
@@ -91,7 +92,8 @@ class EventStateTest(unittest.TestCase):
         }
         violations = list(event_state_violations(item, result, 0.75, 0.45))
         self.assertEqual(len(violations), 1)
-        self.assertFalse(violations[0].review_only)
+        self.assertTrue(violations[0].review_only)
+        self.assertEqual(violations[0].evidence_tier, "review")
 
     def test_valid_state_model_has_no_violation(self) -> None:
         item = BenchmarkItem(item_id="valid", raw={}, task="Had 9, ate 3, has 6.", gold="6")

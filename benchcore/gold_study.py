@@ -7,7 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from .investigator import load_report_items
+from .investigator import ReportItemIndex, load_report_items
 
 
 def build_gold_study(
@@ -21,43 +21,68 @@ def build_gold_study(
 ) -> dict[str, Any]:
     report = json.loads(report_path.read_text(encoding="utf-8"))
     items = load_report_items(input_path, report)
-    violations_by_item: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    violations_by_row: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    unresolved_violations = 0
     for violation in report.get("violations", []):
-        violations_by_item[str(violation.get("item_id", ""))].append(violation)
+        target_row_uids = resolve_report_row_uids(
+            violation, items, include_dataset_targets=True,
+        )
+        if not target_row_uids:
+            unresolved_violations += 1
+            continue
+        for row_uid in target_row_uids:
+            violations_by_row[row_uid].append(violation)
 
-    investigations_by_item: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    investigations_by_row: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    unresolved_investigations = 0
     if investigation_path:
         investigation = json.loads(investigation_path.read_text(encoding="utf-8"))
         for row in investigation.get("investigations", []):
-            investigations_by_item[str(row.get("item_id", ""))].append(row)
+            target_row_uids = resolve_report_row_uids(row, items)
+            if not target_row_uids:
+                unresolved_investigations += 1
+                continue
+            investigations_by_row[target_row_uids[0]].append(row)
+
+    if unresolved_violations or unresolved_investigations:
+        raise ValueError(
+            "Gold-study report rows could not be joined to exact live source rows "
+            f"(violations={unresolved_violations}, "
+            f"investigations={unresolved_investigations}). Every report row must "
+            "carry a valid row_uid; refusing an unverified identity join."
+        )
 
     rng = random.Random(seed)
-    flagged_ids = stratified_flagged_sample(
-        violations_by_item,
-        investigations_by_item,
+    flagged_row_uids = stratified_flagged_sample(
+        violations_by_row,
+        investigations_by_row,
         size=max(flagged_size, 0),
         rng=rng,
     )
-    unflagged_pool = sorted(set(items) - set(violations_by_item))
+    all_row_uids = set(items.by_row_uid)
+    unflagged_pool = sorted(all_row_uids - set(violations_by_row))
     rng.shuffle(unflagged_pool)
-    unflagged_ids = unflagged_pool[: max(unflagged_size, 0)]
+    unflagged_row_uids = unflagged_pool[: max(unflagged_size, 0)]
 
     records: list[dict[str, Any]] = []
-    for item_id in [*flagged_ids, *unflagged_ids]:
-        item = items[item_id]
-        investigations = investigations_by_item.get(item_id, [])
+    for row_uid in [*flagged_row_uids, *unflagged_row_uids]:
+        item = items.by_row_uid[row_uid]
+        investigations = investigations_by_row.get(row_uid, [])
         records.append({
-            "item_id": item_id,
-            "sampling_group": "flagged" if item_id in violations_by_item else "unflagged_control",
+            "item_id": item.item_id,
+            "row_uid": row_uid,
+            "sampling_group": (
+                "flagged" if row_uid in violations_by_row else "unflagged_control"
+            ),
             "sampling_stratum": task_stratum(
-                violations_by_item.get(item_id, []),
+                violations_by_row.get(row_uid, []),
                 investigations,
             ),
             "task": item.task,
             "context": item.context,
             "output_contract": item.output_contract,
             "evaluator": item.evaluator,
-            "candidate_violations": violations_by_item.get(item_id, []),
+            "candidate_violations": violations_by_row.get(row_uid, []),
             "investigations": investigations,
             "human_label": "TODO",
             "human_categories": [],
@@ -77,12 +102,55 @@ def build_gold_study(
             "seed": seed,
             "flagged_requested": flagged_size,
             "unflagged_requested": unflagged_size,
-            "flagged_selected": len(flagged_ids),
-            "unflagged_selected": len(unflagged_ids),
+            "flagged_selected": len(flagged_row_uids),
+            "unflagged_selected": len(unflagged_row_uids),
             "selected_items": len(records),
+            "identity_field": "row_uid",
+            "unresolved_violation_rows": unresolved_violations,
+            "unresolved_investigation_rows": unresolved_investigations,
         },
         "records": records,
     }
+
+
+def resolve_report_row_uids(
+    row: dict[str, Any],
+    items: ReportItemIndex,
+    *,
+    include_dataset_targets: bool = False,
+) -> list[str]:
+    """Resolve a report row to live source rows without item-id guessing.
+
+    New reports carry ``row_uid``.  Legacy rows may fall back to ``item_id``
+    only when that ID is unique in the live input.  Dataset-scoped findings can
+    explicitly target several rows, but every target and the source row must
+    resolve before any of them enters the annotation sample.
+    """
+
+    if not isinstance(row, dict):
+        return []
+    source = items.resolve(row)
+    if source is None or source.row_uid is None:
+        return []
+    source_uid = str(source.row_uid)
+    if not include_dataset_targets:
+        return [source_uid]
+    evidence = row.get("evidence")
+    targets = evidence.get("target_row_uids") if isinstance(evidence, dict) else None
+    if targets is None:
+        return [source_uid]
+    if (
+        not isinstance(targets, list)
+        or not targets
+        or any(not isinstance(value, str) or not value for value in targets)
+    ):
+        return []
+    normalized = list(dict.fromkeys(targets))
+    if len(normalized) != len(targets) or source_uid not in normalized:
+        return []
+    if any(row_uid not in items.by_row_uid for row_uid in normalized):
+        return []
+    return normalized
 
 
 def stratified_flagged_sample(
@@ -159,8 +227,11 @@ def write_gold_study_markdown(path: Path, study: dict[str, Any]) -> None:
 
 
 def render_gold_case(index: int, record: dict[str, Any]) -> list[str]:
+    identity = str(record["item_id"])
+    if record.get("row_uid") not in (None, ""):
+        identity += f" [{record['row_uid']}]"
     lines = [
-        f"### {index}. `{record['item_id']}`",
+        f"### {index}. `{identity}`",
         "",
         f"- sampling_group: `{record['sampling_group']}`",
         f"- sampling_stratum: `{record['sampling_stratum']}`",

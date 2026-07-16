@@ -30,6 +30,13 @@ class DefectInfo:
 
 
 DEFECTS: dict[str, DefectInfo] = {
+    "gdpval_schema_mismatch": DefectInfo(
+        "task_specification",
+        "malformed",
+        "gdpval_schema_mismatch",
+        "major",
+        "A record violates the explicit GDPval v2 field and type contract.",
+    ),
     "missing_task": DefectInfo(
         "task_specification",
         "missing",
@@ -330,5 +337,61 @@ DEFECTS: dict[str, DefectInfo] = {
         "auditor_contradiction",
         "review",
         "Independent audit dimensions produced mutually inconsistent conclusions.",
+    ),
+    "rubric_representation_mismatch": DefectInfo(
+        "evaluator",
+        "inconsistent",
+        "rubric_representation_mismatch",
+        "major",
+        "Two published representations of the same rubric disagree or cannot be parsed.",
+    ),
+    "artifact_reference_manifest_mismatch": DefectInfo(
+        "context_attachment",
+        "inconsistent",
+        "artifact_reference_manifest_mismatch",
+        "major",
+        "Parallel artifact path, URL, and immutable-URI declarations are inconsistent.",
+    ),
+    "duplicate_rubric_item_id": DefectInfo(
+        "evaluator",
+        "inconsistent",
+        "duplicate_rubric_item_id",
+        "major",
+        "Two rubric entries reuse the same supposedly unique rubric identifier.",
+    ),
+    "duplicate_rubric_criterion": DefectInfo(
+        "evaluator",
+        "overstrict",
+        "duplicate_rubric_criterion",
+        "review",
+        "A rubric repeats an equivalent criterion and may count the same requirement twice.",
+    ),
+    "rubric_internal_contradiction": DefectInfo(
+        "evaluator",
+        "inconsistent",
+        "rubric_internal_contradiction",
+        "major",
+        "Deterministically extracted rubric requirements assign incompatible meanings to the same output location.",
+    ),
+    "task_artifact_contract_mismatch": DefectInfo(
+        "oracle_ground_truth",
+        "inconsistent",
+        "task_artifact_contract_mismatch",
+        "major",
+        "The published reference deliverable violates an explicit mechanical task contract.",
+    ),
+    "rubric_artifact_contract_mismatch": DefectInfo(
+        "evaluator",
+        "inconsistent",
+        "rubric_artifact_contract_mismatch",
+        "major",
+        "The published reference deliverable conflicts with an explicit mechanical rubric contract.",
+    ),
+    "rubric_reference_contract_mismatch": DefectInfo(
+        "evaluator",
+        "inconsistent",
+        "rubric_reference_contract_mismatch",
+        "major",
+        "A rubric names a reference artifact that is absent from the published reference manifest.",
     ),
 }

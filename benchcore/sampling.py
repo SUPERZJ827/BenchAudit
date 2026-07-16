@@ -97,6 +97,23 @@ def load_rows_from_manifest(
     manifest_path: Path,
     verify_hash: bool = True,
 ) -> list[dict[str, Any]]:
+    selected_rows, _ = load_rows_with_source_indices_from_manifest(
+        rows,
+        source_path,
+        manifest_path,
+        verify_hash=verify_hash,
+    )
+    return selected_rows
+
+
+def load_rows_with_source_indices_from_manifest(
+    rows: list[dict[str, Any]],
+    source_path: Path,
+    manifest_path: Path,
+    verify_hash: bool = True,
+) -> tuple[list[dict[str, Any]], list[int]]:
+    """Load a manifest sample while preserving original source-row identity."""
+
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if verify_hash:
         expected = manifest.get("source_sha256")
@@ -107,12 +124,16 @@ def load_rows_from_manifest(
             )
     selected = manifest.get("selected", [])
     result = []
+    source_indices: list[int] = []
     for entry in selected:
         index = int(entry["source_index"])
         if index < 0 or index >= len(rows):
             raise ValueError(f"Manifest source index out of range: {index}")
         result.append(rows[index])
-    return result
+        source_indices.append(index)
+    if len(set(source_indices)) != len(source_indices):
+        raise ValueError("Manifest contains duplicate source_index entries")
+    return result, source_indices
 
 
 def manifest_indices(paths: list[Path]) -> set[int]:
@@ -201,4 +222,3 @@ def _stratum_key(stratum: dict[str, str]) -> str:
     if not stratum:
         return "all"
     return " | ".join(f"{key}={value}" for key, value in sorted(stratum.items()))
-

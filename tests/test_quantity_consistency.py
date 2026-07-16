@@ -32,7 +32,8 @@ class QuantityConsistencyTest(unittest.TestCase):
         violations = list(quantity_consistency_violations(item, result, 0.75, 0.45))
         self.assertEqual(len(violations), 1)
         self.assertEqual(violations[0].defect_type, "ambiguous_goal")
-        self.assertFalse(violations[0].review_only)
+        self.assertTrue(violations[0].review_only)
+        self.assertEqual(violations[0].evidence_tier, "review")
         self.assertTrue(violations[0].evidence["llm_result"]["programmatic_violation"])
 
     def test_program_does_not_trust_a_satisfied_constraint_as_defect(self) -> None:

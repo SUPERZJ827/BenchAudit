@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+from .coverage import AuditLedgerEntry, COMPLETED_STATUSES, ledger_entry_dict
 from .package_scan import ArtifactKind, BenchmarkPackage
 from .schema import BenchmarkItem
 
@@ -46,6 +47,9 @@ class AuditPlan:
             "unknowns": list(self.unknowns),
             "summary": {
                 "executed": sum(check.status == "executed" for check in self.checks),
+                "partial": sum(check.status == "partial" for check in self.checks),
+                "failed": sum(check.status == "failed" for check in self.checks),
+                "ineligible": sum(check.status == "ineligible" for check in self.checks),
                 "selected": sum(check.status == "selected" for check in self.checks),
                 "skipped": sum(check.status == "skipped" for check in self.checks),
                 "unsupported": sum(check.status == "unsupported" for check in self.checks),
@@ -60,7 +64,21 @@ CORE_CAPABILITIES: tuple[CheckerCapability, ...] = (
     CheckerCapability("oracle_ground_truth", requires_any=frozenset({ArtifactKind.ORACLE, ArtifactKind.TASK_SPECIFICATION})),
     CheckerCapability("evaluator", requires_any=frozenset({ArtifactKind.EVALUATOR, ArtifactKind.TASK_SPECIFICATION})),
     CheckerCapability("contract_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR})),
-    CheckerCapability("evaluator_replay", requires_all=frozenset({ArtifactKind.ORACLE, ArtifactKind.EVALUATOR}), evidence_level="execution", needs_execution=True),
+    # This replays BenchAudit's declared answer contract parser; it does not
+    # execute benchmark-supplied code and therefore needs no sandbox backend.
+    CheckerCapability(
+        "evaluator_replay",
+        requires_all=frozenset({ArtifactKind.ORACLE, ArtifactKind.EVALUATOR}),
+        evidence_level="deterministic_replay",
+    ),
+    CheckerCapability(
+        "execution_evaluator_audit",
+        requires_all=frozenset({ArtifactKind.ORACLE, ArtifactKind.EVALUATOR}),
+        evidence_level="executed_differential",
+        cost_class="high",
+        needs_llm=True,
+        needs_execution=True,
+    ),
     CheckerCapability("metamorphic_answer", requires_any=frozenset({ArtifactKind.ORACLE, ArtifactKind.EVALUATOR})),
     CheckerCapability("evaluator_mutation", requires_any=frozenset({ArtifactKind.EVALUATOR}), evidence_level="counterfactual"),
     CheckerCapability("task_integrity", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION})),
@@ -72,6 +90,8 @@ CORE_CAPABILITIES: tuple[CheckerCapability, ...] = (
     CheckerCapability("cross_artifact_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), evidence_level="llm", cost_class="medium", needs_llm=True),
     CheckerCapability("grounded_rubric_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), families=frozenset({"workspacebench", "rubric"}), evidence_level="llm", cost_class="medium", needs_llm=True),
     CheckerCapability("rubric_output_contract_consistency", requires_all=frozenset({ArtifactKind.EVALUATOR, ArtifactKind.OUTPUT_CONTRACT}), families=frozenset({"workspacebench", "rubric"}), evidence_level="llm", cost_class="medium", needs_llm=True),
+    CheckerCapability("workspace_artifact_invariants", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), families=frozenset({"workspacebench"}), evidence_level="artifact_replay", cost_class="low"),
+    CheckerCapability("workspace_rubric_grounding", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), families=frozenset({"workspacebench"}), evidence_level="llm_verified", cost_class="high", needs_llm=True),
     CheckerCapability("solution_leak", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.ORACLE}), families=frozenset({"swebench", "code"}), evidence_level="static"),
     CheckerCapability("trace_failure_cluster", requires_any=frozenset({ArtifactKind.TRACE}), evidence_level="behavioral", cost_class="medium"),
     CheckerCapability("environment_replay", requires_all=frozenset({ArtifactKind.ENVIRONMENT, ArtifactKind.EVALUATOR}), evidence_level="execution", cost_class="high", needs_execution=True),
@@ -211,6 +231,7 @@ def plan_for_executed_methods(
     methods_run: Iterable[str],
     *,
     base_plan: AuditPlan | None = None,
+    audit_ledger: Iterable[AuditLedgerEntry | dict[str, Any]] | None = None,
 ) -> AuditPlan:
     methods = list(dict.fromkeys(methods_run))
     capabilities = {capability.name: capability for capability in CORE_CAPABILITIES}
@@ -218,14 +239,19 @@ def plan_for_executed_methods(
         package, available_llm=True, available_execution=True
     )
     by_name = {check.name: check for check in plan.checks}
+    ledger_rows = [ledger_entry_dict(row) for row in (audit_ledger or [])]
+    rows_by_checker: dict[str, list[dict[str, Any]]] = {}
+    for row in ledger_rows:
+        rows_by_checker.setdefault(str(row.get("checker") or ""), []).append(row)
     executed: list[PlannedCheck] = []
     for method in methods:
         known = capabilities.get(method)
         planned = by_name.get(method)
+        status, reason = _ledger_method_status(method, rows_by_checker.get(method, []))
         executed.append(PlannedCheck(
             name=method,
-            status="executed",
-            reason="checker completed as part of this audit run",
+            status=status,
+            reason=reason,
             evidence_level=(known.evidence_level if known else (planned.evidence_level if planned else "unknown")),
             cost_class=(known.cost_class if known else (planned.cost_class if planned else "unknown")),
         ))
@@ -236,6 +262,42 @@ def plan_for_executed_methods(
             executed.append(check)
     plan.checks = executed
     return plan
+
+
+def _ledger_method_status(
+    method: str,
+    rows: list[dict[str, Any]],
+) -> tuple[str, str]:
+    """Summarize actual checker outcomes, never checker instantiation.
+
+    Deliberate inapplicability is not a failure.  Conversely, an exception,
+    security refusal, abstention, unsupported input, or undeclared eligibility
+    must prevent the plan from claiming that a method "executed" completely.
+    """
+
+    if not rows:
+        return "failed", "checker was instantiated but produced no coverage-ledger rows"
+    distribution: dict[str, int] = {}
+    for row in rows:
+        status = str(row["status"])
+        distribution[status] = distribution.get(status, 0) + 1
+    completed = sum(
+        str(row["status"]) in COMPLETED_STATUSES and bool(row.get("completed"))
+        for row in rows
+    )
+    unknown = sum(bool(row.get("coverage_unknown")) for row in rows)
+    ineligible = distribution.get("ineligible", 0)
+    detail = ", ".join(f"{key}={value}" for key, value in sorted(distribution.items()))
+    if ineligible == len(rows):
+        return "ineligible", f"checker was not applicable to any item ({detail})"
+    if completed and unknown:
+        return "partial", (
+            f"checker completed {completed}/{len(rows)} ledger rows but {unknown} "
+            f"row(s) retain unresolved coverage ({detail})"
+        )
+    if completed:
+        return "executed", f"checker completed all applicable rows ({detail})"
+    return "failed", f"checker completed no auditable row ({detail})"
 
 
 def apply_family_policy(plan: AuditPlan) -> AuditPlan:

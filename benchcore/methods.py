@@ -20,12 +20,20 @@ from .evaluators import (
     parse_number,
 )
 from .schema import BenchmarkItem, Violation
+from .coverage import AuditEligibility
 
 
 class EvaluatorReplayChecker(Checker):
     """Replay gold and declared aliases against the declared evaluator contract."""
 
     name = "evaluator_replay"
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        if item.gold in (None, ""):
+            return AuditEligibility.not_applicable("gold answer is absent")
+        if item.evaluator in (None, "", [], {}):
+            return AuditEligibility.not_applicable("declared evaluator is absent")
+        return AuditEligibility.applicable("gold and declared evaluator are both present")
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, "") or item.evaluator in (None, "", [], {}):
@@ -41,6 +49,7 @@ class EvaluatorReplayChecker(Checker):
                     "choices": item.choices,
                     "evaluator": item.evaluator,
                     "evidence_level": "declared_evaluator_replay",
+                    "proof_schema_version": "1.0",
                 },
                 repair="Fix the gold representation or evaluator parsing contract.",
                 method="evaluator_replay",
@@ -51,6 +60,13 @@ class MetamorphicAnswerChecker(Checker):
     """Check answer transformations that should preserve correctness."""
 
     name = "metamorphic_answer"
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return (
+            AuditEligibility.applicable("gold answer can be transformed")
+            if item.gold not in (None, "")
+            else AuditEligibility.not_applicable("gold answer is absent")
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, ""):
@@ -90,6 +106,13 @@ class EvaluatorMutationChecker(Checker):
 
     name = "evaluator_mutation"
 
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return (
+            AuditEligibility.applicable("gold answer can be negatively mutated")
+            if item.gold not in (None, "")
+            else AuditEligibility.not_applicable("gold answer is absent")
+        )
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, ""):
             return []
@@ -116,12 +139,50 @@ class EvaluatorMutationChecker(Checker):
             )
 
 
+def _is_scalar_answer_contract(item: BenchmarkItem) -> bool:
+    contract_type = (
+        str(item.output_contract.get("type") or "").casefold()
+        if isinstance(item.output_contract, dict)
+        else ""
+    )
+    evaluator_type = (
+        str(item.evaluator.get("type") or "").casefold()
+        if isinstance(item.evaluator, dict)
+        else ""
+    )
+    return bool(
+        item.gold not in (None, "", [], {})
+        and contract_type not in {"workspace_files", "workspace", "artifact_files"}
+        and evaluator_type not in {
+            "workspacebench_rubric", "agent_as_a_judge", "rubric_judge",
+        }
+    )
+
+
 class ContractConsistencyChecker(Checker):
     """Check static consistency between output contract, choices, gold, and evaluator."""
 
     name = "contract_consistency"
 
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        if _is_scalar_answer_contract(item):
+            return AuditEligibility.applicable(
+                "scalar/set gold answer and compatible answer contract are present"
+            )
+        return AuditEligibility.not_applicable(
+            "item has no scalar/set gold contract; artifact/rubric checks own this profile"
+        )
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        # This checker models a *single answer value*.  Agent/file benchmarks
+        # often have JSON/PDF/etc. as an artifact container while their rubric
+        # checks numeric or textual facts inside that artifact.  Feeding such a
+        # rubric dictionary to ``infer_evaluator_type`` fabricates a scalar
+        # evaluator and yields a false format conflict (JSON vs numeric/exact).
+        # Only run when a scalar/set gold answer actually exists, and leave
+        # artifact/rubric contracts to the dedicated Workspace checks.
+        if not _is_scalar_answer_contract(item):
+            return []
         contract = normalize_text(item.output_contract)
         kind = infer_evaluator_type(item.gold, item.choices, item.evaluator)
         mismatch = None
@@ -141,6 +202,8 @@ class ContractConsistencyChecker(Checker):
                     "output_contract": item.output_contract,
                     "evaluator": item.evaluator,
                     "inferred_evaluator": kind,
+                    "evidence_level": "answer_contract_static_consistency",
+                    "proof_schema_version": "1.0",
                 },
                 repair="Align the output contract, gold representation, and evaluator type.",
                 method="cross_artifact_consistency",
@@ -151,6 +214,13 @@ class TaskIntegrityChecker(Checker):
     """Deterministic checks for temporal, source, instruction, and rendering integrity."""
 
     name = "task_integrity"
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return (
+            AuditEligibility.applicable("task text is present")
+            if str(item.task or "").strip()
+            else AuditEligibility.not_applicable("task text is absent")
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         task = str(item.task or "")
@@ -258,6 +328,13 @@ class ExecutableEvidenceChecker(Checker):
 
     name = "executable_evidence"
 
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        return (
+            AuditEligibility.applicable("embedded executable evidence is present")
+            if _find_executable_checks(item.raw)
+            else AuditEligibility.not_applicable("no embedded executable evidence")
+        )
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         checks = _find_executable_checks(item.raw)
         for source_path, evidence_checks in checks:
@@ -290,6 +367,8 @@ class ExecutableEvidenceChecker(Checker):
                             "source_path": source_path,
                             "check": check,
                             "computed": computed,
+                            "evidence_level": "safe_expression_replay",
+                            "proof_schema_version": "1.0",
                         },
                         repair="Correct or regenerate the executable evidence.",
                         method="executable_evidence_replay",
@@ -309,6 +388,8 @@ class ExecutableEvidenceChecker(Checker):
                         "gold": item.gold,
                         "final_evidence_answer": final_marked,
                         "checks": results,
+                        "evidence_level": "safe_expression_replay",
+                        "proof_schema_version": "1.0",
                     },
                     repair="Review the gold answer and executable reasoning chain.",
                     method="executable_evidence_replay",
@@ -320,7 +401,16 @@ class DifferentialCandidateChecker(Checker):
 
     name = "differential_candidate"
 
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        if item.gold in (None, ""):
+            return AuditEligibility.not_applicable("gold answer is absent")
+        if not _find_candidate_answers(item.raw):
+            return AuditEligibility.not_applicable("no independent candidate answer is attached")
+        return AuditEligibility.applicable("gold and independent candidate answer are present")
+
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        if item.gold in (None, ""):
+            return []
         candidates = _find_candidate_answers(item.raw)
         disagreements = []
         for source_path, answer, confidence in candidates:
@@ -351,12 +441,26 @@ class DifferentialCandidateChecker(Checker):
 class DatasetChecker:
     name = "dataset_checker"
 
+    def audit_eligibility(
+        self, item: BenchmarkItem, items: list[BenchmarkItem],
+    ) -> AuditEligibility:
+        return AuditEligibility.unknown(
+            "dataset checker has no per-item applicability contract"
+        )
+
     def check(self, items: list[BenchmarkItem]) -> Iterable[Violation]:
         raise NotImplementedError
 
 
 class DuplicateConflictChecker(DatasetChecker):
     name = "duplicate_conflict"
+
+    def audit_eligibility(self, item, items) -> AuditEligibility:
+        return (
+            AuditEligibility.applicable("dataset contains multiple records to compare")
+            if len(items) > 1
+            else AuditEligibility.not_applicable("duplicate analysis requires multiple records")
+        )
 
     def check(self, items: list[BenchmarkItem]) -> Iterable[Violation]:
         by_id: dict[str, list[BenchmarkItem]] = defaultdict(list)
@@ -373,7 +477,13 @@ class DuplicateConflictChecker(DatasetChecker):
                 "duplicate_item_id",
                 1.0,
                 "Multiple records share the same item identifier.",
-                {"item_id": item_id, "count": len(group)},
+                {
+                    "item_id": item_id,
+                    "count": len(group),
+                    "target_row_uids": [item.row_uid for item in group],
+                    "evidence_level": "dataset_identifier_collision",
+                    "proof_schema_version": "1.0",
+                },
                 repair="Assign stable unique identifiers or remove duplicate records.",
                 method="dataset_duplicate_scan",
             )
@@ -389,7 +499,13 @@ class DuplicateConflictChecker(DatasetChecker):
                     "conflicting_duplicate_oracle",
                     0.99,
                     "Equivalent task records declare conflicting gold answers.",
-                    {"item_ids": ids, "gold_values": sorted(golds)},
+                    {
+                        "item_ids": ids,
+                        "target_row_uids": [item.row_uid for item in group],
+                        "gold_values": sorted(golds),
+                        "evidence_level": "canonical_record_oracle_conflict",
+                        "proof_schema_version": "1.0",
+                    },
                     repair="Reconcile the conflicting gold answers or separate genuinely different task contexts.",
                     method="dataset_duplicate_scan",
                 )
@@ -399,7 +515,11 @@ class DuplicateConflictChecker(DatasetChecker):
                     "duplicate_task",
                     0.9,
                     "Equivalent task records appear multiple times in the benchmark.",
-                    {"item_ids": ids, "gold": group[0].gold},
+                    {
+                        "item_ids": ids,
+                        "target_row_uids": [item.row_uid for item in group],
+                        "gold": group[0].gold,
+                    },
                     severity="review",
                     review_only=True,
                     repair="Deduplicate the benchmark or document intentional repeated measurements.",
@@ -409,6 +529,13 @@ class DuplicateConflictChecker(DatasetChecker):
 
 class SchemaDriftChecker(DatasetChecker):
     name = "schema_drift"
+
+    def audit_eligibility(self, item, items) -> AuditEligibility:
+        return (
+            AuditEligibility.applicable("dataset has at least five records for schema profiling")
+            if len(items) >= 5
+            else AuditEligibility.not_applicable("schema drift profiling requires at least five records")
+        )
 
     def check(self, items: list[BenchmarkItem]) -> Iterable[Violation]:
         if len(items) < 5:

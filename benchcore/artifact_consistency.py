@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections import Counter
@@ -7,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
+from .coverage import AuditSecurityBlocked
 from .file_reader import read_file, search_file
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
@@ -529,6 +531,18 @@ class CrossArtifactConsistencyChecker(Checker):
     """LLM-assisted consistency audit over task, context, reference, and evaluator."""
 
     name = "cross_artifact_consistency"
+    remote_egress_capability = {
+        "outbound_fields": (
+            "task",
+            "context",
+            "attachment_content",
+            "rubrics",
+            "evaluator",
+            "reference_or_gold",
+            "output_contract",
+        ),
+        "attachment_content": True,
+    }
 
     def __init__(
         self,
@@ -538,19 +552,31 @@ class CrossArtifactConsistencyChecker(Checker):
         context_chars: int = 9000,
         rubric_chars: int = 3500,
         reference_chars: int = 2500,
+        allowed_roots: Iterable[Path] | None = None,
     ) -> None:
         self.client = client
         self.review_threshold = review_threshold
         self.context_chars = context_chars
         self.rubric_chars = rubric_chars
         self.reference_chars = reference_chars
+        self.allowed_roots = (
+            tuple(Path(path) for path in allowed_roots)
+            if allowed_roots is not None
+            else None
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if not has_enough_artifacts(item):
             return []
+        enforce_context_path_policy(item, root, allowed_roots=self.allowed_roots)
         prompt = USER_PROMPT.format(
             task=preview(item.task or "(missing task)", 1800),
-            context=build_context_preview(item, root, self.context_chars),
+            context=build_context_preview(
+                item,
+                root,
+                self.context_chars,
+                allowed_roots=self.allowed_roots,
+            ),
             rubrics=preview(format_rubrics(item), self.rubric_chars) or "(no rubric/evaluator)",
             reference=preview(format_reference(item), self.reference_chars) or "(no reference)",
             output_contract=preview(item.output_contract, 1200) or "(no output contract)",
@@ -585,6 +611,17 @@ class GroundedRubricConsistencyChecker(Checker):
     """
 
     name = "grounded_rubric_consistency"
+    remote_egress_capability = {
+        "outbound_fields": (
+            "task",
+            "context",
+            "attachment_content",
+            "rubrics",
+            "evaluator",
+            "output_contract",
+        ),
+        "attachment_content": True,
+    }
 
     def __init__(
         self,
@@ -592,16 +629,28 @@ class GroundedRubricConsistencyChecker(Checker):
         *,
         review_threshold: float = 0.45,
         context_chars: int = 12000,
+        allowed_roots: Iterable[Path] | None = None,
     ) -> None:
         self.client = client
         self.review_threshold = review_threshold
         self.context_chars = context_chars
+        self.allowed_roots = (
+            tuple(Path(path) for path in allowed_roots)
+            if allowed_roots is not None
+            else None
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         rubrics = extract_rubrics(item)
         if not rubrics:
             return []
-        context_text = full_context_text(item, root, self.context_chars)
+        enforce_context_path_policy(item, root, allowed_roots=self.allowed_roots)
+        context_text = full_context_text(
+            item,
+            root,
+            self.context_chars,
+            allowed_roots=self.allowed_roots,
+        )
         if not context_text.strip():
             return []
         task = item.task or ""
@@ -643,6 +692,7 @@ class GroundedRubricConsistencyChecker(Checker):
             strictness_grounding_terms(rubric),
             rubric,
             max_chars=5000,
+            allowed_roots=self.allowed_roots,
         )
         prompt = STRICTNESS_PROMPT.format(
             task=preview(task, 1400),
@@ -756,7 +806,14 @@ class GroundedRubricConsistencyChecker(Checker):
         if is_generated_content_requirement(task, rubric, required):
             return []
 
-        focused_context = append_targeted_search_context(item, root, context_text, missing, rubric)
+        focused_context = append_targeted_search_context(
+            item,
+            root,
+            context_text,
+            missing,
+            rubric,
+            allowed_roots=self.allowed_roots,
+        )
         verify_prompt = DATA_GROUNDING_PROMPT.format(
             missing=", ".join(missing),
             task=preview(task or "(missing task)", 1200),
@@ -805,6 +862,10 @@ class RubricOutputContractConsistencyChecker(Checker):
     """Check whether rubrics/evaluators are aligned with the output contract."""
 
     name = "rubric_output_contract_consistency"
+    remote_egress_capability = {
+        "outbound_fields": ("task", "rubrics", "evaluator", "output_contract"),
+        "attachment_content": False,
+    }
 
     def __init__(
         self,
@@ -890,6 +951,10 @@ class RubricCoverageChecker(Checker):
     """Check whether rubrics/evaluators under-cover central task requirements."""
 
     name = "rubric_coverage"
+    remote_egress_capability = {
+        "outbound_fields": ("task", "rubrics", "evaluator", "output_contract"),
+        "attachment_content": False,
+    }
 
     def __init__(
         self,
@@ -1281,10 +1346,23 @@ def severity_from_result(result: dict[str, Any]) -> str:
     return "review"
 
 
-def build_context_preview(item: BenchmarkItem, root: Path | None, max_chars: int) -> str:
+def build_context_preview(
+    item: BenchmarkItem,
+    root: Path | None,
+    max_chars: int,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> str:
     chunks: list[str] = []
     for label, value in context_pairs(item):
-        chunks.extend(render_context_value(label, value, root))
+        chunks.extend(
+            render_context_value(
+                label,
+                value,
+                root,
+                allowed_roots=allowed_roots,
+            )
+        )
     if not chunks:
         return "(no context artifacts)"
     return preview("\n\n".join(chunks), max_chars)
@@ -1318,10 +1396,16 @@ def common_context_values(raw: dict[str, Any]) -> list[tuple[str, Any]]:
     return [(key, raw.get(key)) for key in keys if key in raw]
 
 
-def render_context_value(label: str, value: Any, root: Path | None) -> list[str]:
+def render_context_value(
+    label: str,
+    value: Any,
+    root: Path | None,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> list[str]:
     values = value if isinstance(value, list) else [value]
     chunks: list[str] = []
-    inventory = file_inventory(values, root)
+    inventory = file_inventory(values, root, allowed_roots=allowed_roots)
     if inventory:
         chunks.append(f"[{label} inventory]\n{inventory}")
     for index, entry in enumerate(values, start=1):
@@ -1329,8 +1413,8 @@ def render_context_value(label: str, value: Any, root: Path | None) -> list[str]
             chunks.append(f"[{label}#{index}]\n{preview(entry, 1600)}")
             continue
         if isinstance(entry, str):
-            path = resolve_path(entry, root)
-            if path is not None and path.exists():
+            path = resolve_path(entry, root, allowed_roots=allowed_roots)
+            if path is not None and path.is_file():
                 chunks.append(
                     f"[{label}#{index}: {entry}]\n"
                     f"{file_metadata(path)}\n"
@@ -1343,18 +1427,194 @@ def render_context_value(label: str, value: Any, root: Path | None) -> list[str]
     return chunks
 
 
-def resolve_path(value: str, root: Path | None) -> Path | None:
-    if "\n" in value or len(value) > 260:
+def resolve_path(
+    value: str,
+    root: Path | None,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> Path | None:
+    """Resolve a context file only when its canonical target is trusted.
+
+    ``allowed_roots=None`` preserves the convenient public-helper API while
+    making the supplied ``root`` the sole trust boundary.  Supplying an
+    explicit iterable replaces that implicit boundary.  In particular, an
+    absolute path, ``..`` traversal, or symlink is never authorized merely
+    because the path exists.
+    """
+
+    candidate = context_path_candidate(value, root)
+    if candidate is None:
         return None
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    if root is not None:
-        return root / path
-    return path
+    resolved, blocked_reason = resolve_context_path_candidate(
+        candidate,
+        root=root,
+        allowed_roots=allowed_roots,
+    )
+    if blocked_reason is not None:
+        return None
+    return resolved
 
 
-def full_context_text(item: BenchmarkItem, root: Path | None, max_chars: int) -> str:
+def enforce_context_path_policy(
+    item: BenchmarkItem,
+    root: Path | None,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> None:
+    """Fail closed before an escaped attachment can be read or sent remotely."""
+
+    blocked: list[dict[str, Any]] = []
+    for label, value in context_pairs(item):
+        values = value if isinstance(value, list) else [value]
+        for index, entry in enumerate(values, start=1):
+            if not isinstance(entry, str):
+                continue
+            candidate = context_path_candidate(entry, root)
+            if candidate is None:
+                continue
+            _resolved, reason = resolve_context_path_candidate(
+                candidate,
+                root=root,
+                allowed_roots=allowed_roots,
+            )
+            if reason is None:
+                continue
+            blocked.append(
+                {
+                    "field": label,
+                    "position": index,
+                    "declared_basename": _safe_declared_basename(entry),
+                    "declared_sha256": hashlib.sha256(entry.encode("utf-8")).hexdigest(),
+                    "path_kind": _declared_path_kind(entry),
+                    "reason": reason,
+                }
+            )
+    if not blocked:
+        return
+    raise AuditSecurityBlocked(
+        "context attachment access was blocked before prompt construction because "
+        "one or more canonical paths are outside the authorized input roots",
+        details={
+            "policy": "canonical_realpath_allowed_roots_v1",
+            "blocked_path_count": len(blocked),
+            "blocked_paths": blocked,
+            "allowed_root_count": len(_resolved_allowed_roots(root, allowed_roots)),
+        },
+    )
+
+
+def context_path_candidate(value: str, root: Path | None) -> Path | None:
+    """Return a lexical path candidate without reading its target contents.
+
+    Inline prose remains inline.  Explicit path syntax is always treated as a
+    path, while a bare filename is treated as one only when it has a directory
+    entry under ``root`` (which also catches bare symlinks).
+    """
+
+    if (
+        not value
+        or "\n" in value
+        or "\r" in value
+        or "\x00" in value
+        or len(value) > 4096
+    ):
+        return None
+    try:
+        lexical = Path(value).expanduser()
+    except (OSError, RuntimeError):
+        return None
+    explicit_path_syntax = (
+        lexical.is_absolute()
+        or value.startswith(("~", "./", ".\\", "../", "..\\"))
+        or "/" in value
+        or "\\" in value
+    )
+    candidate = lexical if lexical.is_absolute() else (Path(root) / lexical if root else lexical)
+    if explicit_path_syntax:
+        return candidate
+    try:
+        candidate.lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError:
+        # An existing-but-uninspectable directory entry is still a path
+        # reference and must flow through the fail-closed policy decision.
+        return candidate
+    return candidate
+
+
+def resolve_context_path_candidate(
+    candidate: Path,
+    *,
+    root: Path | None,
+    allowed_roots: Iterable[Path] | None,
+) -> tuple[Path | None, str | None]:
+    try:
+        resolved = candidate.expanduser().resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None, "canonicalization_failed"
+    roots = _resolved_allowed_roots(root, allowed_roots)
+    if not roots:
+        return None, "no_authorized_input_root"
+    if not any(_path_is_within(resolved, trusted_root) for trusted_root in roots):
+        return None, "outside_allowed_roots"
+    return resolved, None
+
+
+def _resolved_allowed_roots(
+    root: Path | None,
+    allowed_roots: Iterable[Path] | None,
+) -> tuple[Path, ...]:
+    values: Iterable[Path]
+    if allowed_roots is None:
+        values = (Path(root),) if root is not None else ()
+    else:
+        values = allowed_roots
+    resolved: list[Path] = []
+    seen: set[str] = set()
+    for value in values:
+        try:
+            path = Path(value).expanduser().resolve(strict=False)
+        except (OSError, RuntimeError):
+            continue
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        resolved.append(path)
+    return tuple(resolved)
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _safe_declared_basename(value: str) -> str:
+    try:
+        name = Path(value).name
+    except (OSError, ValueError):
+        name = ""
+    return name[:120] or "(root-like path)"
+
+
+def _declared_path_kind(value: str) -> str:
+    try:
+        return "absolute" if Path(value).expanduser().is_absolute() else "relative"
+    except (OSError, RuntimeError):
+        return "unresolved"
+
+
+def full_context_text(
+    item: BenchmarkItem,
+    root: Path | None,
+    max_chars: int,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> str:
     chunks: list[str] = []
     pairs = context_pairs(item)
     entry_count = sum(len(value) if isinstance(value, list) else 1 for _label, value in pairs)
@@ -1365,13 +1625,13 @@ def full_context_text(item: BenchmarkItem, root: Path | None, max_chars: int) ->
     )
     for label, value in pairs:
         values = value if isinstance(value, list) else [value]
-        inventory = file_inventory(values, root)
+        inventory = file_inventory(values, root, allowed_roots=allowed_roots)
         if inventory:
             chunks.append(f"[{label} inventory]\n{inventory}")
         for index, entry in enumerate(values, start=1):
             if isinstance(entry, str):
-                path = resolve_path(entry, root)
-                if path is not None and path.exists():
+                path = resolve_path(entry, root, allowed_roots=allowed_roots)
+                if path is not None and path.is_file():
                     chunks.append(
                         f"[{label}#{index}: {entry}]\n"
                         f"{file_metadata(path)}\n"
@@ -1390,8 +1650,16 @@ def append_targeted_search_context(
     rubric: str = "",
     *,
     max_chars: int = 4000,
+    allowed_roots: Iterable[Path] | None = None,
 ) -> str:
-    snippets = targeted_search_context(item, root, missing_terms, rubric=rubric, max_chars=max_chars)
+    snippets = targeted_search_context(
+        item,
+        root,
+        missing_terms,
+        rubric=rubric,
+        max_chars=max_chars,
+        allowed_roots=allowed_roots,
+    )
     if not snippets:
         return context_text
     return (
@@ -1408,12 +1676,13 @@ def targeted_search_context(
     rubric: str = "",
     *,
     max_chars: int = 4000,
+    allowed_roots: Iterable[Path] | None = None,
 ) -> str:
     terms = search_terms_from_required(missing_terms, rubric=rubric)
     if not terms:
         return ""
     chunks: list[str] = []
-    for path in context_file_paths(item, root):
+    for path in context_file_paths(item, root, allowed_roots=allowed_roots):
         results = search_file(path, terms)
         if results.get("_error"):
             chunks.append(f"FILE {path.name}\n- search_error: {results['_error']}")
@@ -1428,7 +1697,12 @@ def targeted_search_context(
     return preview("\n\n".join(chunks), max_chars)
 
 
-def context_file_paths(item: BenchmarkItem, root: Path | None) -> list[Path]:
+def context_file_paths(
+    item: BenchmarkItem,
+    root: Path | None,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> list[Path]:
     paths: list[Path] = []
     seen: set[str] = set()
     for _label, value in context_pairs(item):
@@ -1436,10 +1710,10 @@ def context_file_paths(item: BenchmarkItem, root: Path | None) -> list[Path]:
         for entry in values:
             if not isinstance(entry, str):
                 continue
-            path = resolve_path(entry, root)
-            if path is None or not path.exists():
+            path = resolve_path(entry, root, allowed_roots=allowed_roots)
+            if path is None or not path.is_file():
                 continue
-            key = str(path.resolve())
+            key = str(path)
             if key in seen:
                 continue
             seen.add(key)
@@ -1559,13 +1833,19 @@ def strictness_grounding_terms(rubric: str) -> list[str]:
     return out
 
 
-def file_inventory(values: list[Any], root: Path | None, max_entries: int = 300) -> str:
+def file_inventory(
+    values: list[Any],
+    root: Path | None,
+    max_entries: int = 300,
+    *,
+    allowed_roots: Iterable[Path] | None = None,
+) -> str:
     lines: list[str] = []
     for entry in values[:max_entries]:
         if not isinstance(entry, str):
             continue
-        path = resolve_path(entry, root)
-        if path is None or not path.exists():
+        path = resolve_path(entry, root, allowed_roots=allowed_roots)
+        if path is None or not path.is_file():
             continue
         try:
             size = path.stat().st_size

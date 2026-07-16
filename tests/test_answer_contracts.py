@@ -24,7 +24,11 @@ class AnswerContractTest(unittest.TestCase):
         missing = [v for v in violations if v.defect_type == "missing_evaluator"]
         self.assertEqual(len(missing), 1)
         self.assertEqual(missing[0].severity, "major")
-        self.assertFalse(missing[0].review_only)
+        # Absence in one canonical row is a strong structural candidate, but
+        # without a complete package/runner proof an external evaluator may
+        # still exist.  The central promotion policy therefore keeps it review.
+        self.assertTrue(missing[0].review_only)
+        self.assertEqual(missing[0].evidence_tier, "review")
         self.assertTrue(missing[0].evidence["agent_style_contract"])
 
     def test_set_answer_is_order_insensitive(self) -> None:
