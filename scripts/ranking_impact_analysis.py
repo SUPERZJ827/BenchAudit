@@ -171,11 +171,17 @@ def main():
                if d["top1_changed"] else "否")
         L.append(f"| {d['subject']} | {d['n']} | {d['removed']} | {d['tau']:.2f} "
                  f"| {d['max_shift']} | {chg} |")
-    L += [f"\n**结论**:全局 1000 题上排名稳定(τ=1.0,模型梯度大);但在缺陷集中的 subject 上,"
-          f"排名剧烈洗牌——{n_top1_changed}/{len(per_subj)} 个 subject 的冠军易主。"
-          "**benchmark 缺陷对排名的影响是 subject-局部但可以颠覆性的**,与文献一致"
-          "(MMLU-Redux virology 上模型名次大幅重排)。这说明用含缺陷的细分 benchmark "
-          "给模型下结论是危险的。\n"]
+    glob_desc = ("完全不变" if tau_obj >= 0.999 else
+                 f"仅轻微变动(τ={tau_obj:.3f},最大 {max_shift} 位)")
+    L += [f"\n**结论**:全局 {len(all_ids)} 题上排名{glob_desc}——"
+          + ("模型梯度大时缺陷撼不动整体名次;"
+             if tau_obj >= 0.999 else
+             "leaderboard 越密集,缺陷越能扰动全局名次(本实验 8 模型时 τ=1.0、15 模型时 "
+             f"τ={tau_obj:.3f});") +
+          f"但在缺陷集中的 subject 上,排名剧烈洗牌——{n_top1_changed}/{len(per_subj)} "
+          "个 subject 的冠军易主。**benchmark 缺陷对排名的影响是 subject-局部但可颠覆性的**,"
+          "与文献一致(MMLU-Redux virology 上模型名次大幅重排)。这说明用含缺陷的细分 "
+          "benchmark 给模型下结论是危险的,且 leaderboard 越密集风险越高。\n"]
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "ranking_impact.md").write_text("\n".join(L), encoding="utf-8")
