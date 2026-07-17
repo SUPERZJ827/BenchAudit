@@ -1,0 +1,99 @@
+{
+  "n_models": 8,
+  "n_items_full": 1000,
+  "n_removed_objective": 181,
+  "rows": [
+    {
+      "model": "qwen__qwen-2.5-7b-instruct",
+      "acc_full": 0.634,
+      "acc_obj": 0.6971916971916972,
+      "acc_strict": 0.7444444444444445
+    },
+    {
+      "model": "meta-llama__llama-3.1-8b-instruct",
+      "acc_full": 0.593,
+      "acc_obj": 0.6495726495726496,
+      "acc_strict": 0.692063492063492
+    },
+    {
+      "model": "mistralai__mistral-nemo",
+      "acc_full": 0.582,
+      "acc_obj": 0.6361416361416361,
+      "acc_strict": 0.680952380952381
+    },
+    {
+      "model": "openai__gpt-4o-mini",
+      "acc_full": 0.679,
+      "acc_obj": 0.746031746031746,
+      "acc_strict": 0.7904761904761904
+    },
+    {
+      "model": "deepseek",
+      "acc_full": 0.803,
+      "acc_obj": 0.8986568986568987,
+      "acc_strict": 0.9396825396825397
+    },
+    {
+      "model": "meta-llama__llama-3.3-70b-instruct",
+      "acc_full": 0.689,
+      "acc_obj": 0.7680097680097681,
+      "acc_strict": 0.8174603174603174
+    },
+    {
+      "model": "qwen__qwen-2.5-72b-instruct",
+      "acc_full": 0.734,
+      "acc_obj": 0.8168498168498168,
+      "acc_strict": 0.8571428571428571
+    },
+    {
+      "model": "openai__gpt-4o",
+      "acc_full": 0.745,
+      "acc_obj": 0.8302808302808303,
+      "acc_strict": 0.873015873015873
+    }
+  ],
+  "rank_full": {
+    "deepseek": 1,
+    "openai__gpt-4o": 2,
+    "qwen__qwen-2.5-72b-instruct": 3,
+    "meta-llama__llama-3.3-70b-instruct": 4,
+    "openai__gpt-4o-mini": 5,
+    "qwen__qwen-2.5-7b-instruct": 6,
+    "meta-llama__llama-3.1-8b-instruct": 7,
+    "mistralai__mistral-nemo": 8
+  },
+  "rank_objective": {
+    "deepseek": 1,
+    "openai__gpt-4o": 2,
+    "qwen__qwen-2.5-72b-instruct": 3,
+    "meta-llama__llama-3.3-70b-instruct": 4,
+    "openai__gpt-4o-mini": 5,
+    "qwen__qwen-2.5-7b-instruct": 6,
+    "meta-llama__llama-3.1-8b-instruct": 7,
+    "mistralai__mistral-nemo": 8
+  },
+  "kendall_tau_objective": 1.0,
+  "kendall_tau_strict": 1.0,
+  "max_rank_shift": 0,
+  "top1_changed": false,
+  "order_full": [
+    "deepseek",
+    "openai__gpt-4o",
+    "qwen__qwen-2.5-72b-instruct",
+    "meta-llama__llama-3.3-70b-instruct",
+    "openai__gpt-4o-mini",
+    "qwen__qwen-2.5-7b-instruct",
+    "meta-llama__llama-3.1-8b-instruct",
+    "mistralai__mistral-nemo"
+  ],
+  "order_objective": [
+    "deepseek",
+    "openai__gpt-4o",
+    "qwen__qwen-2.5-72b-instruct",
+    "meta-llama__llama-3.3-70b-instruct",
+    "openai__gpt-4o-mini",
+    "qwen__qwen-2.5-7b-instruct",
+    "meta-llama__llama-3.1-8b-instruct",
+    "mistralai__mistral-nemo"
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "slug": "deepseek",
+    "spec": "deepseek",
+    "answered": 1000,
+    "acc": 0.803,
+    "fails": 6,
+    "secs": 102.5
+  },
+  {
+    "slug": "openai__gpt-4o",
+    "spec": "openrouter:openai/gpt-4o",
+    "answered": 1000,
+    "acc": 0.745,
+    "fails": 0,
+    "secs": 1.6
+  }
+]
