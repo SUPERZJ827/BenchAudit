@@ -121,6 +121,21 @@ def test_container_command_has_security_controls(tmp_path: Path):
     assert "--pids-limit=128" in argv
 
 
+def test_container_forwards_stdin_only_when_present(tmp_path: Path):
+    runner = ContainerRunner("python:3.12-slim", engine="/usr/bin/docker")
+    with_stdin = runner.build_argv(
+        CommandSpec(("python", "-c", "print(1)"), cwd=tmp_path, stdin="payload"),
+        ExecutionPolicy(),
+    )
+    without_stdin = runner.build_argv(
+        CommandSpec(("python", "-c", "print(1)"), cwd=tmp_path),
+        ExecutionPolicy(),
+    )
+    # -i must precede the image so the driver's stdin payload reaches the container.
+    assert "-i" in with_stdin[: with_stdin.index("python:3.12-slim")]
+    assert "-i" not in without_stdin
+
+
 def test_container_replaces_host_python_with_image_python(tmp_path: Path):
     runner = ContainerRunner(
         "python:3.12-slim",

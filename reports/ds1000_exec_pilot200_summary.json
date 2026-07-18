@@ -1,0 +1,3337 @@
+[
+ {
+  "id": 0,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 1,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 10,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 11,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 2
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 12,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 13,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 1,
+   "equivalent_rejected": 0,
+   "mutant_killed": 1,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 14,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 15,
+  "lib": "Pandas",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 16,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 17,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 18,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 19,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 2,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 20,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 21,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 22,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 23,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 24,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 25,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 26,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 27,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 28,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 29,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 291,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 292,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 293,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 294,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 295,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 296,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 297,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 298,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 299,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 3,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 30,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 300,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 301,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 302,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 303,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 304,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 305,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 306,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 307,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 308,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 2
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   },
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 309,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 31,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 310,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 311,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 312,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 313,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 314,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 315,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 316,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 317,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 318,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 319,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 32,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 320,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 321,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 322,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 323,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 324,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 325,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 326,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 327,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 328,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 329,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 6,
+   "validated_equivalent": 1,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 33,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 330,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 331,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 6,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 332,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 333,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 5,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 334,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 335,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 336,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 337,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 338,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 339,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 34,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 340,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 1,
+   "mutant_survived": 3
+  },
+  "violations": [
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   },
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   },
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 341,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 342,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 343,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 344,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 345,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 346,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 347,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 348,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 1
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   },
+   {
+    "t": "underconstrained_evaluator_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 349,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 35,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 350,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 351,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 352,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 353,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 354,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 355,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 356,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 357,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 358,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 359,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 36,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 360,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 361,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 362,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 363,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 364,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 365,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 366,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 367,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 368,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 369,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 37,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 370,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 371,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 372,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 373,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 374,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 375,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 376,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 1
+  },
+  "violations": []
+ },
+ {
+  "id": 377,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 378,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 379,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 38,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 380,
+  "lib": "Numpy",
+  "gold_pass": null,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 381,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 382,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 383,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 384,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 385,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 386,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 387,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 388,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 389,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 39,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 390,
+  "lib": "Numpy",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 4,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 40,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 41,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 42,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 43,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 44,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 45,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 46,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 47,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 48,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 49,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 5,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 50,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 51,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 52,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 6,
+   "validated_equivalent": 2,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   },
+   {
+    "t": "output_format_overstrict_risk",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 53,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 54,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 55,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 56,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 1,
+   "equivalent_rejected": 0,
+   "mutant_killed": 1,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 57,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 58,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 1,
+   "equivalent_rejected": 0,
+   "mutant_killed": 1,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 59,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 6,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 60,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 61,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 62,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 63,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 64,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 1,
+   "equivalent_rejected": 0,
+   "mutant_killed": 1,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 65,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 66,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 67,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 68,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 69,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 7,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 70,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 71,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 72,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 73,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 74,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 75,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 76,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 77,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 78,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 79,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 8,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 80,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 81,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 82,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 83,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 84,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 85,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 86,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 87,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 0,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 88,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 89,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 9,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 1,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 90,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 91,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 3,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 92,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 2,
+   "equivalent_rejected": 0,
+   "mutant_killed": 2,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 93,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 4,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 94,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 3,
+   "validated_equivalent": 0,
+   "validated_mutant": 0,
+   "equivalent_rejected": 0,
+   "mutant_killed": 0,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 95,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 96,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 97,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 3,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": 98,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 0,
+   "validated_mutant": 3,
+   "equivalent_rejected": 0,
+   "mutant_killed": 3,
+   "mutant_survived": 0
+  },
+  "violations": []
+ },
+ {
+  "id": 99,
+  "lib": "Pandas",
+  "gold_pass": true,
+  "kill": {
+   "probes": 7,
+   "validated_equivalent": 2,
+   "validated_mutant": 4,
+   "equivalent_rejected": 0,
+   "mutant_killed": 4,
+   "mutant_survived": 0
+  },
+  "violations": [
+   {
+    "t": "llm_audit_failure",
+    "s": "review"
+   }
+  ]
+ },
+ {
+  "id": null,
+  "lib": null,
+  "gold_pass": null,
+  "kill": null,
+  "violations": []
+ },
+ {
+  "id": null,
+  "lib": null,
+  "gold_pass": null,
+  "kill": null,
+  "violations": []
+ }
+]
