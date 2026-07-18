@@ -21,6 +21,13 @@ The classifier is deterministic and lexical on purpose: every verdict carries th
 matched phrase as its justification, so a reviewer can override it at a glance. An
 LLM layer could later escalate the `none_found` cases, but is intentionally left
 out of v1 to keep the signal explainable.
+
+Scope: calibrated for imperative "how do I compute X" code-task prompts (DS-1000
+style), where a multiplicity phrase refers to the requested output. It is NOT a
+general question classifier -- on multiple-choice/QA phrasings ("which is an
+example of ...", "one of them has 10 marbles") the same words describe question
+content, so the markers were tightened to output-declaring forms and the caller
+should not rely on it outside code-task auditing.
 """
 from __future__ import annotations
 
@@ -40,13 +47,16 @@ _HIGH_CONFIDENCE: dict[str, tuple[str, ...]] = {
         r"\border[-\s]?independent\b",
         r"\bunordered\b",
     ),
+    # Only phrasings that qualify the requested OUTPUT as one of several valid
+    # ones ("one maximal set", "any valid solution"). Broad phrases like "an
+    # example of" or "one of the columns" describe question content, not output
+    # multiplicity -- they produced false positives both across other benchmarks
+    # (ARC "which is an example of...", GSM8K "one of them has 10 marbles") and
+    # within DS-1000 ("here is an example of input", "sort by one of the
+    # indexers"), so they are deliberately excluded.
     "existential": (
-        r"\bone\s+(?:maximal|possible|valid|such|example)\b",
-        r"\ba\s+(?:maximal|possible|valid)\s+(?:set|solution|answer|example)\b",
-        r"\bany\s+(?:one|valid|such)\b",
-        r"\bone\s+of\s+(?:the|them|these)\b",
-        r"\bat\s+least\s+one\b",
-        r"\ban?\s+example\s+(?:of|would)\b",
+        r"\b(?:one|any|a)\s+(?:maximal|possible|valid|such)\b",
+        r"\bany\s+valid\s+(?:answer|solution|output|result|combination)\b",
     ),
     "explicit_multiple": (
         r"\bmultiple\s+(?:valid\s+)?(?:answers?|solutions?|outputs?|results?)\b",

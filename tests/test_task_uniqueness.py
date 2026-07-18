@@ -67,6 +67,23 @@ def test_empty_prompt():
     assert v.confidence == "none"
 
 
+def test_broad_markers_do_not_fire_on_question_content():
+    # These phrasings describe question content, not output multiplicity. They
+    # produced cross-benchmark false positives before the existential markers
+    # were tightened, and within DS-1000 too.
+    for content in [
+        "Which is an example of a physical change?",            # ARC (MCQ)
+        "Brendan has a bag of marbles. One of them is red.",    # GSM8K narrative
+        "Here is an example of converting a categorical column.",  # DS-1000 id=20
+        "sorting a MultiIndexed DataFrame by one of the indexers",  # DS-1000 id=276
+    ]:
+        assert classify_task_multiplicity(content).verdict == "none_found", content
+    # But a genuine output-multiplicity declaration still fires.
+    assert classify_task_multiplicity(
+        "get one maximal set of linearly independent vectors"
+    ).verdict == "declared"
+
+
 def test_triage_rank_orders_priority_first():
     # A review queue sorted by this key must surface priority above by_design.
     order = sorted(["by_design", "priority", "ambiguous"], key=triage_rank)
