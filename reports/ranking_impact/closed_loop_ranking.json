@@ -1,0 +1,90 @@
+{
+  "auditor_flagged": 318,
+  "mmlu_objective": 181,
+  "tp": 138,
+  "precision": 0.4339622641509434,
+  "recall": 0.7624309392265194,
+  "f1": 0.5531062124248497,
+  "tau_audit": 0.9809523809523809,
+  "tau_mmlu": 0.9809523809523809,
+  "subj_top1_changed_audit": [
+    {
+      "subject": "virology",
+      "n": 63,
+      "removed": 52,
+      "top1_full": "cohere__command-r-08-2024",
+      "top1_clean": "openai__gpt-4o-mini"
+    },
+    {
+      "subject": "high_school_psychology",
+      "n": 17,
+      "removed": 5,
+      "top1_full": "openai__gpt-4o",
+      "top1_clean": "openai__gpt-4o-mini"
+    },
+    {
+      "subject": "global_facts",
+      "n": 21,
+      "removed": 13,
+      "top1_full": "openai__gpt-4o",
+      "top1_clean": "meta-llama__llama-3.3-70b-instruct"
+    },
+    {
+      "subject": "philosophy",
+      "n": 17,
+      "removed": 3,
+      "top1_full": "deepseek",
+      "top1_clean": "google__gemini-2.5-flash"
+    },
+    {
+      "subject": "college_chemistry",
+      "n": 38,
+      "removed": 23,
+      "top1_full": "amazon__nova-pro-v1",
+      "top1_clean": "google__gemini-2.5-flash"
+    },
+    {
+      "subject": "marketing",
+      "n": 18,
+      "removed": 4,
+      "top1_full": "openai__gpt-4o-mini",
+      "top1_clean": "qwen__qwen-2.5-7b-instruct"
+    },
+    {
+      "subject": "human_sexuality",
+      "n": 27,
+      "removed": 8,
+      "top1_full": "deepseek",
+      "top1_clean": "openai__gpt-4o-mini"
+    },
+    {
+      "subject": "high_school_chemistry",
+      "n": 16,
+      "removed": 4,
+      "top1_full": "mistralai__mistral-small-24b-instruct-2501",
+      "top1_clean": "deepseek"
+    },
+    {
+      "subject": "computer_security",
+      "n": 16,
+      "removed": 5,
+      "top1_full": "deepseek",
+      "top1_clean": "openai__gpt-4o-mini"
+    },
+    {
+      "subject": "high_school_european_history",
+      "n": 26,
+      "removed": 10,
+      "top1_full": "openai__gpt-4o",
+      "top1_clean": "deepseek"
+    },
+    {
+      "subject": "astronomy",
+      "n": 19,
+      "removed": 4,
+      "top1_full": "deepseek",
+      "top1_clean": "openai__gpt-4o"
+    }
+  ],
+  "subj_considered": 28
+}
