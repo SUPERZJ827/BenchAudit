@@ -78,3 +78,11 @@
 - **kill_stats 与 emit 对齐**:`run_ds1000_execution_audit.py` 的聚合 `mutant_survived` 之前只看数值检查、忽略 `test_string`,导致虚高(如 id=376 数值通过但 string 拒绝、被误记 survived)。已改为与 checker emit 门一致(数值 **且** string 都过才算存活),id=376 存活 1→0。
 - **负面结果(不改)**:排查过"覆盖阈值过严(3/3+4/4 差 1 即整题作废)是否丢真缺陷"——**证否**:shortfall 后不 return,有效探针的正信号照常 emit(如 id=348 同时有 llm_audit_failure 和 underconstrained)。37% 是"无法完整认证为干净",非"丢缺陷"。故不动阈值。
 - **分类器跨 benchmark 鲁棒性**:在 gsm8k/asdiv/mmlu/arc(答案唯一)上测假阳,发现宽标记("an example of"、"one of them")误匹配题干内容(arc 3.5% / gsm8k 0.9% / mmlu 4.2%)。查证这些宽标记在 **DS-1000 内部也只制造 FP**(id=20/276/398/399)、不抓任何真多解题,故收紧为"仅限定输出的多解措辞"(one maximal / any valid)。收紧后 DS-1000 recall 不变(11/340/348/376 判定不动),跨 benchmark 假阳 arc/gsm8k→**0%**、mmlu→1.6%(剩 random 弱标记→ambiguous 仍复核)。并在 docstring 标注 scope=代码任务,不用于 MCQ/QA。
+
+### gen_slack 超额生成 + 一个更重要的非确定性发现(2026-07-19)
+
+诊断 37% llm_audit_failure:**0 AST 拒绝、0 执行失败**,丢失全在 under_generated(LLM 生成数<请求)+ not_comparison_valid(达不到严格差分门槛)。据此加 `gen_slack`(checker 超额生成 n+slack 个、达标门槛仍 n;库默认 0,DS-1000 脚本默认 2)。
+
+验证(同 60 题 slack=0 vs slack=2 重跑):失败率 **28%→23%**,8 recovered / 5 regressed。**soundness 保住(0 自动 confirmed)**。但——
+
+**⚠️ 更重要的发现:探针生成非确定性**。regression 暴露 slack 改了 prompt→缓存失效→重新采样,新旧是不同的 LLM 生成。进一步看:**逐题结果跨运行漂移**——不仅覆盖率,连**被 flag 的题集都变**(这轮 flag 11/308/**310**,上轮 11/308/**340/348**);recovered 的 id=300 这轮变异全被杀→无信号(原来存活的那个特定变异没被重新生成)。**结论**:执行审计的单次运行结果不可复现,gen_slack 的净收益(+3)部分被生成噪声淹没。gen_slack 作为廉价、soundness 安全的可选覆盖旋钮保留(默认开于 DS-1000),但**真正该记住的是:LLM 探针生成的非确定性要求可复现审计必须固定种子或多次运行聚合**——这与项目核心论点(LLM 判断不可复现)一致,是执行层一个此前未量化的边界。

@@ -63,6 +63,10 @@ def main() -> None:
     parser.add_argument("--container-image", required=True)
     parser.add_argument("--container-engine")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUTDIR))
+    parser.add_argument("--gen-slack", type=int, default=2,
+                        help="extra probes generated per kind beyond the "
+                             "comparison-valid threshold (absorbs LLM under-"
+                             "generation / dud probes; threshold unchanged)")
     args = parser.parse_args()
     if not re.fullmatch(r"[^\s@]+@sha256:[0-9a-fA-F]{64}", args.container_image):
         parser.error("--container-image must be digest-pinned as name@sha256:<64 hex>")
@@ -91,6 +95,7 @@ def main() -> None:
         "container_image": args.container_image,
         "libs": sorted(libs),
         "n_per_lib": args.n_per_lib,
+        "gen_slack": args.gen_slack,
     }, sort_keys=True).encode()).hexdigest()
     (outdir / "run_manifest.json").write_text(json.dumps({
         "protocol_version": PROTOCOL_VERSION,
@@ -114,7 +119,8 @@ def main() -> None:
                 raise RuntimeError(f"stale result has a different run signature: {out}")
             return prior["summary"]
         t0 = time.time()
-        checker = ExecutionEvaluatorAuditChecker(client, runner=runner)
+        checker = ExecutionEvaluatorAuditChecker(
+            client, runner=runner, gen_slack=args.gen_slack)
         item = BenchmarkItem(
             item_id=f"ds1000_{pid}", raw={}, task=r["prompt"],
             gold=r["reference_code"],
