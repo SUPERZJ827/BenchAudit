@@ -46,6 +46,18 @@
 
 发现并修复 `ContainerRunner.build_argv` **缺 `-i`**:审计 driver 经 stdin 收 payload,但 `docker run` 不加 `-i` 时 stdin 不入容器 → 容器内 `json.load(sys.stdin)` 读空流 → 每题致命失败。原 60 题结果用的是宿主 `LocalProcessRunner`(stdin 正常);**trust-split 引入的容器路径此前从未端到端跑通**。加 `-i`(仅当有 stdin)后容器执行层首次真正可用(本试点即在此路径上完成)。附回归测试 `test_container_forwards_stdin_only_when_present`。
 
-## 若仍要提升(可选,非闭环)
+## 落地:任务唯一性分类器(2026-07-18,已实现)
 
-唯一能显著提精度的杠杆:**任务唯一性分类器**(检测 prompt 中 "any order"/"random"/"one of"/多解措辞)→ 自动抑制欠约束任务再报缺陷。但这仍是语义判断,需 LLM/oracle,circular。
+按上面的杠杆做了 **`benchcore/task_uniqueness.py`**:确定性词法分类器,判断任务是否声明多解(顺序无关/随机/求其一/显式多解),把 `underconstrained_evaluator_risk` 的 review 队列分诊——**by_design**(高置信多解→降级)/ **ambiguous**(低置信如随机)/ **priority**(无多解标记→真嫌疑,优先人工)。接入执行层 emit(纯证据增强,**不碰 confirmed 门、不改 severity**,红线不动);每个降级都附匹配短语供人工一眼推翻。
+
+在本试点实际 flag 的 5 个 item 上验证:
+
+| id | 分诊 | 匹配证据 | 真实 |
+|---|---|---|---|
+| **11** | **priority** | (无) | ✅ 真缺陷 |
+| 340 | by_design | "do not care about...order" | ❌ 顺序无关 |
+| 348 | by_design | "one maximal" | ❌ 多解 |
+| 376 | ambiguous | "random" | ❌ 随机 |
+| 308 | ambiguous | "randomly" | ❌ 属性式 |
+
+**唯一被标 priority 的就是唯一的真缺陷** → "优先桶"精度 25%→100%(此样本)。这正是"多候选+分领域验证器+全局裁决"架构里缺的**任务唯一性 oracle** 的第一版:执行给高召回嫌疑,分类器把语义判断显式化+附证据,让人工三诊更快更准。测试 `tests/test_task_uniqueness.py`(6 例,用真实 DS-1000 措辞)。

@@ -46,6 +46,7 @@ from .coverage import AuditEligibility
 from .execution import CommandRunner, CommandSpec, ExecutionPolicy, LocalProcessRunner
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
+from .task_uniqueness import classify_task_multiplicity
 
 # ---------------------------------------------------------------------------
 # Probe generation (LLM proposes; nothing here is trusted as a judgement)
@@ -978,6 +979,11 @@ class ExecutionEvaluatorAuditChecker(Checker):
 
         implementation_independent = evaluator.get("implementation_independent") is True
         reference_output_unique = evaluator.get("reference_output_unique") is True
+        # Triage-only: does the task itself declare that many outputs are correct
+        # (any order / random / find one of ...)? A surviving mutant on such a task
+        # is expected, not a defect. This never gates confirmation -- it only
+        # prioritises the review queue and shows the reviewer the deciding phrase.
+        multiplicity = classify_task_multiplicity(item.task)
         for pr in report.get("probes", []):
             # Defense in depth: run_execution_audit already withholds such rows,
             # but a checker must never promote externally supplied/stale reports.
@@ -1047,10 +1053,18 @@ class ExecutionEvaluatorAuditChecker(Checker):
                     if not reference_output_unique or not same_inputs:
                         # Difference from one reference is not proof of semantic error.
                         # This remains true even when exec_test happens to read `ans`.
+                        by_design = multiplicity.triage == "by_design"
                         yield _violation(
-                            item, "underconstrained_evaluator_risk", 0.4,
-                            "Harness accepts an output that differs from the reference, but no "
-                            "independent uniqueness and exact harness-input replay are not both proven.",
+                            item, "underconstrained_evaluator_risk", 0.15 if by_design else 0.4,
+                            (
+                                "Harness accepts an output that differs from the reference, but the "
+                                "task itself declares multiple outputs are acceptable "
+                                f"({multiplicity.signals[0].phrase!r}) -- the lenient harness is "
+                                "likely correct here, not buggy."
+                                if by_design else
+                                "Harness accepts an output that differs from the reference, but no "
+                                "independent uniqueness and exact harness-input replay are not both proven."
+                            ),
                             {"probe_id": pr["id"], "probe_code": pr.get("code"),
                              "probe_code_sha256": pr.get("code_sha256"),
                              "harness": harness, "diff_case": diff_case,
@@ -1064,9 +1078,14 @@ class ExecutionEvaluatorAuditChecker(Checker):
                              "reference_output_unique": reference_output_unique,
                              "same_inputs_replayed": same_inputs,
                              "gold_instrumentation_consistent": True,
-                             "evidence_level": "executed_divergent_output_accepted"},
+                             "evidence_level": "executed_divergent_output_accepted",
+                             **multiplicity.as_evidence()},
                             severity="review",
-                            repair="Provide an independent invalidity predicate or a proven unique-output contract.",
+                            repair=(
+                                "Task declares multiple valid outputs; confirm the harness leniency is intended."
+                                if by_design else
+                                "Provide an independent invalidity predicate or a proven unique-output contract."
+                            ),
                             method="execution_kill_matrix")
                         continue
                     yield _violation(
