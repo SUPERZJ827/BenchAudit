@@ -170,6 +170,9 @@ class ContainerRunner:
         argv = [
             self.engine, "run", "--rm", "--init", "--read-only",
             "--cap-drop=ALL", "--security-opt=no-new-privileges",
+            # Forward the host-provided stdin into the container; the audit driver
+            # reads its payload from stdin, so without -i it sees an empty stream.
+            *(["-i"] if command.stdin is not None else []),
             f"--memory={policy.memory_mb}m", f"--cpus={policy.cpu_count}",
             f"--pids-limit={policy.pids_limit}",
             "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
