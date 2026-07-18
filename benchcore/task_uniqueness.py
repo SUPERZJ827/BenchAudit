@@ -99,6 +99,16 @@ class TaskMultiplicity:
         }
 
 
+# Lower rank = review it first. Used to order a review queue so genuine
+# over-leniency suspects surface above tasks that declare their own multiplicity.
+_TRIAGE_ORDER = {"priority": 0, "ambiguous": 1, "by_design": 2}
+
+
+def triage_rank(triage: str) -> int:
+    """Sort key for a review queue; unknown triage sorts with `priority`."""
+    return _TRIAGE_ORDER.get(triage, 0)
+
+
 def _natural_language(prompt: str) -> str:
     """Keep only the natural-language ask.
 
