@@ -43,7 +43,12 @@ def kill_stats(report: dict) -> dict:
                 stats["equivalent_rejected"] += 1
         elif pr["kind"] == "mutant" and pr.get("validated_differs"):
             stats["validated_mutant"] += 1
-            if harness_pass is True:
+            # A mutant only survives if it clears BOTH the value check and the
+            # test_string surface check -- mirroring the emit gate in
+            # ExecutionEvaluatorAuditChecker so the aggregate does not over-report
+            # survivors that the string check actually caught.
+            string_pass = pr.get("harness", {}).get("string_pass", True)
+            if harness_pass is True and string_pass is not False:
                 stats["mutant_survived"] += 1
             elif harness_pass is False:
                 stats["mutant_killed"] += 1

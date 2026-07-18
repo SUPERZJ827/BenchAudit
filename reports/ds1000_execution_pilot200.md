@@ -71,3 +71,9 @@
 - 试点中 priority ∩ 存活变异(真正会污染队列的):**0/1**(唯一那个是真缺陷 id=11)。
 
 **原因**:DS-1000 Pandas/Numpy 多为确定性数据变换,输出顺序由输入/列序钉死;真多解题倾向显式说明,正好被词法层接住。**结论:LLM 复核层现在不加**(假阴 ~0,加它只引入 LLM 不确定性)。**保留**:结论绑定 DS-1000 的确定性任务分布;换到生成式("给个例子/生成一个合法 X")benchmark 时隐式多解会增多,届时有数据再加、且专抓生成式任务。
+
+### 工作流落地 + 两处修正(2026-07-19)
+
+- **分诊信号真正被消费**:此前 `task_multiplicity` 只写进 evidence、无人消费(死代码)。新增 `scripts/ds1000_review_queue.py`——读审计输出目录,用分类器把 review 队列**按 priority 排序**、附决定性短语,输出 `review_queue.md`。在本试点上:4 个信号 → **id=11 排最上(priority),340/348 沉底(by_design)**,人工一眼定位唯一真嫌疑。(无需重跑,消费已有审计结果。)
+- **kill_stats 与 emit 对齐**:`run_ds1000_execution_audit.py` 的聚合 `mutant_survived` 之前只看数值检查、忽略 `test_string`,导致虚高(如 id=376 数值通过但 string 拒绝、被误记 survived)。已改为与 checker emit 门一致(数值 **且** string 都过才算存活),id=376 存活 1→0。
+- **负面结果(不改)**:排查过"覆盖阈值过严(3/3+4/4 差 1 即整题作废)是否丢真缺陷"——**证否**:shortfall 后不 return,有效探针的正信号照常 emit(如 id=348 同时有 llm_audit_failure 和 underconstrained)。37% 是"无法完整认证为干净",非"丢缺陷"。故不动阈值。

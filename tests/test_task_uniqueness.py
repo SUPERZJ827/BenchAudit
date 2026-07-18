@@ -4,7 +4,7 @@ Cases are drawn from the real DS-1000 prompts that produced false-positive
 "surviving mutant" signals in the 200-item pilot (ids 340 / 348 / 376), plus a
 genuine unique-output task that must NOT be deprioritised.
 """
-from benchcore.task_uniqueness import classify_task_multiplicity
+from benchcore.task_uniqueness import classify_task_multiplicity, triage_rank
 
 
 def test_order_agnostic_is_declared_high():
@@ -65,3 +65,11 @@ def test_empty_prompt():
     v = classify_task_multiplicity("")
     assert v.verdict == "none_found"
     assert v.confidence == "none"
+
+
+def test_triage_rank_orders_priority_first():
+    # A review queue sorted by this key must surface priority above by_design.
+    order = sorted(["by_design", "priority", "ambiguous"], key=triage_rank)
+    assert order == ["priority", "ambiguous", "by_design"]
+    # Unknown/missing triage must not sink below real suspects.
+    assert triage_rank("unknown") == triage_rank("priority")
