@@ -1,0 +1,332 @@
+{
+  "iters": 2000,
+  "seed": 0,
+  "audit": {
+    "considered": 28,
+    "observed_total": 9,
+    "null_mean": 7.55,
+    "null_95_lo": 4,
+    "null_95_hi": 12,
+    "p_value": 0.3183,
+    "per_subject": [
+      {
+        "subject": "abstract_algebra",
+        "n": 24,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "computer_security",
+        "n": 16,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "professional_accounting",
+        "n": 21,
+        "k": 8,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "international_law",
+        "n": 18,
+        "k": 6,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "marketing",
+        "n": 18,
+        "k": 4,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "philosophy",
+        "n": 17,
+        "k": 3,
+        "observed_flip": 1,
+        "p_random_flip": 0.0185
+      },
+      {
+        "subject": "formal_logic",
+        "n": 23,
+        "k": 11,
+        "observed_flip": 0,
+        "p_random_flip": 0.091
+      },
+      {
+        "subject": "human_sexuality",
+        "n": 27,
+        "k": 8,
+        "observed_flip": 0,
+        "p_random_flip": 0.1225
+      },
+      {
+        "subject": "college_medicine",
+        "n": 27,
+        "k": 8,
+        "observed_flip": 0,
+        "p_random_flip": 0.1365
+      },
+      {
+        "subject": "econometrics",
+        "n": 17,
+        "k": 4,
+        "observed_flip": 0,
+        "p_random_flip": 0.138
+      },
+      {
+        "subject": "miscellaneous",
+        "n": 19,
+        "k": 3,
+        "observed_flip": 0,
+        "p_random_flip": 0.1645
+      },
+      {
+        "subject": "astronomy",
+        "n": 19,
+        "k": 4,
+        "observed_flip": 1,
+        "p_random_flip": 0.179
+      },
+      {
+        "subject": "high_school_biology",
+        "n": 20,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.189
+      },
+      {
+        "subject": "high_school_macroeconomics",
+        "n": 18,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.1925
+      },
+      {
+        "subject": "machine_learning",
+        "n": 23,
+        "k": 8,
+        "observed_flip": 0,
+        "p_random_flip": 0.226
+      },
+      {
+        "subject": "professional_psychology",
+        "n": 19,
+        "k": 6,
+        "observed_flip": 0,
+        "p_random_flip": 0.2345
+      },
+      {
+        "subject": "high_school_psychology",
+        "n": 17,
+        "k": 5,
+        "observed_flip": 1,
+        "p_random_flip": 0.2725
+      },
+      {
+        "subject": "professional_law",
+        "n": 30,
+        "k": 10,
+        "observed_flip": 0,
+        "p_random_flip": 0.2915
+      },
+      {
+        "subject": "human_aging",
+        "n": 24,
+        "k": 4,
+        "observed_flip": 0,
+        "p_random_flip": 0.343
+      },
+      {
+        "subject": "high_school_european_history",
+        "n": 26,
+        "k": 10,
+        "observed_flip": 1,
+        "p_random_flip": 0.375
+      },
+      {
+        "subject": "logical_fallacies",
+        "n": 39,
+        "k": 16,
+        "observed_flip": 0,
+        "p_random_flip": 0.3815
+      },
+      {
+        "subject": "high_school_chemistry",
+        "n": 16,
+        "k": 4,
+        "observed_flip": 1,
+        "p_random_flip": 0.409
+      },
+      {
+        "subject": "security_studies",
+        "n": 15,
+        "k": 6,
+        "observed_flip": 1,
+        "p_random_flip": 0.4225
+      },
+      {
+        "subject": "public_relations",
+        "n": 20,
+        "k": 7,
+        "observed_flip": 0,
+        "p_random_flip": 0.449
+      },
+      {
+        "subject": "global_facts",
+        "n": 21,
+        "k": 13,
+        "observed_flip": 0,
+        "p_random_flip": 0.5985
+      },
+      {
+        "subject": "college_chemistry",
+        "n": 38,
+        "k": 23,
+        "observed_flip": 1,
+        "p_random_flip": 0.7115
+      },
+      {
+        "subject": "virology",
+        "n": 63,
+        "k": 52,
+        "observed_flip": 1,
+        "p_random_flip": 0.8005
+      },
+      {
+        "subject": "business_ethics",
+        "n": 24,
+        "k": 14,
+        "observed_flip": 1,
+        "p_random_flip": 0.8065
+      }
+    ]
+  },
+  "mmlu": {
+    "considered": 16,
+    "observed_total": 2,
+    "null_mean": 3.64,
+    "null_95_lo": 1,
+    "null_95_hi": 6,
+    "p_value": 0.9485,
+    "per_subject": [
+      {
+        "subject": "abstract_algebra",
+        "n": 24,
+        "k": 8,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "computer_security",
+        "n": 16,
+        "k": 3,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "professional_accounting",
+        "n": 21,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "international_law",
+        "n": 18,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.0
+      },
+      {
+        "subject": "machine_learning",
+        "n": 23,
+        "k": 3,
+        "observed_flip": 0,
+        "p_random_flip": 0.0195
+      },
+      {
+        "subject": "human_sexuality",
+        "n": 27,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.0475
+      },
+      {
+        "subject": "formal_logic",
+        "n": 23,
+        "k": 12,
+        "observed_flip": 0,
+        "p_random_flip": 0.127
+      },
+      {
+        "subject": "high_school_biology",
+        "n": 20,
+        "k": 3,
+        "observed_flip": 0,
+        "p_random_flip": 0.1395
+      },
+      {
+        "subject": "professional_psychology",
+        "n": 19,
+        "k": 3,
+        "observed_flip": 0,
+        "p_random_flip": 0.153
+      },
+      {
+        "subject": "miscellaneous",
+        "n": 19,
+        "k": 5,
+        "observed_flip": 0,
+        "p_random_flip": 0.2625
+      },
+      {
+        "subject": "logical_fallacies",
+        "n": 39,
+        "k": 10,
+        "observed_flip": 0,
+        "p_random_flip": 0.27
+      },
+      {
+        "subject": "professional_law",
+        "n": 30,
+        "k": 13,
+        "observed_flip": 0,
+        "p_random_flip": 0.386
+      },
+      {
+        "subject": "public_relations",
+        "n": 20,
+        "k": 6,
+        "observed_flip": 0,
+        "p_random_flip": 0.408
+      },
+      {
+        "subject": "global_facts",
+        "n": 21,
+        "k": 9,
+        "observed_flip": 0,
+        "p_random_flip": 0.447
+      },
+      {
+        "subject": "virology",
+        "n": 63,
+        "k": 41,
+        "observed_flip": 1,
+        "p_random_flip": 0.67
+      },
+      {
+        "subject": "college_chemistry",
+        "n": 38,
+        "k": 23,
+        "observed_flip": 1,
+        "p_random_flip": 0.7135
+      }
+    ]
+  }
+}
