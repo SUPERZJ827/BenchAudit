@@ -5,9 +5,10 @@ Reads per-model answers (scripts/mmlu_answer_models.py output) and compares each
 model's ranking under three item sets:
 
   full      all 1000 items (defects included -- the naive leaderboard)
-  objective removing the 181 OBJECTIVELY-defective items
-            (wrong_groundtruth + no_correct_answer + multiple_correct_answers)
-            -- exactly the defect classes our auditor can confirm
+  objective removing the 181 items MMLU-Redux HUMAN-LABELED as objectively
+            defective (wrong_groundtruth + no_correct_answer +
+            multiple_correct_answers) -- the defect classes our auditor targets,
+            though on MCQ these are review candidates, NOT auto-confirmed
   strict    keeping only the 630 error_type=="ok" items
 
 For each pair we report per-model rank shifts, top-k churn, and Kendall's tau
@@ -110,8 +111,9 @@ def main():
          f"> 数据:MMLU-Redux 1000 题(带 error_type 真值标注);{len(models)} 个模型;"
          "zero-shot 单次作答。\n",
          "> 口径:**full**=全 1000 题(含缺陷);**objective**=剔除 "
-         f"{n_removed_obj} 道客观缺陷题(wrong_groundtruth/no_correct/multiple_correct,"
-         "即我们审计器能 confirmed 的类型);**strict**=只留 630 道 ok 题。\n",
+         f"{n_removed_obj} 道 MMLU-Redux 人工标注的客观缺陷题(wrong_groundtruth/"
+         "no_correct/multiple_correct,即我们审计器针对的类型;MCQ 上为 review 候选,"
+         "不自动 confirmed);**strict**=只留 630 道 ok 题。\n",
          "\n## 排名对照(按 full 排名)\n",
          "| full名次 | 模型 | acc_full | acc_objective | objective名次 | 名次变化 |",
          "|---:|---|---:|---:|---:|:--:|"]
@@ -131,9 +133,10 @@ def main():
           "模型答案匹配错误 gold 才算「对」,所以 full 排名奖励了「和标注者犯同样错误」的模型。"
           "剔除后名次变动与 Top-1 变化,即为 benchmark 缺陷对排名的直接影响。\n",
           "## 与审计系统的闭环\n",
-          "被剔除的 3 类正是本项目审计器能**客观 confirmed** 的缺陷类型"
-          "(wrong_gold / no_correct / multiple_correct)。因此这个排名变化不是假想:"
-          "它量化了「我们能自动检出的缺陷」若不修正会造成多大的排名失真。\n",
+          "被剔除的 3 类正是本项目审计器**针对**的缺陷类型(wrong_gold / no_correct / "
+          "multiple_correct)——在 MCQ 上这些是 **review 候选**(LLM 判断),不是自动 confirmed。"
+          "本节量化第三方标注错题对排名的影响;审计器自身检出的闭环见 closed_loop_ranking.md,"
+          "其 per-subject 结果须对照 random_deletion_control.md(见下方边界)。\n",
           "## 诚实边界\n",
           f"- 仅 1000 题子集、{len(models)} 个模型、zero-shot 单次、无投票;更大 leaderboard 变动可能不同。",
           "- 真值用 MMLU-Redux 标注(第三方人工),非本项目审计器输出;闭环成立但两者是独立来源。",
@@ -178,10 +181,12 @@ def main():
              if tau_obj >= 0.999 else
              "leaderboard 越密集,缺陷越能扰动全局名次(本实验 8 模型时 τ=1.0、15 模型时 "
              f"τ={tau_obj:.3f});") +
-          f"但在缺陷集中的 subject 上,排名剧烈洗牌——{n_top1_changed}/{len(per_subj)} "
-          "个 subject 的冠军易主。**benchmark 缺陷对排名的影响是 subject-局部但可颠覆性的**,"
-          "与文献一致(MMLU-Redux virology 上模型名次大幅重排)。这说明用含缺陷的细分 "
-          "benchmark 给模型下结论是危险的,且 leaderboard 越密集风险越高。\n"]
+          f"per-subject 层面表面上有 {n_top1_changed}/{len(per_subj)} 个 subject 冠军易主,"
+          "**但这一表象经不起随机删题对照**(见 `random_deletion_control.md`):细分 subject 只有 "
+          "8–27 题,剔除缺陷后常剩个位数、多个模型并列,'冠军'由 tie-break 决定;删**等量随机题**"
+          "翻转的 subject 数与之无统计差异(p≈0.32)。**因此不能把 per-subject 冠军易主当作缺陷影响的证据。**"
+          "真正站得住的是:全局名次随 leaderboard 加密而出现真实换位,以及个别单点(如 philosophy,"
+          "随机翻转概率仅 1.8%)审计器精准命中了扭转排名的缺陷题。\n"]
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "ranking_impact.md").write_text("\n".join(L), encoding="utf-8")

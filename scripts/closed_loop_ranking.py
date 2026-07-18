@@ -122,13 +122,20 @@ def main():
         for d in sorted(subj_audit, key=lambda x: -x["removed"]):
             L.append(f"| {d['subject']} | {d['n']} | {d['removed']} "
                      f"| {d['top1_full'].split('__')[-1]} → {d['top1_clean'].split('__')[-1]} |")
-    L += ["\n## 结论\n",
-          f"审计器仅凭自己的检测(precision={prec:.2f}/recall={rec:.2f}),"
-          f"在 {len(subj_audit)} 个 subject 上复现了冠军易主——**端到端闭环成立**:"
-          "我们的系统不依赖第三方标注,就能自动找出足以改变模型排名的 benchmark 缺陷。\n",
+    L += ["\n## 结论(经随机删题对照修正)\n",
+          f"审计器仅凭自己的检测,以 **recall={rec:.2f} / precision={prec:.2f}** 找回了大量"
+          "第三方人工标注的客观缺陷题——**这是站得住的硬结果**:系统不依赖第三方标注就能高召回"
+          "地定位已知缺陷。\n",
+          f"但**「用我们检出剔除→{len(subj_audit)} 个 subject 冠军易主」不能作为影响证据**:"
+          "细分 subject 仅 8–27 题,剔除后常剩个位数、多模型并列,'冠军'由 tie-break 决定;"
+          "随机删题对照(`random_deletion_control.md`)显示,删**等量随机题**翻转的 subject 数"
+          "与审计器删题无统计差异(p≈0.32)。故本实验应定位为**候选驱动的排名敏感性探针**,"
+          "而非「自动纠错闭环」。\n",
           "## 诚实边界\n",
           "- 审计器检出为 **review 级候选**(高召回,含假阳性),非自动 confirmed;MCQ 语义缺陷本就不该自动 confirmed。",
           f"- 审计 recall={rec:.2f} 意味着仍漏检部分第三方标注错题;precision={prec:.2f} 表示部分检出未被第三方标注(可能是漏标或假阳,需人工复核)。",
+          "- per-subject 冠军易主经随机删题对照后**不显著**(见 random_deletion_control.md);"
+          "唯一稳健的单点是 philosophy(随机翻转概率 1.8%)。",
           "- 1000 题子集、DeepSeek 单模型审计、15 个作答模型、zero-shot 单次。"]
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "closed_loop_ranking.md").write_text("\n".join(L), encoding="utf-8")
