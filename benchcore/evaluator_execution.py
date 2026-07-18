@@ -793,12 +793,20 @@ class ExecutionEvaluatorAuditChecker(Checker):
         n_mutants: int = 4,
         timeout: float = 90.0,
         *,
+        gen_slack: int = 0,
         runner: CommandRunner | None = None,
         allow_unsafe_local: bool = False,
     ):
         self.client = client
         self.n_equivalents = n_equivalents
         self.n_mutants = n_mutants
+        # Ask the LLM for gen_slack EXTRA probes of each kind beyond the required
+        # count. The comparison-valid threshold below stays at n_*; the slack only
+        # absorbs under-generation and probes that fail the strict differential
+        # bar, so a single dud no longer fails an otherwise-auditable item. It
+        # cannot lower the bar or fabricate signal -- every extra probe is still
+        # independently validated. Default 0 keeps behaviour unchanged.
+        self.gen_slack = max(gen_slack, 0)
         self.timeout = timeout
         self.runner = runner
         self.allow_unsafe_local = allow_unsafe_local
@@ -854,7 +862,8 @@ class ExecutionEvaluatorAuditChecker(Checker):
         if not code_context or not isinstance(item.gold, str) or not item.gold.strip():
             return
         probes = generate_probes(self.client, item.task or "", item.gold,
-                                 self.n_equivalents, self.n_mutants)
+                                 self.n_equivalents + self.gen_slack,
+                                 self.n_mutants + self.gen_slack)
         report = run_execution_audit(item.gold, code_context, probes,
                                      n_cases=int(evaluator.get("n_cases", 1)),
                                      timeout=self.timeout,

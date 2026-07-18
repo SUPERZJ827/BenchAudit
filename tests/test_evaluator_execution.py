@@ -587,6 +587,26 @@ def test_execution(solution):
         self.assertEqual(coverage["comparison_valid"], 1)
         self.assertEqual(failure.evidence["probe_shortfalls"], {"equivalent": 2})
 
+    def test_gen_slack_over_provisions_generation_not_the_threshold(self) -> None:
+        checker = ExecutionEvaluatorAuditChecker(
+            client=None,
+            n_equivalents=3,
+            n_mutants=4,
+            gen_slack=2,
+            allow_unsafe_local=True,
+        )
+        with patch(
+            "benchcore.evaluator_execution.generate_probes", return_value=[]
+        ) as gp:
+            violations = list(checker.check(make_item(mini_context())))
+
+        # generation asks the LLM for n + slack of each kind ...
+        self.assertEqual(gp.call_args.args[3:], (5, 6))
+        # ... but the comparison-valid threshold stays at n.
+        failure = next(v for v in violations if v.defect_type == "llm_audit_failure")
+        self.assertEqual(failure.evidence["probe_coverage"]["equivalent"]["requested"], 3)
+        self.assertEqual(failure.evidence["probe_coverage"]["mutant"]["requested"], 4)
+
     def test_all_ast_rejected_probes_are_not_counted_as_coverage(self) -> None:
         checker = ExecutionEvaluatorAuditChecker(
             client=None,
