@@ -44,6 +44,12 @@ from typing import Any, Iterable
 from .checkers import Checker, _violation
 from .coverage import AuditEligibility
 from .execution import CommandRunner, CommandSpec, ExecutionPolicy, LocalProcessRunner
+from .execution_attestation import (
+    ExecutionTranscriptAttester,
+    ExecutionTranscriptVerifier,
+    request_execution_attestation,
+    verify_execution_attestation,
+)
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 from .task_uniqueness import classify_task_multiplicity
@@ -843,6 +849,8 @@ class ExecutionEvaluatorAuditChecker(Checker):
         adaptive_probe_rounds: int = 0,
         runner: CommandRunner | None = None,
         allow_unsafe_local: bool = False,
+        transcript_attester: ExecutionTranscriptAttester | None = None,
+        transcript_verifier: ExecutionTranscriptVerifier | None = None,
     ):
         self.client = client
         self.n_equivalents = n_equivalents
@@ -863,6 +871,8 @@ class ExecutionEvaluatorAuditChecker(Checker):
         self.timeout = timeout
         self.runner = runner
         self.allow_unsafe_local = allow_unsafe_local
+        self.transcript_attester = transcript_attester
+        self.transcript_verifier = transcript_verifier
         # Item checkers are shared by worker threads.  Keep diagnostic reports
         # thread-local so one item's evidence can never be observed as another
         # item's report.  This property is diagnostics-only; emitted findings
@@ -923,6 +933,18 @@ class ExecutionEvaluatorAuditChecker(Checker):
         )
 
     @staticmethod
+    def _attestation_evidence(report: dict[str, Any]) -> dict[str, Any]:
+        """Copy only promotion-relevant, externally verified trust metadata."""
+        keys = (
+            "adjudicator_trust_domain",
+            "execution_transcript_sha256",
+            "execution_attestation_verified",
+            "execution_attestation_reason",
+            "execution_attestation",
+        )
+        return {key: report[key] for key in keys if key in report}
+
+    @staticmethod
     def _comparison_shortfalls(
         report: dict[str, Any], requested: dict[str, int],
     ) -> dict[str, int]:
@@ -957,6 +979,32 @@ class ExecutionEvaluatorAuditChecker(Checker):
         return False
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        """Generate a first probe pass internally, then audit it."""
+        yield from self._check(item, root=root, initial_probes=None)
+
+    def check_with_initial_probes(
+        self,
+        item: BenchmarkItem,
+        initial_probes: Iterable[dict[str, str]],
+        root: Path | None = None,
+    ) -> Iterable[Violation]:
+        """Audit an externally frozen first pass.
+
+        This is deliberately separate from ``check`` so experiments can give a
+        baseline and an adaptive policy byte-identical first probes.  Without
+        that invariant a later request recovery can be misreported as an
+        alternate-strategy gain.
+        """
+        frozen = [dict(row) for row in initial_probes if isinstance(row, dict)]
+        yield from self._check(item, root=root, initial_probes=frozen)
+
+    def _check(
+        self,
+        item: BenchmarkItem,
+        *,
+        root: Path | None,
+        initial_probes: list[dict[str, str]] | None,
+    ) -> Iterable[Violation]:
         evaluator = item.evaluator if isinstance(item.evaluator, dict) else {}
         code_context = evaluator.get("code_context")
         if not code_context or not isinstance(item.gold, str) or not item.gold.strip():
@@ -965,12 +1013,36 @@ class ExecutionEvaluatorAuditChecker(Checker):
             "equivalent": self.n_equivalents,
             "mutant": self.n_mutants,
         }
-        probes = generate_probes(
-            self.client, item.task or "", item.gold,
-            self.n_equivalents + self.gen_slack,
-            self.n_mutants + self.gen_slack,
+        probes = (
+            generate_probes(
+                self.client, item.task or "", item.gold,
+                self.n_equivalents + self.gen_slack,
+                self.n_mutants + self.gen_slack,
+            )
+            if initial_probes is None else list(initial_probes)
         )
         report = self._execute_probes(item.gold, code_context, probes, evaluator)
+        # An attestation can travel alongside runner metadata, but it has no
+        # authority until a separately configured verifier accepts the exact
+        # transcript hash.  This makes spoofed benchmark fields harmless.
+        attestation = request_execution_attestation(report, self.transcript_attester)
+        if attestation is None and isinstance(evaluator.get("execution_attestation"), dict):
+            # This fallback is useful for importing an external runner's
+            # already-produced record, but is never trusted without the
+            # separately configured verifier below.
+            attestation = evaluator["execution_attestation"]
+        trust = verify_execution_attestation(
+            report,
+            attestation,
+            self.transcript_verifier,
+        )
+        report.update(trust.as_evidence())
+        report["initial_probe_source"] = (
+            "generated_internal" if initial_probes is None else "externally_frozen"
+        )
+        report["initial_probe_sha256"] = hashlib.sha256(
+            json.dumps(probes, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
         adaptive_rounds: list[dict[str, Any]] = []
         strategies = ("edge_case", "contract")
         for round_index in range(self.adaptive_probe_rounds):
@@ -997,6 +1069,13 @@ class ExecutionEvaluatorAuditChecker(Checker):
             ]
             probes.extend(unique_extra)
             report = self._execute_probes(item.gold, code_context, probes, evaluator)
+            attestation = request_execution_attestation(report, self.transcript_attester)
+            trust = verify_execution_attestation(
+                report,
+                attestation,
+                self.transcript_verifier,
+            )
+            report.update(trust.as_evidence())
             adaptive_rounds.append({
                 "round": round_index + 1,
                 "strategy": strategy,
@@ -1057,7 +1136,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                  "code_context_sha256": report.get("code_context_sha256"),
                  "evidence_level": "executed_harness",
                  "proof_schema_version": "1.0",
-                 "adjudicator_trust_domain": "shared_untrusted_driver"},
+                 **self._attestation_evidence(report)},
                 severity="critical",
                 review_only=False,
                 repair="Fix the reference solution or the test harness.",
@@ -1167,7 +1246,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                                 else "executed_differential_observed"
                             ),
                             "proof_schema_version": "1.0",
-                            "adjudicator_trust_domain": "shared_untrusted_driver",
+                            **self._attestation_evidence(report),
                         },
                         severity="major" if confirmed else "review",
                         review_only=not confirmed,
@@ -1225,6 +1304,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                              "same_inputs_replayed": same_inputs,
                              "gold_instrumentation_consistent": True,
                              "evidence_level": "executed_divergent_output_accepted",
+                             **self._attestation_evidence(report),
                              **multiplicity.as_evidence()},
                             severity="review",
                             repair=(
@@ -1251,7 +1331,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                          "gold_instrumentation_consistent": True,
                          "evidence_level": "executed_kill_matrix_confirmed",
                          "proof_schema_version": "1.0",
-                         "adjudicator_trust_domain": "shared_untrusted_driver"},
+                         **self._attestation_evidence(report)},
                         severity="major", review_only=False,
                         repair="Strengthen the output comparison or add distinguishing test inputs.",
                         method="execution_kill_matrix")

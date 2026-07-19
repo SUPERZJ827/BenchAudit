@@ -38,6 +38,19 @@ class StubLLMClient(LLMClient):
         return self.responses.pop(0)
 
 
+class CacheOnlyProbeClient(LLMClient):
+    def __init__(self, cache_path: Path):
+        super().__init__(LLMConfig(
+            model="cache-only", base_url="https://example.invalid",
+            api_key_env="STUB_API_KEY", cache_path=str(cache_path), cache_only=True,
+        ))
+        self.transport_called = False
+
+    def _post_chat_completions(self, body, api_key):
+        self.transport_called = True
+        raise AssertionError("cache-only mode must refuse before transport")
+
+
 class BlockingLLMClient(LLMClient):
     """Keeps the leader in-flight until every intended follower is waiting."""
 
@@ -111,6 +124,24 @@ def _wait_for_singleflight_followers(
 
 
 class LLMClientTest(unittest.TestCase):
+    def test_cache_only_refuses_miss_before_network_and_uses_exact_hit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "cache.jsonl"
+            client = CacheOnlyProbeClient(cache_path)
+            with self.assertRaisesRegex(RuntimeError, "cache-only replay missed"):
+                client.chat_json("system", "uncached")
+            self.assertFalse(client.transport_called)
+            cache_path.write_text(
+                json.dumps({
+                    "key": client._cache_key("system", "cached"),
+                    "response": {"status": "cached"},
+                }) + "\n",
+                encoding="utf-8",
+            )
+            cached = CacheOnlyProbeClient(cache_path)
+            self.assertEqual(cached.chat_json("system", "cached"), {"status": "cached"})
+            self.assertFalse(cached.transport_called)
+
     def test_transaction_deadline_covers_stalled_first_byte(self):
         entered = threading.Event()
         released = threading.Event()

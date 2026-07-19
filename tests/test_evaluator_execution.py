@@ -655,6 +655,22 @@ def test_execution(solution):
         self.assertEqual(len(rounds), 1)
         self.assertEqual(rounds[0]["stop_reason_after_round"], "actionable_differential_signal")
 
+    def test_externally_frozen_initial_probes_skip_first_generation(self) -> None:
+        probes = [
+            {"id": "equivalent_0", "kind": "equivalent", "code": "result = sorted(data)"},
+            {"id": "mutant_0", "kind": "mutant", "code": "result = list(data)"},
+        ]
+        checker = ExecutionEvaluatorAuditChecker(
+            client=None, n_equivalents=1, n_mutants=1,
+            allow_unsafe_local=True,
+        )
+        with patch("benchcore.evaluator_execution.generate_probes") as generated:
+            list(checker.check_with_initial_probes(
+                make_item(mini_context()), probes,
+            ))
+        generated.assert_not_called()
+        self.assertEqual(checker.last_report["initial_probe_source"], "externally_frozen")
+
     def test_all_ast_rejected_probes_are_not_counted_as_coverage(self) -> None:
         checker = ExecutionEvaluatorAuditChecker(
             client=None,
