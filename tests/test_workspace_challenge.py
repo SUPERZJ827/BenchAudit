@@ -20,10 +20,12 @@ def workspace_row(input_path: Path) -> dict:
     rubrics = ["Was report.md created?"]
     rubric_types = ["Basic Evaluation"]
     outputs = ["report.md"]
-    manifest = [{
-        "filename": "source.txt",
-        "stored_relpath": f"data/{input_path.name}",
-    }]
+    second_input = input_path.with_name("fedcba9876543210_second.txt")
+    second_input.write_text("other facts", encoding="utf-8")
+    manifest = [
+        {"filename": "source.txt", "stored_relpath": f"data/{input_path.name}"},
+        {"filename": "second.txt", "stored_relpath": f"data/{second_input.name}"},
+    ]
     graph = [{"from": "source.txt", "to": "report.md"}]
     return {
         "item_id": "workspacebench-1",
@@ -43,7 +45,7 @@ def workspace_row(input_path: Path) -> dict:
             "rubrics": rubrics,
             "rubric_types": rubric_types,
         },
-        "input_files": [str(input_path)],
+        "input_files": [str(input_path), str(second_input)],
         # Official Workspace exports retain these raw JSON-string views.
         "rubrics": json.dumps(rubrics),
         "rubric_types": json.dumps(rubric_types),
@@ -59,13 +61,13 @@ def test_challenge_is_deterministic_and_keeps_provenance_sidecar_only(tmp_path: 
     source = workspace_row(source_file)
     untouched = copy.deepcopy(source)
 
-    first = build_workspace_challenge([source], seed=17)
-    second = build_workspace_challenge([source], seed=17)
+    first = build_workspace_challenge([source], seed=17, allowed_roots=[tmp_path])
+    second = build_workspace_challenge([source], seed=17, allowed_roots=[tmp_path])
 
     assert source == untouched
     assert len(first.clean_rows) == 1
-    assert len(first.mutant_rows) == len(WORKSPACE_CHALLENGE_OPERATORS) == 5
-    assert len(first.provenance) == 5
+    assert len(first.mutant_rows) == len(WORKSPACE_CHALLENGE_OPERATORS) == 6
+    assert len(first.provenance) == 6
     assert first.clean_rows == second.clean_rows
     assert first.mutant_rows == second.mutant_rows
     assert first.manifest() == second.manifest()
@@ -76,20 +78,36 @@ def test_challenge_is_deterministic_and_keeps_provenance_sidecar_only(tmp_path: 
     assert {row.operator for row in first.provenance} == set(WORKSPACE_CHALLENGE_OPERATORS)
 
 
-def test_all_five_objective_mutations_are_exactly_detected(tmp_path: Path):
+def test_content_collision_mutation_requires_explicit_safe_attachment_roots(tmp_path: Path):
     source_file = tmp_path / "0123456789abcdef_source.txt"
     source_file.write_text("facts", encoding="utf-8")
-    challenge = build_workspace_challenge([workspace_row(source_file)], seed=23)
+
+    challenge = build_workspace_challenge([workspace_row(source_file)], seed=19)
+
+    assert len(challenge.provenance) == len(WORKSPACE_CHALLENGE_OPERATORS) - 1
+    assert any(
+        row["operator"] == "manifest_filename_content_collision"
+        and "trusted roots" in row["reason"]
+        for row in challenge.skipped
+    )
+
+
+def test_all_objective_mutations_are_exactly_detected(tmp_path: Path):
+    source_file = tmp_path / "0123456789abcdef_source.txt"
+    source_file.write_text("facts", encoding="utf-8")
+    challenge = build_workspace_challenge(
+        [workspace_row(source_file)], seed=23, allowed_roots=[tmp_path],
+    )
 
     result = audit_workspace_challenge(challenge, root=tmp_path)
     score = result["score"]
 
     assert result["clean"]["violation_count"] == 0
-    assert result["mutant"]["violation_count"] == 5
-    assert score["pairs"] == 5
-    assert score["exact_detected"] == 5
+    assert result["mutant"]["violation_count"] == 6
+    assert score["pairs"] == 6
+    assert score["exact_detected"] == 6
     assert score["exact_recall"] == 1.0
-    assert score["paired_discriminated"] == 5
+    assert score["paired_discriminated"] == 6
     assert score["paired_discrimination"] == 1.0
     assert score["clean_expected_alarm_pairs"] == 0
     assert score["clean_alarm_items"] == 0
@@ -104,7 +122,7 @@ def test_atomic_delta_is_not_masked_by_a_preexisting_invariant_issue(tmp_path: P
     source = workspace_row(source_file)
     source["rubrics"] = json.dumps(["Pre-existing divergent raw rubric"])
     challenge = build_workspace_challenge(
-        [source], operators=[DANGLING_DEPENDENCY], seed=29,
+        [source], operators=[DANGLING_DEPENDENCY], seed=29, allowed_roots=[tmp_path],
     )
 
     score = audit_workspace_challenge(challenge, root=tmp_path)["score"]
@@ -120,7 +138,7 @@ def test_score_reports_extra_and_duplicate_delta_alarms(tmp_path: Path):
     source_file.write_text("facts", encoding="utf-8")
     challenge = build_workspace_challenge(
         [workspace_row(source_file)],
-        operators=[CONTRACT_FILENAME_CONFLICT],
+        operators=[CONTRACT_FILENAME_CONFLICT], allowed_roots=[tmp_path],
         seed=31,
     )
     result = audit_workspace_challenge(challenge, root=tmp_path)

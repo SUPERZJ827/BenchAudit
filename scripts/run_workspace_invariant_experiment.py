@@ -128,6 +128,7 @@ def main() -> int:
         rows,
         seed=args.seed,
         operators=args.operator,
+        allowed_roots=allowed_roots,
     )
     if rows_contain_provenance(challenge.clean_rows) or rows_contain_provenance(
         challenge.mutant_rows

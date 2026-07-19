@@ -184,6 +184,18 @@ def _workspace_dependency_replay(
     )
 
 
+def _workspace_filename_collision_replay(
+    violation: Violation, item: BenchmarkItem | None,
+) -> bool:
+    rows = violation.evidence.get("ambiguous_input_filenames")
+    return bool(
+        isinstance(rows, list) and rows
+        and _workspace_live_replay_matches(
+            violation, item, ("ambiguous_input_filenames",)
+        )
+    )
+
+
 def _workspace_metadata_contract(
     violation: Violation, item: BenchmarkItem | None,
 ) -> bool:
@@ -561,6 +573,7 @@ OBJECTIVE_PROOF_VALIDATORS: dict[
     ("cross_artifact_consistency", "answer_contract_static_consistency", "output_evaluator_contract_mismatch"): _contract_replay,
     ("workspace_artifact_invariants", "filesystem_manifest_replay", "artifact_data_gap"): _workspace_manifest_replay,
     ("workspace_artifact_invariants", "dependency_graph_replay", "artifact_data_gap"): _workspace_dependency_replay,
+    ("workspace_artifact_invariants", "manifest_filename_collision_replay", "ambiguous_input_filename"): _workspace_filename_collision_replay,
     ("workspace_artifact_invariants", "metadata_contract_replay", "output_evaluator_contract_mismatch"): _workspace_metadata_contract,
     ("workspace_artifact_invariants", "metadata_evaluator_replay", "schema_drift"): _workspace_metadata_evaluator,
     # Actor visibility is necessary but not sufficient to prove a solution
@@ -627,6 +640,7 @@ PROOF_FIELD_DEPENDENCIES: dict[tuple[str, str, str], tuple[str, ...]] = {
     ("cross_artifact_consistency", "answer_contract_static_consistency", "output_evaluator_contract_mismatch"): ("output_contract", "evaluator"),
     ("workspace_artifact_invariants", "filesystem_manifest_replay", "artifact_data_gap"): ("context",),
     ("workspace_artifact_invariants", "dependency_graph_replay", "artifact_data_gap"): ("context", "output_contract"),
+    ("workspace_artifact_invariants", "manifest_filename_collision_replay", "ambiguous_input_filename"): ("context",),
     ("workspace_artifact_invariants", "metadata_contract_replay", "output_evaluator_contract_mismatch"): ("output_contract", "evaluator"),
     ("workspace_artifact_invariants", "metadata_evaluator_replay", "schema_drift"): ("evaluator",),
     ("workspace_artifact_invariants", "workspace_runner_visibility_replay", "solution_leak"): ("context", "evaluator"),

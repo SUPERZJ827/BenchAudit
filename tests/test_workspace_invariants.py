@@ -81,6 +81,53 @@ def test_manifest_and_dependency_graph_breaks_are_confirmed(tmp_path: Path):
     assert all(not issue.review_only for issue in issues)
 
 
+def test_distinct_bytes_with_one_logical_input_name_are_confirmed(tmp_path: Path):
+    first = tmp_path / "0123456789abcdef_first.xlsx"
+    second = tmp_path / "fedcba9876543210_second.xlsx"
+    first.write_bytes(b"first workbook bytes")
+    second.write_bytes(b"second workbook bytes")
+    item = make_item(first, raw={
+        "input_files": [str(first), str(second)],
+        "data_manifest": [
+            {"filename": "table.xlsx", "stored_relpath": f"data/{first.name}"},
+            {"filename": "table.xlsx", "stored_relpath": f"data/{second.name}"},
+        ],
+        "file_dep_graph": [{"from": "table.xlsx", "to": "report.md"}],
+    })
+    item.context["data_manifest"] = item.raw["data_manifest"]
+
+    violations = list(
+        WorkspaceArtifactInvariantChecker(allowed_roots=[tmp_path]).check(item)
+    )
+    collision = next(
+        row for row in violations if row.defect_type == "ambiguous_input_filename"
+    )
+    assert collision.evidence_tier == "confirmed"
+    rows = collision.evidence["ambiguous_input_filenames"]
+    assert rows[0]["logical_filename"] == "table.xlsx"
+    assert len({entry["content_sha256"] for entry in rows[0]["entries"]}) == 2
+
+
+def test_same_bytes_with_one_logical_input_name_is_not_a_collision(tmp_path: Path):
+    first = tmp_path / "0123456789abcdef_first.xlsx"
+    second = tmp_path / "fedcba9876543210_second.xlsx"
+    first.write_bytes(b"identical workbook bytes")
+    second.write_bytes(b"identical workbook bytes")
+    item = make_item(first, raw={
+        "input_files": [str(first), str(second)],
+        "data_manifest": [
+            {"filename": "table.xlsx", "stored_relpath": f"data/{first.name}"},
+            {"filename": "table.xlsx", "stored_relpath": f"data/{second.name}"},
+        ],
+    })
+    item.context["data_manifest"] = item.raw["data_manifest"]
+
+    assert not any(
+        issue.defect_type == "ambiguous_input_filename"
+        for issue in collect_workspace_invariant_issues(item, allowed_roots=[tmp_path])
+    )
+
+
 def test_task_local_manifest_does_not_prove_workspace_graph_is_dangling(tmp_path: Path):
     source = tmp_path / "0123456789abcdef_source.txt"
     source.write_text("facts", encoding="utf-8")
