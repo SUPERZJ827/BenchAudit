@@ -72,6 +72,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "major",
         "Task, rubric, evaluator, or reference requires data absent from the provided artifacts.",
     ),
+    "ambiguous_input_filename": DefectInfo(
+        "context_attachment",
+        "ambiguous_mapping",
+        "ambiguous_input_filename",
+        "critical",
+        "Two distinct task inputs are assigned the same agent-visible logical filename.",
+    ),
     "inaccessible_attachment": DefectInfo(
         "context_attachment",
         "unavailable",
