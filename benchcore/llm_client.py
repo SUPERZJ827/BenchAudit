@@ -38,6 +38,10 @@ class LLMConfig:
     # omit usage cannot be governed by this counter.  ``max_api_attempts`` is
     # the exact cross-thread request ceiling.
     observed_token_stop: int | None = None
+    # Reproducibility replays may stage a prior cache.  In that mode a cache
+    # miss is an invalid experiment, never permission to silently buy a fresh
+    # model sample.
+    cache_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -189,6 +193,11 @@ class LLMClient:
             self._write_cache(key, result)
             return result
 
+        if self.config.cache_only:
+            raise RuntimeError(
+                "cache-only replay missed an exact request key; refusing HTTP execution"
+            )
+
         api_key = os.environ.get(self.config.api_key_env)
         if not api_key:
             raise RuntimeError(f"Missing API key environment variable: {self.config.api_key_env}")
@@ -338,6 +347,11 @@ class LLMClient:
             }
             self._write_cache(key, result)
             return result
+
+        if self.config.cache_only:
+            raise RuntimeError(
+                "cache-only replay missed an exact vote request key; refusing HTTP execution"
+            )
 
         api_key = os.environ.get(self.config.api_key_env)
         if not api_key:

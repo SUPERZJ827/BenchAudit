@@ -314,7 +314,7 @@ def _execution_gold_replay(
                 "driver_sha256", "reference_code_sha256", "code_context_sha256",
             )
         )
-        and evidence.get("adjudicator_trust_domain") == "separate_process_v1"
+        and _execution_attestation_valid(evidence)
     )
 
 
@@ -336,7 +336,7 @@ def _execution_equivalent_replay(
                 "driver_sha256", "reference_code_sha256", "code_context_sha256",
             )
         )
-        and evidence.get("adjudicator_trust_domain") == "separate_process_v1"
+        and _execution_attestation_valid(evidence)
     )
 
 
@@ -362,7 +362,26 @@ def _execution_mutant_replay(
                 "driver_sha256", "reference_code_sha256", "code_context_sha256",
             )
         )
-        and evidence.get("adjudicator_trust_domain") == "separate_process_v1"
+        and _execution_attestation_valid(evidence)
+    )
+
+
+def _execution_attestation_valid(evidence: dict[str, Any]) -> bool:
+    """Prevent a benchmark-supplied trust-domain string from enabling proof.
+
+    The checker sets this only after a configured external verifier accepts the
+    exact canonical transcript.  Promotion repeats the structural checks so a
+    stale/manual report cannot bypass that boundary.
+    """
+    attestation = evidence.get("execution_attestation")
+    return bool(
+        evidence.get("adjudicator_trust_domain") == "separate_process_v1"
+        and evidence.get("execution_attestation_verified") is True
+        and _sha256(evidence.get("execution_transcript_sha256"))
+        and isinstance(attestation, dict)
+        and attestation.get("protocol") == "benchaudit-execution-attestation-v1"
+        and attestation.get("payload_sha256")
+        == evidence.get("execution_transcript_sha256")
     )
 
 
@@ -756,7 +775,9 @@ def decide_promotion(
             proof,
             "Dataset proof was not replayed against matching complete live records.",
         )
-    if proof_key in DISABLED_UNATTESTED_PROOFS:
+    if proof_key in DISABLED_UNATTESTED_PROOFS and not _execution_attestation_valid(
+        violation.evidence
+    ):
         return PromotionDecision(
             "review",
             proof,

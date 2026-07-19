@@ -32,7 +32,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from benchcore.evaluator_execution import ExecutionEvaluatorAuditChecker
+from benchcore.evaluator_execution import ExecutionEvaluatorAuditChecker, generate_probes
 from benchcore.execution import ContainerRunner
 from benchcore.llm_client import LLMClient, load_llm_config
 from benchcore.schema import BenchmarkItem
@@ -46,7 +46,7 @@ DS1000 = Path.home() / (
     ".cache/huggingface/hub/datasets--xlangai--DS-1000/"
     "snapshots/4416080ac5cb80bdf7576aefb8f9a0b4d5426a44/test.jsonl"
 )
-PROTOCOL = "single-model-adaptive-probes-holdout-v2"
+PROTOCOL = "single-model-adaptive-probes-holdout-v3-strict-paired"
 # Previous prompt-development / qualitative-control ranges.  The holdout
 # selector refuses them so the experiment cannot accidentally recycle a case
 # that informed the strategy wording.
@@ -140,6 +140,7 @@ def run_condition(
     row: dict[str, Any],
     kind: str,
     adaptive_rounds: int,
+    initial_probes: list[dict[str, str]],
 ) -> dict[str, Any]:
     bad_context, gold = inject_case(kind, row["code_context"], row["reference_code"])
     assert bad_context is not None
@@ -158,7 +159,7 @@ def run_condition(
             "n_cases": int(row["metadata"].get("test_case_cnt") or 1),
         },
     )
-    violations = list(checker.check(item))
+    violations = list(checker.check_with_initial_probes(item, initial_probes))
     found = {violation.defect_type for violation in violations}
     report = checker.last_report or {}
     return {
@@ -168,6 +169,8 @@ def run_condition(
         "gold_pass": report.get("gold", {}).get("pass"),
         "probe_coverage": report.get("probe_coverage"),
         "adaptive_probe_rounds": report.get("adaptive_probe_rounds", []),
+        "initial_probe_source": report.get("initial_probe_source"),
+        "initial_probe_sha256": report.get("initial_probe_sha256"),
         "transport": stats_delta(client.run_stats(), before),
     }
 
@@ -230,14 +233,28 @@ def main() -> None:
             if (pid, kind) in completed:
                 print(f"[{pid} {kind}] already recorded; resuming", flush=True)
                 continue
-            baseline = run_condition(client, runner, row, kind, adaptive_rounds=0)
-            adaptive = run_condition(client, runner, row, kind, adaptive_rounds=1)
+            bad_context, gold = inject_case(kind, row["code_context"], row["reference_code"])
+            assert bad_context is not None
+            before_generation = client.run_stats()
+            initial_probes = generate_probes(client, row["prompt"], gold, 3, 4)
+            generation_transport = stats_delta(client.run_stats(), before_generation)
+            baseline = run_condition(
+                client, runner, row, kind, adaptive_rounds=0,
+                initial_probes=initial_probes,
+            )
+            adaptive = run_condition(
+                client, runner, row, kind, adaptive_rounds=1,
+                initial_probes=initial_probes,
+            )
+            if baseline["initial_probe_sha256"] != adaptive["initial_probe_sha256"]:
+                raise RuntimeError("strict-pair invariant failed: initial probe hashes differ")
             records.append({
                 "problem_id": pid,
                 "library": row["metadata"]["library"],
                 "injection": kind,
                 "baseline": baseline,
                 "adaptive": adaptive,
+                "initial_generation_transport": generation_transport,
             })
             atomic_json_write(progress_path, {
                 "protocol_version": PROTOCOL,
