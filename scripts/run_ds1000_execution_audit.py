@@ -67,11 +67,16 @@ def main() -> None:
                         help="extra probes generated per kind beyond the "
                              "comparison-valid threshold (absorbs LLM under-"
                              "generation / dud probes; threshold unchanged)")
+    parser.add_argument("--adaptive-probe-rounds", type=int, default=0,
+                        help="extra execution-grounded alternate-lens rounds; "
+                             "0 keeps the one-pass protocol")
     args = parser.parse_args()
     if not re.fullmatch(r"[^\s@]+@sha256:[0-9a-fA-F]{64}", args.container_image):
         parser.error("--container-image must be digest-pinned as name@sha256:<64 hex>")
     if args.n_per_lib < 1 or args.workers < 1:
         parser.error("--n-per-lib and --workers must be positive")
+    if args.gen_slack < 0 or args.adaptive_probe_rounds < 0:
+        parser.error("--gen-slack and --adaptive-probe-rounds must be non-negative")
     libs = set(filter(None, args.libs.split(",")))
     workers = args.workers
     outdir = Path(args.out_dir).expanduser().resolve()
@@ -96,6 +101,7 @@ def main() -> None:
         "libs": sorted(libs),
         "n_per_lib": args.n_per_lib,
         "gen_slack": args.gen_slack,
+        "adaptive_probe_rounds": args.adaptive_probe_rounds,
     }, sort_keys=True).encode()).hexdigest()
     (outdir / "run_manifest.json").write_text(json.dumps({
         "protocol_version": PROTOCOL_VERSION,
@@ -120,7 +126,8 @@ def main() -> None:
             return prior["summary"]
         t0 = time.time()
         checker = ExecutionEvaluatorAuditChecker(
-            client, runner=runner, gen_slack=args.gen_slack)
+            client, runner=runner, gen_slack=args.gen_slack,
+            adaptive_probe_rounds=args.adaptive_probe_rounds)
         item = BenchmarkItem(
             item_id=f"ds1000_{pid}", raw={}, task=r["prompt"],
             gold=r["reference_code"],

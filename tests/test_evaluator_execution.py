@@ -114,6 +114,23 @@ class ProbeSafetyTest(unittest.TestCase):
             self.assertIn(malicious_task, user)
             self.assertIn(malicious_reference, user)
 
+    def test_probe_strategy_is_allow_list_only_and_changes_user_prompt(self) -> None:
+        class RecordingClient:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def chat_json(self, system, user):
+                self.calls.append((system, user))
+                return {"solutions": []}
+
+        client = RecordingClient()
+        generate_probes(client, "task", "result = x", 1, 1, strategy="edge_case")
+        self.assertEqual(len(client.calls), 2)
+        self.assertTrue(all(system == PROBE_SYSTEM for system, _ in client.calls))
+        self.assertTrue(all("Additional investigator lens" in user for _, user in client.calls))
+        with self.assertRaisesRegex(ValueError, "unknown probe strategy"):
+            generate_probes(client, "task", "result = x", 1, 1, strategy="untrusted")
+
 
 class DriverTest(unittest.TestCase):
     def test_gold_replay_passes_on_healthy_harness(self) -> None:
@@ -606,6 +623,37 @@ def test_execution(solution):
         failure = next(v for v in violations if v.defect_type == "llm_audit_failure")
         self.assertEqual(failure.evidence["probe_coverage"]["equivalent"]["requested"], 3)
         self.assertEqual(failure.evidence["probe_coverage"]["mutant"]["requested"], 4)
+
+    def test_adaptive_round_uses_second_lens_only_after_clean_execution(self) -> None:
+        # The first labelled mutant is actually equivalent, so the initial
+        # executed evidence is complete but clean. The alternate lens then
+        # supplies a divergent mutant accepted by the neutralized comparator.
+        initial = [
+            {"id": "equivalent_0", "kind": "equivalent", "code": "result = sorted(data)"},
+            {"id": "mutant_0", "kind": "mutant", "code": "result = sorted(data)"},
+        ]
+        alternate = [
+            {"id": "equivalent_edge_case_0", "kind": "equivalent", "code": "result = list(sorted(data))"},
+            {"id": "mutant_edge_case_0", "kind": "mutant", "code": "result = list(data)"},
+        ]
+        checker = ExecutionEvaluatorAuditChecker(
+            client=None, n_equivalents=1, n_mutants=1,
+            adaptive_probe_rounds=1, allow_unsafe_local=True,
+        )
+        with patch(
+            "benchcore.evaluator_execution.generate_probes",
+            side_effect=[initial, alternate],
+        ) as generate:
+            violations = list(checker.check(make_item(
+                mini_context(comparator="return 1"), reference_output_unique=True,
+            )))
+
+        self.assertIn("evaluator_mutation_survived", [v.defect_type for v in violations])
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(generate.call_args_list[1].kwargs["strategy"], "edge_case")
+        rounds = checker.last_report["adaptive_probe_rounds"]
+        self.assertEqual(len(rounds), 1)
+        self.assertEqual(rounds[0]["stop_reason_after_round"], "actionable_differential_signal")
 
     def test_all_ast_rejected_probes_are_not_counted_as_coverage(self) -> None:
         checker = ExecutionEvaluatorAuditChecker(

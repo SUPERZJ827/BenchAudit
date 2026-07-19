@@ -49,6 +49,61 @@ class _InFlight:
 _CACHE_MISS = object()
 
 
+def _close_connection_async(conn: http.client.HTTPConnection) -> None:
+    """Request connection teardown without letting a broken TLS close block us."""
+    threading.Thread(
+        target=conn.close,
+        name="llm-http-connection-closer",
+        daemon=True,
+    ).start()
+
+
+def _perform_http_request_with_deadline(
+    conn: http.client.HTTPConnection,
+    method: str,
+    path: str,
+    payload: bytes,
+    headers: dict[str, str],
+    timeout: float,
+) -> tuple[int, bytes]:
+    """Bound the complete HTTP transaction, including first-byte wait.
+
+    Socket timeouts alone are per low-level operation.  In particular, a
+    provider can stall while sending the response headers, before there is an
+    ``HTTPResponse`` object for the body-only deadline to guard.  Keeping the
+    whole transaction in one daemon worker gives the caller one honest
+    wall-clock bound.  The connection is closed asynchronously on expiry for
+    the same asynchronous-close policy used by the request path.
+    """
+    if timeout <= 0:
+        raise ValueError("request deadline must be positive")
+    done = threading.Event()
+    outcome: dict[str, Any] = {}
+
+    def transact() -> None:
+        try:
+            conn.request(method, path, payload, headers)
+            response = conn.getresponse()
+            outcome["status"] = response.status
+            outcome["body"] = response.read()
+        except BaseException as exc:
+            outcome["exception"] = exc
+        finally:
+            done.set()
+
+    worker = threading.Thread(target=transact, name="llm-http-transaction", daemon=True)
+    worker.start()
+    if not done.wait(timeout=timeout):
+        _close_connection_async(conn)
+        raise TimeoutError(f"LLM HTTP transaction exceeded the {timeout:.1f}s wall-clock deadline")
+    if "exception" in outcome:
+        raise outcome["exception"]
+    status, body = outcome.get("status"), outcome.get("body")
+    if not isinstance(status, int) or not isinstance(body, bytes):
+        raise http.client.HTTPException("LLM HTTP transaction returned invalid data")
+    return status, body
+
+
 def load_llm_config(path: str | None = None) -> LLMConfig:
     data: dict[str, Any] = {}
     if path:
@@ -201,22 +256,23 @@ class LLMClient:
             )
             try:
                 self._begin_api_attempt()
-                conn.request("POST", path, payload, headers)
-                response = conn.getresponse()
-                text = response.read().decode("utf-8")
-                if 200 <= response.status < 300:
+                status, response_body = _perform_http_request_with_deadline(
+                    conn, "POST", path, payload, headers, float(self.config.timeout)
+                )
+                text = response_body.decode("utf-8")
+                if 200 <= status < 300:
                     parsed_response = json.loads(text)
                     self._increment_stat("api_successes")
                     return parsed_response
                 if (
-                    response.status in {429, 500, 502, 503, 504}
+                    status in {429, 500, 502, 503, 504}
                     and attempt + 1 < self.config.max_retries
                 ):
                     self._increment_stat("api_failures")
                     time.sleep(2**attempt)
                     continue
                 self._increment_stat("api_failures")
-                raise RuntimeError(f"LLM API error {response.status}: {text}")
+                raise RuntimeError(f"LLM API error {status}: {text}")
             except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
                 self._increment_stat("api_failures")
                 last_error = exc
@@ -224,7 +280,10 @@ class LLMClient:
                     time.sleep(2**attempt)
                     continue
             finally:
-                conn.close()
+                # ``HTTPConnection.close`` can itself wait on a TLS/socket
+                # state transition.  The response deadline would be illusory
+                # if cleanup ran synchronously on the request path.
+                _close_connection_async(conn)
         raise RuntimeError(f"LLM API request failed after retries: {last_error}")
 
     def chat_json_multi(self, system: str, user: str) -> list[dict[str, Any]]:

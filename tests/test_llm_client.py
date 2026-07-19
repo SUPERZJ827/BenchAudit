@@ -7,7 +7,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
-from benchcore.llm_client import LLMClient, LLMConfig, _extract_json_result
+from benchcore.llm_client import (
+    LLMClient,
+    LLMConfig,
+    _extract_json_result,
+    _perform_http_request_with_deadline,
+)
 
 
 class StubLLMClient(LLMClient):
@@ -106,6 +111,69 @@ def _wait_for_singleflight_followers(
 
 
 class LLMClientTest(unittest.TestCase):
+    def test_transaction_deadline_covers_stalled_first_byte(self):
+        entered = threading.Event()
+        released = threading.Event()
+
+        class StalledConnection:
+            def request(self, *args):
+                return None
+
+            def getresponse(self):
+                entered.set()
+                released.wait(timeout=5)
+                raise OSError("connection closed")
+
+            def close(self):
+                released.set()
+
+        started = time.monotonic()
+        with self.assertRaisesRegex(TimeoutError, "HTTP transaction exceeded"):
+            _perform_http_request_with_deadline(
+                StalledConnection(), "POST", "/", b"{}", {}, 0.03
+            )
+        self.assertTrue(entered.is_set())
+        self.assertLess(time.monotonic() - started, 0.5)
+
+    def test_transaction_deadline_covers_stalled_response_body(self):
+        entered = threading.Event()
+        released = threading.Event()
+
+        class BlockingResponse:
+            status = 200
+
+            def read(self):
+                entered.set()
+                released.wait(timeout=5)
+                return b"{}"
+
+        class ClosingConnection:
+            def __init__(self):
+                self.closed = False
+                self.closed_event = threading.Event()
+
+            def request(self, *args):
+                return None
+
+            def getresponse(self):
+                return BlockingResponse()
+
+            def close(self):
+                self.closed = True
+                released.set()
+                self.closed_event.set()
+
+        conn = ClosingConnection()
+        started = time.monotonic()
+        with self.assertRaisesRegex(TimeoutError, "HTTP transaction exceeded"):
+            _perform_http_request_with_deadline(
+                conn, "POST", "/", b"{}", {}, 0.03
+            )
+        self.assertTrue(entered.is_set())
+        self.assertTrue(conn.closed_event.wait(timeout=0.5))
+        self.assertTrue(conn.closed)
+        self.assertLess(time.monotonic() - started, 0.5)
+
     def test_optional_thinking_mode_is_sent_and_part_of_reproducibility(self):
         client = StubLLMClient([
             {"choices": [{"message": {"content": '{"status":"ok"}'}}]},
