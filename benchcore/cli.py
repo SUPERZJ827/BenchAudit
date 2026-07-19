@@ -192,6 +192,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     audit_parser.add_argument(
+        "--execution-adaptive-probe-rounds",
+        type=int,
+        default=0,
+        help=(
+            "After a clean execution-probe pass, run up to this many fixed "
+            "alternate investigator lenses. Stops early only on executed "
+            "differential evidence; default 0 preserves the one-pass protocol."
+        ),
+    )
+    audit_parser.add_argument(
         "--execution-container-image",
         help=(
             "Container image containing Python and benchmark dependencies for the "
@@ -825,6 +835,7 @@ def run_audit(args: argparse.Namespace) -> int:
         checkers.append(ExecutionEvaluatorAuditChecker(
             client,
             runner=execution_runner,
+            adaptive_probe_rounds=args.execution_adaptive_probe_rounds,
             allow_unsafe_local=allow_unsafe_local,
         ))
     if args.llm_audit:
