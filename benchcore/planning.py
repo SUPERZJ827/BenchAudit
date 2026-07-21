@@ -400,6 +400,15 @@ def write_audit_plan_markdown(path: Path, package: BenchmarkPackage, plan: Audit
             lines.append(
                 f"- `{route.item_id}` → `{route.route}` ({route.status}): {route.reason}"
             )
+            if route.secondary_routes:
+                lines.append(
+                    "  - Secondary routes: "
+                    + ", ".join(f"`{name}`" for name in route.secondary_routes)
+                )
+            if route.required_evidence:
+                lines.append(
+                    "  - Required evidence: " + "; ".join(route.required_evidence)
+                )
     lines.extend(["", "## Artifact Inventory", ""])
     for artifact in package.artifacts:
         lines.append(
