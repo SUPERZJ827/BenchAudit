@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -20,6 +21,55 @@ def _row(index: int, passed: bool = True) -> dict[str, object]:
         "confidence": 0.9,
         "evidence": f"evidence-{index}",
     }
+
+
+def test_load_reusable_judge_result_rejects_error_and_accepts_complete_result(
+    tmp_path: Path,
+) -> None:
+    unit = tmp_path / "unit"
+    result_dir = unit / "rubrics_judge--~anthropic"
+    result_dir.mkdir(parents=True)
+    (unit / "metadata.json").write_text(
+        json.dumps({"rubrics": ["first", "second"]}), encoding="utf-8"
+    )
+    result_path = result_dir / "claude-sonnet-latest.json"
+    result_path.write_text(json.dumps({
+        "judge": {
+            "model": "~anthropic/claude-sonnet-latest",
+            "error": "HTTP 402",
+        },
+        "summary": {"total": 2, "passed": 0, "failed": 2},
+        "rubrics": [],
+    }), encoding="utf-8")
+    record = {
+        "task_id": 7,
+        "condition": "baseline",
+        "unit_id": "opaque",
+        "unit_path": str(unit),
+    }
+    assert pilot._load_reusable_judge_result(
+        record, judge_model="~anthropic/claude-sonnet-latest"
+    ) is None
+
+    result_path.write_text(json.dumps({
+        "judge": {
+            "model": "~anthropic/claude-sonnet-latest",
+            "error": None,
+            "usage": {"total_tokens": 12},
+        },
+        "summary": {"total": 2, "passed": 1, "failed": 1},
+        "rubrics": [
+            {"index": 0, "passed": True},
+            {"index": 1, "passed": False},
+        ],
+    }), encoding="utf-8")
+    reused = pilot._load_reusable_judge_result(
+        record, judge_model="~anthropic/claude-sonnet-latest"
+    )
+    assert reused is not None
+    assert reused["valid"] is True
+    assert reused["reused"] is True
+    assert reused["summary"]["passed"] == 1
 
 
 def test_normalize_rubric_rows_accepts_equivalent_keyed_layouts() -> None:

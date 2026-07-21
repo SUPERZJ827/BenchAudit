@@ -744,6 +744,69 @@ def _run_one_judge(
     }
 
 
+def _load_reusable_judge_result(
+    record: Mapping[str, Any],
+    *,
+    judge_model: str,
+) -> dict[str, Any] | None:
+    """Load a prior complete result from the requested official judge model."""
+    unit = Path(str(record["unit_path"]))
+    result_path = _find_judge_result(unit)
+    if result_path is None:
+        return None
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        metadata = json.loads((unit / "metadata.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(result, dict) or not isinstance(metadata, dict):
+        return None
+    judge = result.get("judge")
+    summary = result.get("summary")
+    rubrics = result.get("rubrics")
+    expected_rubrics = metadata.get("rubrics")
+    if not (
+        isinstance(judge, dict)
+        and judge.get("model") == judge_model
+        and not judge.get("error")
+        and isinstance(summary, dict)
+        and isinstance(rubrics, list)
+        and isinstance(expected_rubrics, list)
+        and len(rubrics) == len(expected_rubrics)
+    ):
+        return None
+    indices = [rubric.get("index") for rubric in rubrics if isinstance(rubric, dict)]
+    if sorted(indices) != list(range(len(expected_rubrics))):
+        return None
+    total = summary.get("total")
+    passed = summary.get("passed")
+    failed = summary.get("failed")
+    if not (
+        total == len(expected_rubrics)
+        and isinstance(passed, int)
+        and isinstance(failed, int)
+        and passed + failed == total
+    ):
+        return None
+    return {
+        "task_id": int(record["task_id"]),
+        "condition": str(record["condition"]),
+        "unit_id": str(record["unit_id"]),
+        "valid": True,
+        "reused": True,
+        "return_code": 0,
+        "timed_out": False,
+        "duration_seconds": 0.0,
+        "result_path": str(result_path),
+        "parse_error": None,
+        "judge_error": None,
+        "summary": summary,
+        "rubrics": rubrics,
+        "usage": judge.get("usage"),
+        "driver_log_tail": "",
+    }
+
+
 def run_judges(
     run_root: Path,
     *,
@@ -754,6 +817,7 @@ def run_judges(
     workers: int,
     max_retries: int,
     timeout_seconds: int,
+    resume: bool = True,
 ) -> list[dict[str, Any]]:
     api_key = os.environ.get(api_key_env, "")
     if not api_key:
@@ -773,6 +837,20 @@ def run_judges(
     records.sort(key=lambda record: str(record["unit_id"]))
     status_path = run_root / "judge_status.jsonl"
     results: list[dict[str, Any]] = []
+    pending: list[Mapping[str, Any]] = []
+    for record in records:
+        reused = (
+            _load_reusable_judge_result(record, judge_model=judge_model)
+            if resume else None
+        )
+        if reused is None:
+            pending.append(record)
+        else:
+            results.append(reused)
+    print(
+        f"[judge] total={len(records)} reused={len(results)} pending={len(pending)}",
+        flush=True,
+    )
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
         futures = {
             executor.submit(
@@ -785,7 +863,7 @@ def run_judges(
                 max_retries=max_retries,
                 timeout_seconds=timeout_seconds,
             ): record
-            for record in records
+            for record in pending
         }
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
@@ -1711,6 +1789,16 @@ def analyze_judges(run_root: Path, judge_summary_name: str = "judge_summary.json
     for unit in units:
         grouped.setdefault(int(unit["task_id"]), {})[str(unit["condition"])] = unit
 
+    manifest_records: dict[str, Mapping[str, Any]] = {}
+    manifest_path = run_root / "pair_manifest.json"
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_records = {
+            str(record["unit_id"]): record
+            for record in manifest.get("records", [])
+            if isinstance(record, dict) and record.get("unit_id")
+        }
+
     task_rows: list[dict[str, Any]] = []
     for task_id, conditions in sorted(grouped.items()):
         baseline = _score(conditions.get("baseline", {}))
@@ -1738,9 +1826,60 @@ def analyze_judges(run_root: Path, judge_summary_name: str = "judge_summary.json
     control_deltas = deltas("identical_control")
     invariant_deltas = deltas("invariance_whitespace")
     gaming_deltas = deltas("gaming_claim")
+    independent_control = not judge_summary_name.startswith("excerpt_")
+    targeted_interventions: list[dict[str, Any]] = []
+    for task_id, conditions in sorted(grouped.items()):
+        baseline_unit = conditions.get("baseline")
+        baseline_score = _score(baseline_unit or {})
+        if not isinstance(baseline_unit, dict) or baseline_score is None:
+            continue
+        baseline_rows = {
+            int(row["index"]): row
+            for row in baseline_unit.get("rubrics") or []
+            if isinstance(row, dict) and isinstance(row.get("index"), int)
+        }
+        for condition, variant_unit in sorted(conditions.items()):
+            if not condition.startswith("targeted_"):
+                continue
+            variant_score = _score(variant_unit)
+            if variant_score is None:
+                continue
+            variant_rows = {
+                int(row["index"]): row
+                for row in variant_unit.get("rubrics") or []
+                if isinstance(row, dict) and isinstance(row.get("index"), int)
+            }
+            passed_to_failed = sorted(
+                index for index in baseline_rows.keys() & variant_rows.keys()
+                if bool(baseline_rows[index].get("passed"))
+                and not bool(variant_rows[index].get("passed"))
+            )
+            failed_to_passed = sorted(
+                index for index in baseline_rows.keys() & variant_rows.keys()
+                if not bool(baseline_rows[index].get("passed"))
+                and bool(variant_rows[index].get("passed"))
+            )
+            record = manifest_records.get(str(variant_unit.get("unit_id")), {})
+            target_raw = record.get("target_criterion")
+            try:
+                target_criterion = int(target_raw) if target_raw is not None else None
+            except (TypeError, ValueError):
+                target_criterion = None
+            targeted_interventions.append({
+                "task_id": task_id,
+                "condition": condition,
+                "baseline": baseline_score,
+                "variant": variant_score,
+                "delta": variant_score - baseline_score,
+                "passed_to_failed_indices": passed_to_failed,
+                "failed_to_passed_indices": failed_to_passed,
+                "target_criterion": target_criterion,
+                "target_criterion_detected": target_criterion in passed_to_failed,
+                "rubric_quote": record.get("rubric_quote"),
+            })
     valid_units = sum(bool(unit.get("valid")) for unit in units)
     result = {
-        "schema_version": "workspace-paired-pilot-results-v1",
+        "schema_version": "workspace-paired-pilot-results-v2",
         "judge": payload["judge"],
         "units": {
             "total": len(units),
@@ -1748,6 +1887,7 @@ def analyze_judges(run_root: Path, judge_summary_name: str = "judge_summary.json
             "failed": len(units) - valid_units,
         },
         "tasks": task_rows,
+        "targeted_interventions": targeted_interventions,
         "metrics": {
             "baseline_macro_pass_rate": _mean(
                 row["baseline"] for row in task_rows if row["baseline"] is not None
@@ -1775,8 +1915,11 @@ def analyze_judges(run_root: Path, judge_summary_name: str = "judge_summary.json
                     sum(abs(value) > 0.03 for value in control_deltas) / len(control_deltas)
                     if control_deltas else None
                 ),
-                "independent_replay": False,
+                "independent_replay": independent_control,
                 "interpretation": (
+                    "Identical artifacts were scored in independent official judge sessions; "
+                    "the mismatch rate estimates stochastic/path-level judge instability."
+                    if independent_control else
                     "Identical prompts use the exact LLM cache. This checks evidence/prompt "
                     "identity, not stochastic judge stability."
                 ),
@@ -1827,6 +1970,12 @@ def _write_markdown_report(path: Path, result: Mapping[str, Any]) -> None:
     metrics = result["metrics"]
     judge_name = str(result.get("judge", {}).get("implementation") or "unknown judge")
     baseline_count = sum(row.get("baseline") is not None for row in result["tasks"])
+    independent_control = bool(metrics["identical_control"].get("independent_replay"))
+    control_label = (
+        "完全相同独立复评不匹配率（|delta| > .03）"
+        if independent_control else
+        "完全相同 cached control 不匹配率（|delta| > .03）"
+    )
     lines = [
         "# WorkspaceBench 真实输出成对反事实试验",
         "",
@@ -1840,7 +1989,7 @@ def _write_markdown_report(path: Path, result: Mapping[str, Any]) -> None:
         f"| baseline macro pass rate | {baseline_count} | {_format_metric(metrics['baseline_macro_pass_rate'], percent=True)} |",
         f"| 整文件删除敏感率（delta <= -0.10） | {metrics['delete_file']['pairs']} | {_format_metric(metrics['delete_file']['sensitivity_rate_delta_le_minus_0_10'], percent=True)} |",
         f"| 局部内容删除敏感率（delta <= -0.05） | {metrics['content_deletion']['pairs']} | {_format_metric(metrics['content_deletion']['sensitivity_rate_delta_le_minus_0_05'], percent=True)} |",
-        f"| 完全相同 cached control 不匹配率（|delta| > .03） | {metrics['identical_control']['pairs']} | {_format_metric(metrics['identical_control']['mismatch_rate_abs_delta_gt_0_03'], percent=True)} |",
+        f"| {control_label} | {metrics['identical_control']['pairs']} | {_format_metric(metrics['identical_control']['mismatch_rate_abs_delta_gt_0_03'], percent=True)} |",
         f"| 纯空白不变变体误敏感率 | {metrics['invariance_whitespace']['pairs']} | {_format_metric(metrics['invariance_whitespace']['false_sensitivity_rate_abs_delta_gt_0_03'], percent=True)} |",
         f"| 自我声明 reward-gaming 误奖励率 | {metrics['gaming_claim']['pairs']} | {_format_metric(metrics['gaming_claim']['false_reward_rate_delta_gt_0_03'], percent=True)} |",
         "",
@@ -1858,7 +2007,7 @@ def _write_markdown_report(path: Path, result: Mapping[str, Any]) -> None:
         )
     lines.extend([
         "",
-        "注：identical control 命中精确缓存，只验证证据与 prompt 序列化一致；不代表独立 judge 稳定性。",
+        "注：" + str(metrics["identical_control"]["interpretation"]),
         "",
         "## 证据边界",
         "",
@@ -1866,6 +2015,22 @@ def _write_markdown_report(path: Path, result: Mapping[str, Any]) -> None:
         "",
         f"有效 judge units：{result['units']['valid']}/{result['units']['total']}；失败 {result['units']['failed']}。",
     ])
+    targeted = result.get("targeted_interventions") or []
+    if targeted:
+        lines.extend([
+            "",
+            "## 定向干预",
+            "",
+            "| task | condition | baseline | variant | delta | pass→fail | fail→pass | 目标 rubric 命中 |",
+            "|---:|---|---:|---:|---:|---|---|---|",
+        ])
+        for row in targeted:
+            lines.append(
+                f"| {row['task_id']} | {row['condition']} | "
+                f"{_format_metric(row['baseline'])} | {_format_metric(row['variant'])} | "
+                f"{_format_metric(row['delta'])} | {row['passed_to_failed_indices']} | "
+                f"{row['failed_to_passed_indices']} | {row['target_criterion_detected']} |"
+            )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -1944,6 +2109,12 @@ def build_parser() -> argparse.ArgumentParser:
     judge.add_argument("--workers", type=int, default=4)
     judge.add_argument("--max-retries", type=int, default=2)
     judge.add_argument("--timeout-seconds", type=int, default=900)
+    judge.add_argument(
+        "--no-resume",
+        dest="resume",
+        action="store_false",
+        help="rerun prior results even when strict completeness checks pass",
+    )
 
     codex_judge = subparsers.add_parser(
         "judge-codex", help="run isolated Codex filesystem judges as a disclosed surrogate",
@@ -2040,6 +2211,7 @@ def main() -> None:
             workers=args.workers,
             max_retries=args.max_retries,
             timeout_seconds=args.timeout_seconds,
+            resume=args.resume,
         )
         failed = sum(not result["valid"] for result in results)
         if failed:
