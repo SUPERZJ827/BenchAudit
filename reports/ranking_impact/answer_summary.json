@@ -1,0 +1,26 @@
+[
+  {
+    "slug": "microsoft__phi-4",
+    "spec": "openrouter:microsoft/phi-4",
+    "answered": 1000,
+    "acc": 0.705,
+    "fails": 0,
+    "secs": 0.7
+  },
+  {
+    "slug": "cohere__command-r-08-2024",
+    "spec": "openrouter:cohere/command-r-08-2024",
+    "answered": 1000,
+    "acc": 0.638,
+    "fails": 2,
+    "secs": 0.7
+  },
+  {
+    "slug": "amazon__nova-pro-v1",
+    "spec": "openrouter:amazon/nova-pro-v1",
+    "answered": 1000,
+    "acc": 0.709,
+    "fails": 0,
+    "secs": 1.0
+  }
+]

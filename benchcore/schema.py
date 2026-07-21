@@ -24,7 +24,7 @@ class BenchmarkItem:
     raw: dict[str, Any]
     task: str | None = None
     context: dict[str, Any] = field(default_factory=dict)
-    choices: list[Any] | None = None
+    choices: list[Any] | dict[Any, Any] | None = None
     gold: Any = None
     aliases: list[Any] = field(default_factory=list)
     output_contract: Any = None

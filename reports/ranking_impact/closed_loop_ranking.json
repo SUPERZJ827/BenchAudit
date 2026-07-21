@@ -1,0 +1,76 @@
+{
+  "auditor_flagged": 318,
+  "mmlu_objective": 181,
+  "tp": 138,
+  "precision": 0.4339622641509434,
+  "recall": 0.7624309392265194,
+  "f1": 0.5531062124248497,
+  "tau_audit": 0.9809523809523809,
+  "tau_mmlu": 0.9809523809523809,
+  "subj_top1_changed_audit": [
+    {
+      "subject": "security_studies",
+      "n": 15,
+      "removed": 6,
+      "top1_full": "qwen__qwen-2.5-7b-instruct",
+      "top1_clean": "deepseek"
+    },
+    {
+      "subject": "college_chemistry",
+      "n": 38,
+      "removed": 23,
+      "top1_full": "amazon__nova-pro-v1",
+      "top1_clean": "google__gemini-2.5-flash"
+    },
+    {
+      "subject": "virology",
+      "n": 63,
+      "removed": 52,
+      "top1_full": "cohere__command-r-08-2024",
+      "top1_clean": "deepseek"
+    },
+    {
+      "subject": "high_school_european_history",
+      "n": 26,
+      "removed": 10,
+      "top1_full": "openai__gpt-4o",
+      "top1_clean": "deepseek"
+    },
+    {
+      "subject": "astronomy",
+      "n": 19,
+      "removed": 4,
+      "top1_full": "deepseek",
+      "top1_clean": "openai__gpt-4o"
+    },
+    {
+      "subject": "high_school_psychology",
+      "n": 17,
+      "removed": 5,
+      "top1_full": "openai__gpt-4o",
+      "top1_clean": "deepseek"
+    },
+    {
+      "subject": "business_ethics",
+      "n": 24,
+      "removed": 14,
+      "top1_full": "meta-llama__llama-3.3-70b-instruct",
+      "top1_clean": "openai__gpt-4o"
+    },
+    {
+      "subject": "philosophy",
+      "n": 17,
+      "removed": 3,
+      "top1_full": "deepseek",
+      "top1_clean": "google__gemini-2.5-flash"
+    },
+    {
+      "subject": "high_school_chemistry",
+      "n": 16,
+      "removed": 4,
+      "top1_full": "google__gemini-2.5-flash",
+      "top1_clean": "deepseek"
+    }
+  ],
+  "subj_considered": 28
+}

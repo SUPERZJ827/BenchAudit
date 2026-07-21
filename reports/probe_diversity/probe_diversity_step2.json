@@ -1,0 +1,43 @@
+{
+  "per_model": {
+    "deepseek": {
+      "11": [
+        "underconstrained_evaluator_risk"
+      ],
+      "308": [
+        "underconstrained_evaluator_risk"
+      ]
+    },
+    "openai__gpt-4o-mini": {
+      "11": [
+        "underconstrained_evaluator_risk"
+      ],
+      "294": [
+        "underconstrained_evaluator_risk"
+      ]
+    },
+    "qwen__qwen-2.5-72b-instruct": {
+      "294": [
+        "underconstrained_evaluator_risk"
+      ],
+      "308": [
+        "underconstrained_evaluator_risk"
+      ]
+    },
+    "meta-llama__llama-3.3-70b-instruct": {}
+  },
+  "union": {
+    "11": [
+      "underconstrained_evaluator_risk"
+    ],
+    "308": [
+      "underconstrained_evaluator_risk"
+    ],
+    "294": [
+      "underconstrained_evaluator_risk"
+    ]
+  },
+  "new_vs_deepseek": {
+    "294": "priority"
+  }
+}

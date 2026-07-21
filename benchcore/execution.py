@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import codecs
 import os
+import re
 import selectors
 import shutil
 import signal
@@ -17,6 +18,18 @@ class ExecutionRefused(RuntimeError):
     """Raised when a requested command exceeds the configured trust boundary."""
 
 
+def _default_container_user() -> str:
+    """Use the host owner for readable bind mounts, never host root."""
+
+    getuid = getattr(os, "getuid", None)
+    getgid = getattr(os, "getgid", None)
+    if callable(getuid) and callable(getgid):
+        uid, gid = int(getuid()), int(getgid())
+        if uid > 0:
+            return f"{uid}:{gid}"
+    return "65532:65532"
+
+
 @dataclass(frozen=True)
 class ExecutionPolicy:
     timeout_seconds: float = 30.0
@@ -27,6 +40,7 @@ class ExecutionPolicy:
     network_enabled: bool = False
     allow_local_process: bool = False
     allowed_environment: frozenset[str] = frozenset({"LANG", "LC_ALL", "TZ"})
+    container_user: str = field(default_factory=_default_container_user)
 
     def __post_init__(self) -> None:
         if self.timeout_seconds <= 0:
@@ -35,6 +49,13 @@ class ExecutionPolicy:
             raise ValueError("max_output_chars must be positive")
         if self.memory_mb <= 0 or self.cpu_count <= 0 or self.pids_limit <= 0:
             raise ValueError("resource limits must be positive")
+        if not re.fullmatch(
+            r"[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)?", self.container_user,
+        ):
+            raise ValueError("container_user must be a user or user:group without options")
+        identity = self.container_user.casefold().split(":", 1)
+        if any(component in {"0", "root"} for component in identity):
+            raise ValueError("container_user must not select a root user or group")
 
 
 @dataclass(frozen=True)
@@ -170,11 +191,17 @@ class ContainerRunner:
         argv = [
             self.engine, "run", "--rm", "--init", "--read-only",
             "--cap-drop=ALL", "--security-opt=no-new-privileges",
+            f"--user={policy.container_user}",
+            # Forward the host-provided stdin into the container; the audit driver
+            # reads its payload from stdin, so without -i it sees an empty stream.
+            *(["-i"] if command.stdin is not None else []),
             f"--memory={policy.memory_mb}m", f"--cpus={policy.cpu_count}",
             f"--pids-limit={policy.pids_limit}",
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+            "--tmpfs", "/tmp:rw,noexec,nosuid,mode=1777,size=64m",
             "--mount", f"type=bind,src={workspace},dst=/workspace,readonly",
             "--workdir", "/workspace",
+            "--env", "HOME=/tmp",
+            "--env", "PYTHONDONTWRITEBYTECODE=1",
         ]
         if not policy.network_enabled:
             argv.extend(["--network", "none"])

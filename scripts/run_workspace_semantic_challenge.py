@@ -368,7 +368,9 @@ def main() -> int:
 
     with exclusive_run_lock(out_dir / "semantic_challenge.run.lock"):
         if args.phase in {"clean", "both"}:
-            clean_client = _phase_client(config, out_dir, "clean")
+            clean_client = _phase_client(
+                config, out_dir, "clean", cache_only=cache_reuse is not None,
+            )
             clean_result = audit_semantic_phase(
                 challenge,
                 "clean",
@@ -408,7 +410,9 @@ def main() -> int:
                 )
             # A new client and a distinct cache are a protocol requirement.  No
             # clean challenge row is passed into this phase.
-            mutant_client = _phase_client(config, out_dir, "mutant")
+            mutant_client = _phase_client(
+                config, out_dir, "mutant", cache_only=cache_reuse is not None,
+            )
             mutant_result = audit_semantic_phase(
                 challenge,
                 "mutant",
@@ -1173,10 +1177,13 @@ def preflight_challenge_views(
     }
 
 
-def _phase_client(config: Any, out_dir: Path, phase: str) -> LLMClient:
+def _phase_client(
+    config: Any, out_dir: Path, phase: str, *, cache_only: bool = False,
+) -> LLMClient:
     phase_config = replace(
         config,
         cache_path=str(out_dir / f"{phase}_llm_cache.jsonl"),
+        cache_only=cache_only,
     )
     if phase_config.dry_run:
         raise ValueError("dry_run model responses are forbidden in a scored challenge")

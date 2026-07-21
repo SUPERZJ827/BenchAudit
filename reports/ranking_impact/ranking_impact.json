@@ -1,0 +1,169 @@
+{
+  "n_models": 15,
+  "n_items_full": 1000,
+  "n_removed_objective": 181,
+  "rows": [
+    {
+      "model": "deepseek",
+      "acc_full": 0.803,
+      "acc_obj": 0.8986568986568987,
+      "acc_strict": 0.9396825396825397
+    },
+    {
+      "model": "google__gemini-2.5-flash",
+      "acc_full": 0.77,
+      "acc_obj": 0.8547008547008547,
+      "acc_strict": 0.8952380952380953
+    },
+    {
+      "model": "openai__gpt-4o",
+      "acc_full": 0.745,
+      "acc_obj": 0.8302808302808303,
+      "acc_strict": 0.873015873015873
+    },
+    {
+      "model": "qwen__qwen-2.5-72b-instruct",
+      "acc_full": 0.734,
+      "acc_obj": 0.8168498168498168,
+      "acc_strict": 0.8571428571428571
+    },
+    {
+      "model": "openai__gpt-4.1-mini",
+      "acc_full": 0.715,
+      "acc_obj": 0.7948717948717948,
+      "acc_strict": 0.8492063492063492
+    },
+    {
+      "model": "amazon__nova-pro-v1",
+      "acc_full": 0.709,
+      "acc_obj": 0.7851037851037851,
+      "acc_strict": 0.834920634920635
+    },
+    {
+      "model": "microsoft__phi-4",
+      "acc_full": 0.705,
+      "acc_obj": 0.7777777777777778,
+      "acc_strict": 0.8396825396825397
+    },
+    {
+      "model": "meta-llama__llama-3.1-70b-instruct",
+      "acc_full": 0.697,
+      "acc_obj": 0.7728937728937729,
+      "acc_strict": 0.8253968253968254
+    },
+    {
+      "model": "mistralai__mistral-small-24b-instruct-2501",
+      "acc_full": 0.692,
+      "acc_obj": 0.7716727716727717,
+      "acc_strict": 0.8126984126984127
+    },
+    {
+      "model": "meta-llama__llama-3.3-70b-instruct",
+      "acc_full": 0.689,
+      "acc_obj": 0.7680097680097681,
+      "acc_strict": 0.8174603174603174
+    },
+    {
+      "model": "openai__gpt-4o-mini",
+      "acc_full": 0.679,
+      "acc_obj": 0.746031746031746,
+      "acc_strict": 0.7904761904761904
+    },
+    {
+      "model": "cohere__command-r-08-2024",
+      "acc_full": 0.638,
+      "acc_obj": 0.6923076923076923,
+      "acc_strict": 0.7285714285714285
+    },
+    {
+      "model": "qwen__qwen-2.5-7b-instruct",
+      "acc_full": 0.634,
+      "acc_obj": 0.6971916971916972,
+      "acc_strict": 0.7444444444444445
+    },
+    {
+      "model": "meta-llama__llama-3.1-8b-instruct",
+      "acc_full": 0.593,
+      "acc_obj": 0.6495726495726496,
+      "acc_strict": 0.692063492063492
+    },
+    {
+      "model": "mistralai__mistral-nemo",
+      "acc_full": 0.582,
+      "acc_obj": 0.6361416361416361,
+      "acc_strict": 0.680952380952381
+    }
+  ],
+  "rank_full": {
+    "deepseek": 1,
+    "google__gemini-2.5-flash": 2,
+    "openai__gpt-4o": 3,
+    "qwen__qwen-2.5-72b-instruct": 4,
+    "openai__gpt-4.1-mini": 5,
+    "amazon__nova-pro-v1": 6,
+    "microsoft__phi-4": 7,
+    "meta-llama__llama-3.1-70b-instruct": 8,
+    "mistralai__mistral-small-24b-instruct-2501": 9,
+    "meta-llama__llama-3.3-70b-instruct": 10,
+    "openai__gpt-4o-mini": 11,
+    "cohere__command-r-08-2024": 12,
+    "qwen__qwen-2.5-7b-instruct": 13,
+    "meta-llama__llama-3.1-8b-instruct": 14,
+    "mistralai__mistral-nemo": 15
+  },
+  "rank_objective": {
+    "deepseek": 1,
+    "google__gemini-2.5-flash": 2,
+    "openai__gpt-4o": 3,
+    "qwen__qwen-2.5-72b-instruct": 4,
+    "openai__gpt-4.1-mini": 5,
+    "amazon__nova-pro-v1": 6,
+    "microsoft__phi-4": 7,
+    "meta-llama__llama-3.1-70b-instruct": 8,
+    "mistralai__mistral-small-24b-instruct-2501": 9,
+    "meta-llama__llama-3.3-70b-instruct": 10,
+    "openai__gpt-4o-mini": 11,
+    "qwen__qwen-2.5-7b-instruct": 12,
+    "cohere__command-r-08-2024": 13,
+    "meta-llama__llama-3.1-8b-instruct": 14,
+    "mistralai__mistral-nemo": 15
+  },
+  "kendall_tau_objective": 0.9809523809523809,
+  "kendall_tau_strict": 0.9428571428571428,
+  "max_rank_shift": 1,
+  "top1_changed": false,
+  "order_full": [
+    "deepseek",
+    "google__gemini-2.5-flash",
+    "openai__gpt-4o",
+    "qwen__qwen-2.5-72b-instruct",
+    "openai__gpt-4.1-mini",
+    "amazon__nova-pro-v1",
+    "microsoft__phi-4",
+    "meta-llama__llama-3.1-70b-instruct",
+    "mistralai__mistral-small-24b-instruct-2501",
+    "meta-llama__llama-3.3-70b-instruct",
+    "openai__gpt-4o-mini",
+    "cohere__command-r-08-2024",
+    "qwen__qwen-2.5-7b-instruct",
+    "meta-llama__llama-3.1-8b-instruct",
+    "mistralai__mistral-nemo"
+  ],
+  "order_objective": [
+    "deepseek",
+    "google__gemini-2.5-flash",
+    "openai__gpt-4o",
+    "qwen__qwen-2.5-72b-instruct",
+    "openai__gpt-4.1-mini",
+    "amazon__nova-pro-v1",
+    "microsoft__phi-4",
+    "meta-llama__llama-3.1-70b-instruct",
+    "mistralai__mistral-small-24b-instruct-2501",
+    "meta-llama__llama-3.3-70b-instruct",
+    "openai__gpt-4o-mini",
+    "qwen__qwen-2.5-7b-instruct",
+    "cohere__command-r-08-2024",
+    "meta-llama__llama-3.1-8b-instruct",
+    "mistralai__mistral-nemo"
+  ]
+}
