@@ -20,6 +20,18 @@ def test_code_route_requires_external_attestation_to_confirm():
     ))
     assert route.route == "executable_harness_with_external_transcript_attestation"
     assert route.status == "requires_external_attestation"
+    assert "answer_contract_metamorphic_and_mutation_replay" in route.secondary_routes
+
+
+def test_scalar_gold_gets_answer_counterexample_route():
+    route = route_verifier(BenchmarkItem(
+        item_id="answer", raw={}, task="What is 2 + 2?", gold="4",
+        evaluator={"type": "numeric"},
+    ))
+
+    assert route.route == "answer_contract_counterexample_replay"
+    assert route.status == "available"
+    assert "declared answer contract" in route.required_evidence
 
 
 def test_unknown_schema_fails_to_review_only_instead_of_inventing_verifier(tmp_path):
