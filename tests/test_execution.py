@@ -1,6 +1,9 @@
+import os
 import sys
 import unittest
 from pathlib import Path
+
+import pytest
 
 from benchcore.execution import (
     CommandSpec,
@@ -117,8 +120,29 @@ def test_container_command_has_security_controls(tmp_path: Path):
     assert "--read-only" in argv
     assert "--cap-drop=ALL" in argv
     assert "--security-opt=no-new-privileges" in argv
+    expected_user = f"{os.getuid()}:{os.getgid()}" if os.getuid() > 0 else "65532:65532"
+    assert f"--user={expected_user}" in argv
+    assert "HOME=/tmp" in argv
+    assert "PYTHONDONTWRITEBYTECODE=1" in argv
+    assert "mode=1777" in joined
     assert "readonly" in joined
     assert "--pids-limit=128" in argv
+
+
+def test_container_policy_rejects_root_user():
+    for identity in ("0:0", "0:1000", "root:nogroup", "1000:0"):
+        with pytest.raises(ValueError, match="must not select"):
+            ExecutionPolicy(container_user=identity)
+
+
+def test_container_policy_accepts_explicit_non_root_user(tmp_path: Path):
+    runner = ContainerRunner("python:3.12-slim", engine="/usr/bin/docker")
+    argv = runner.build_argv(
+        CommandSpec(("python", "-c", "print(1)"), cwd=tmp_path),
+        ExecutionPolicy(container_user="nobody:nogroup"),
+    )
+
+    assert "--user=nobody:nogroup" in argv
 
 
 def test_container_forwards_stdin_only_when_present(tmp_path: Path):

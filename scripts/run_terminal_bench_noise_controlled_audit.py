@@ -433,7 +433,8 @@ def analyze(run_root: Path) -> dict[str, Any]:
     positives = {row["task_id"] for row in protocol["tasks"] if row["positive_proxy"]}
     deterministic = {row["task_id"] for row in protocol["tasks"] if row["deterministic_candidate"]}
     task_results = []
-    paired: set[str] = set()
+    defect_supported: set[str] = set()
+    repair_localized: set[str] = set()
     identical_mismatch_numerator = 0.0
     identical_mismatch_denominator = 0
     invalid_trials = 0
@@ -447,22 +448,39 @@ def analyze(run_root: Path) -> dict[str, Any]:
             "invalid_trials": 0,
             "orders": {"AB": 0, "BA": 0},
             "claims": [],
+            "task_defect_supported": False,
+            "task_repair_localized": False,
             "task_stable_old_only": False,
             "verdict_mismatch_rate": 0.0,
         }
-        if aggregated["task_stable_old_only"]:
-            paired.add(task["task_id"])
+        if aggregated["task_defect_supported"]:
+            defect_supported.add(task["task_id"])
+        if aggregated["task_repair_localized"]:
+            repair_localized.add(task["task_id"])
         invalid_trials += int(aggregated["invalid_trials"])
         if task["identical_control"] and candidate_ids:
             observations = sum(row["valid_trials"] for row in aggregated["claims"])
             identical_mismatch_numerator += aggregated["verdict_mismatch_rate"] * observations
             identical_mismatch_denominator += observations
         task_results.append({**task, "adjudication": aggregated})
+    # Official release changes can proxy whether a finding localizes to the old
+    # version, but they are not valid negative labels for defects shared by both
+    # releases.  Therefore change-proxy precision/recall uses repair_localized;
+    # broader defect support is reported separately and never mislabeled FP.
+    paired = repair_localized
     union = deterministic | paired
     methods = {
         "deterministic": classification_metrics(deterministic, positives, selected),
         "paired_only": classification_metrics(paired, positives, selected),
         "union": classification_metrics(union, positives, selected),
+        "defect_support_descriptive": {
+            "tasks": len(defect_supported),
+            "task_ids": sorted(defect_supported),
+            "label_boundary": (
+                "Descriptive only: unchanged official tasks are not ground-truth "
+                "negatives for defects shared by both releases."
+            ),
+        },
     }
     strata = {name: set(values) for name, values in protocol["strata"].items()}
     results_by_task = {row["task_id"]: row for row in task_results}
@@ -517,6 +535,8 @@ def analyze(run_root: Path) -> dict[str, Any]:
             "available_fp_proxy": fp_total,
             "definitively_filtered_fp_proxy": len(complete_rejected_fp),
             "pending_fp_proxy": len(pending_fp),
+            "defect_supported_tasks": len(defect_supported),
+            "repair_localized_tasks": len(repair_localized),
         },
         "noise_control": {
             "identical_claim_observations": identical_mismatch_denominator,

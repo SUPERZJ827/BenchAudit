@@ -3,6 +3,7 @@ from pathlib import Path
 
 from benchcore.schema import BenchmarkItem
 from benchcore.methods import ContractConsistencyChecker
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.workspace_invariants import (
     WorkspaceArtifactInvariantChecker,
     collect_workspace_invariant_issues,
@@ -13,6 +14,7 @@ from benchcore.workspace_invariants import (
 def make_item(input_path: Path, **overrides) -> BenchmarkItem:
     rubric = "Was report.md created?"
     raw = {
+        "task": "Read source.txt and create report.md.",
         "rubrics": [rubric],
         "rubric_types": ["Basic Evaluation"],
         "output_files": ["report.md"],
@@ -26,6 +28,18 @@ def make_item(input_path: Path, **overrides) -> BenchmarkItem:
         "workspace_inventory": ["source.txt", "report.md"],
     }
     raw.update(overrides.pop("raw", {}))
+    metadata = dict(overrides.pop("metadata", {}) or {})
+    metadata["_mapping_provenance"] = explicit_mapping_provenance(
+        adapter_id="test_workspacebench_fixture",
+        adapter_version="1",
+        raw=raw,
+        field_bindings={
+            "task": "task",
+            "context": ["data_manifest", "file_dep_graph"],
+            "output_contract": "output_files",
+            "evaluator": "rubrics",
+        },
+    )
     return BenchmarkItem(
         item_id="workspacebench-1",
         raw=raw,
@@ -42,6 +56,7 @@ def make_item(input_path: Path, **overrides) -> BenchmarkItem:
             "rubrics": [rubric],
             "rubric_types": ["Basic Evaluation"],
         },
+        metadata=metadata,
         **overrides,
     )
 

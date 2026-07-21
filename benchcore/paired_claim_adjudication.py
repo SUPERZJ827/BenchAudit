@@ -248,6 +248,7 @@ def aggregate_trials(
     confidence_threshold: float = 0.70,
     min_trials: int = 6,
     min_directional_rate: float = 0.80,
+    min_order_rate: float = 2 / 3,
 ) -> dict[str, Any]:
     valid = [trial for trial in trials if trial.get("valid")]
     orders = {str(trial.get("order")) for trial in valid}
@@ -282,27 +283,38 @@ def aggregate_trials(
                 "mismatch": mismatch,
             })
         count = len(observations)
+        old_supported_count = sum(row["old_supported"] for row in observations)
         directional_count = sum(row["directional"] for row in observations)
         required = math.ceil(min_directional_rate * count) if count else min_trials
         by_order = {
             order: [row for row in observations if row["order"] == order]
             for order in ("AB", "BA")
         }
-        order_stable = all(
-            len(rows) >= 2 and sum(row["directional"] for row in rows) >= 2
-            for rows in by_order.values()
-        )
-        stable = (
-            count >= min_trials
-            and {"AB", "BA"} <= orders
-            and directional_count >= required
-            and order_stable
-        )
+
+        def stable_signal(key: str, successes: int) -> bool:
+            return bool(
+                count >= min_trials
+                and {"AB", "BA"} <= orders
+                and successes >= required
+                and all(
+                    len(rows) >= 2
+                    and sum(bool(row[key]) for row in rows)
+                    >= math.ceil(min_order_rate * len(rows))
+                    for rows in by_order.values()
+                )
+            )
+
+        defect_supported = stable_signal("old_supported", old_supported_count)
+        repair_localized = stable_signal("directional", directional_count)
+        # Backward-compatible name: historically this field mixed defect
+        # existence with localization to the old version.  It now aliases only
+        # the latter, while callers can inspect ``defect_supported`` directly.
+        stable_old_only = repair_localized
         trial_mismatches += sum(row["mismatch"] for row in observations)
         decisions.append({
             "candidate_id": candidate_id,
             "valid_trials": count,
-            "old_supported": sum(row["old_supported"] for row in observations),
+            "old_supported": old_supported_count,
             "new_supported": sum(row["new_supported"] for row in observations),
             "directional": directional_count,
             "reverse": sum(row["reverse"] for row in observations),
@@ -314,7 +326,13 @@ def aggregate_trials(
                 order: sum(row["directional"] for row in rows)
                 for order, rows in by_order.items()
             },
-            "stable_old_only": stable,
+            "order_old_supported": {
+                order: sum(row["old_supported"] for row in rows)
+                for order, rows in by_order.items()
+            },
+            "defect_supported": defect_supported,
+            "repair_localized": repair_localized,
+            "stable_old_only": stable_old_only,
         })
     denominator = sum(row["valid_trials"] for row in decisions)
     return {
@@ -322,7 +340,17 @@ def aggregate_trials(
         "invalid_trials": len(trials) - len(valid),
         "orders": {order: sum(trial.get("order") == order for trial in valid) for order in ("AB", "BA")},
         "claims": decisions,
+        "task_defect_supported": any(row["defect_supported"] for row in decisions),
+        "task_repair_localized": any(row["repair_localized"] for row in decisions),
         "task_stable_old_only": any(row["stable_old_only"] for row in decisions),
+        "stability_thresholds": {
+            "minimum_valid_trials": min_trials,
+            "minimum_global_rate": min_directional_rate,
+            # Global evidence must reach 80%; each presentation order uses the
+            # pre-existing 2/3 robustness gate.  Reusing 0.80 per order would
+            # silently turn a 3-trial group from >=2 into a 3/3 unanimity test.
+            "minimum_per_order_rate": min_order_rate,
+        },
         "verdict_mismatch_rate": trial_mismatches / denominator if denominator else 0.0,
     }
 

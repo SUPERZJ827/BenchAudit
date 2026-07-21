@@ -396,6 +396,29 @@ python scripts/export_workspacebench_jsonl.py \
 
 `--download-inputs` 会下载每个任务的真实 `data/` 目录，并把完整文件清单、`size_bytes` 和可读文件内容交给 grounded-rubric checker；没有这个证据，data-gap 类候选容易被截断 context 误导。
 
+### Choice label 编码的证据边界
+
+选择题 gold 的“无法由当前解析器识别”不等于 benchmark 错误。系统先做 Unicode
+NFKC 和无歧义表示归一化，再在数据集层检查 gold 词表基数、choice 数、最低样本量
+与归一化熵。一个稳定但未知的标签集合（例如希腊字母或中文数字）只产生一条
+`choice_encoding_contract_mismatch` review；它不会扩张成每行一条 confirmed。
+稳定命名空间中的单个离群值仍可确认。
+
+仅声明 `multiple_choice` 类型、但没有声明标签字母表时，数据集级确认要求待证行之外
+至少有 20 条同命名空间 peer；因此总样本少于 21 条时，这条路径按设计只能给出
+review。这个门槛防止小样本偶然一致被误当成答案契约。运行 `--limit`、`--offset`
+或审计人工筛选子集时，报告中的 confirmed 数不能与全量审计直接比较。
+
+结构证据只能证明“存在一个稳定、基数相容的编码”，不能证明标签到选项的语义排列。
+因此，全数据集标签发生一致的系统性移位时，BenchAudit 必须保持 review/coverage
+边界；确认这种错误需要题目语义、可执行 evaluator 或独立 gold 来源，不能靠频数结构猜测。
+
+另一个窄边界是按答案标签筛选过的子集：在 40 条以上的未知编码样本中，如果某个
+选项位置从未出现，结构上既可能是 oracle 命名空间损坏，也可能只是筛选条件造成的
+缺位。没有可重放的采样 provenance 时两者不可区分。当前结果必须按“完整数据集或
+预注册的代表性样本”解释；对答案条件化子集产生的 item-level `invalid_choice_gold`
+不得直接外推为原 benchmark 缺陷。
+
 ## 5. 后续扩展点
 
 优先扩展：

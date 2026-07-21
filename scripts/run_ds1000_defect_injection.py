@@ -29,6 +29,7 @@ sys.path.insert(0, str(REPO))
 from benchcore.evaluator_execution import ExecutionEvaluatorAuditChecker
 from benchcore.execution import ContainerRunner
 from benchcore.llm_client import LLMClient, load_llm_config
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.schema import BenchmarkItem
 
 DS1000 = Path.home() / (".cache/huggingface/hub/datasets--xlangai--DS-1000/"
@@ -119,11 +120,22 @@ def main() -> None:
                 continue
             results[kind]["applicable"] += 1
             checker = ExecutionEvaluatorAuditChecker(client, runner=runner)
+            audited_row = {**r, "audited_code_context": bad}
             item = BenchmarkItem(
-                item_id=f"ds1000_{pid}_{kind}", raw={}, task=r["prompt"],
+                item_id=f"ds1000_{pid}_{kind}", raw=audited_row, task=r["prompt"],
                 gold=r["reference_code"],
                 evaluator={"code_context": bad,
-                           "n_cases": int(r["metadata"].get("test_case_cnt") or 1)})
+                           "n_cases": int(r["metadata"].get("test_case_cnt") or 1)},
+                metadata={"_mapping_provenance": explicit_mapping_provenance(
+                    adapter_id="ds1000_defect_injection",
+                    adapter_version="ds1000-injection-review-v2",
+                    raw=audited_row,
+                    field_bindings={
+                        "task": "prompt", "gold": "reference_code",
+                        "evaluator": "audited_code_context",
+                    },
+                )},
+            )
             found = {v.defect_type for v in checker.check(item)}
             if want in found:
                 results[kind]["detected"] += 1

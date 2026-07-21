@@ -89,6 +89,12 @@ CORE_CAPABILITIES: tuple[CheckerCapability, ...] = (
     CheckerCapability("differential_candidate", requires_any=frozenset({ArtifactKind.ORACLE, ArtifactKind.TASK_SPECIFICATION}), evidence_level="differential"),
     CheckerCapability("duplicate_conflict", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION})),
     CheckerCapability("schema_drift", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION})),
+    CheckerCapability(
+        "choice_encoding_contract",
+        requires_all=frozenset({ArtifactKind.ORACLE}),
+        requires_any=frozenset({ArtifactKind.EVALUATOR, ArtifactKind.OUTPUT_CONTRACT}),
+        evidence_level="dataset_contract_consistency",
+    ),
     CheckerCapability("llm_semantic_audit", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION}), evidence_level="llm", cost_class="medium", needs_llm=True),
     CheckerCapability("cross_artifact_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), evidence_level="llm", cost_class="medium", needs_llm=True),
     CheckerCapability("grounded_rubric_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), families=frozenset({"workspacebench", "rubric"}), evidence_level="llm", cost_class="medium", needs_llm=True),

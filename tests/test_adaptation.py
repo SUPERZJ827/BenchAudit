@@ -24,6 +24,7 @@ from benchcore.adaptation.synthesis import (
     WORKSPACE_PLAN_SCHEMA_VERSION,
 )
 from benchcore.cli import main
+from benchcore.promotion import _registry_receipt_matches
 
 
 def _nested_rows(count: int = 30) -> list[dict]:
@@ -426,6 +427,24 @@ def test_registry_revalidates_gate_bundle_and_rejects_tampering(tmp_path: Path) 
     )
     assert loaded.sha256 == spec.sha256
     assert receipt["activation_mode"] == "active_verified"
+    assert _registry_receipt_matches(
+        str((tmp_path / "registry").resolve()),
+        spec.family,
+        spec.schema_fingerprint,
+        spec.adapter_id,
+        spec.version,
+        spec.sha256,
+        receipt["receipt_id"],
+    )
+    assert not _registry_receipt_matches(
+        str((tmp_path / "registry").resolve()),
+        spec.family,
+        spec.schema_fingerprint,
+        "forged-adapter-id",
+        spec.version,
+        spec.sha256,
+        receipt["receipt_id"],
+    )
 
     gate = tmp_path / "registry" / activated["receipt"]["gate_bundle_path"]
     payload = json.loads(gate.read_text(encoding="utf-8"))
@@ -436,6 +455,15 @@ def test_registry_revalidates_gate_bundle_and_rejects_tampering(tmp_path: Path) 
             family="workspacebench",
             schema_fingerprint=spec.schema_fingerprint,
         )
+    assert not _registry_receipt_matches(
+        str((tmp_path / "registry").resolve()),
+        spec.family,
+        spec.schema_fingerprint,
+        spec.adapter_id,
+        spec.version,
+        spec.sha256,
+        receipt["receipt_id"],
+    )
 
 
 def test_registry_shadow_requires_explicit_resolution_opt_in(tmp_path: Path) -> None:

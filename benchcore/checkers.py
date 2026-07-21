@@ -9,12 +9,16 @@ from typing import Any, Iterable
 from .evaluators import (
     answer_contract,
     answer_variants,
-    choice_label_to_index,
+    choice_gold_is_mappable,
+    choice_values,
+    declared_choice_labels,
+    declares_choice_contract,
     evaluate_answer,
     infer_evaluator_type,
     normalize_choice_for_duplicate,
     normalize_loose,
     parse_number,
+    parse_strict_number,
 )
 from .schema import BenchmarkItem, Violation
 from .taxonomy import DEFECTS
@@ -322,8 +326,33 @@ class OracleChecker(Checker):
             )
             return
         if item.choices:
-            idx = choice_label_to_index(item.gold, item.choices)
-            if idx is None:
+            evaluator_labels = declared_choice_labels(
+                item.evaluator, len(choice_values(item.choices)),
+            )
+            output_labels = declared_choice_labels(
+                item.output_contract, len(choice_values(item.choices)),
+            )
+            if not choice_gold_is_mappable(item.gold, item.choices):
+                if evaluator_labels is not None:
+                    evidence_level = "explicit_choice_evaluator_labels_replay"
+                    contract_source = "evaluator"
+                    labels = evaluator_labels
+                elif output_labels is not None:
+                    evidence_level = "explicit_choice_output_labels_replay"
+                    contract_source = "output_contract"
+                    labels = output_labels
+                elif declares_choice_contract(item.evaluator):
+                    evidence_level = "declared_choice_evaluator_namespace_replay"
+                    contract_source = "evaluator"
+                    labels = None
+                elif declares_choice_contract(None, item.output_contract):
+                    evidence_level = "declared_choice_output_namespace_replay"
+                    contract_source = "output_contract"
+                    labels = None
+                else:
+                    evidence_level = "inferred_choice_namespace_replay"
+                    contract_source = None
+                    labels = None
                 yield _violation(
                     item,
                     "invalid_choice_gold",
@@ -332,14 +361,16 @@ class OracleChecker(Checker):
                     {
                         "gold": item.gold,
                         "choices": item.choices,
-                        "evidence_level": "choice_gold_domain_replay",
+                        "evidence_level": evidence_level,
+                        "choice_contract_source": contract_source,
+                        "declared_choice_labels": list(labels) if labels else None,
                         "proof_schema_version": "1.0",
                     },
                     repair="Correct the gold label or the choice list.",
                 )
             normalized = {}
             duplicates = []
-            for pos, choice in enumerate(item.choices):
+            for pos, choice in enumerate(choice_values(item.choices)):
                 norm = normalize_choice_for_duplicate(choice)
                 if norm in normalized:
                     duplicates.append((normalized[norm], pos, choice))
@@ -356,7 +387,7 @@ class OracleChecker(Checker):
                     repair="Deduplicate choices unless duplicates are intentional distractors that do not affect the gold answer.",
                 )
         arithmetic_value = _extract_simple_arithmetic_value(_text(item.task))
-        gold_num = parse_number(item.gold)
+        gold_num = _parse_arithmetic_proof_gold(item.gold)
         if arithmetic_value is not None and gold_num is not None and abs(arithmetic_value - gold_num) > 1e-9:
             yield _violation(
                 item,
@@ -368,6 +399,7 @@ class OracleChecker(Checker):
                     "computed_value": arithmetic_value,
                     "task": item.task,
                     "safe_expression_replayed": True,
+                    "arithmetic_proof_language": ARITHMETIC_PROOF_LANGUAGE,
                     "evidence_level": "safe_arithmetic_replay",
                     "proof_schema_version": "1.0",
                 },
@@ -567,6 +599,8 @@ _SAFE_UNARY = {ast.UAdd: operator.pos, ast.USub: operator.neg}
 
 
 def _safe_eval_arithmetic(expr: str) -> float | None:
+    if len(expr) > 256:
+        return None
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError:
@@ -578,6 +612,12 @@ def _safe_eval_arithmetic(expr: str) -> float | None:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return float(node.value)
         if isinstance(node, ast.BinOp) and type(node.op) in _SAFE_BINOPS:
+            if isinstance(node.op, ast.Pow):
+                base = visit(node.left)
+                exponent = visit(node.right)
+                if abs(base) > 1e6 or abs(exponent) > 12:
+                    raise ValueError("unsafe exponentiation")
+                return float(operator.pow(base, exponent))
             return float(_SAFE_BINOPS[type(node.op)](visit(node.left), visit(node.right)))
         if isinstance(node, ast.UnaryOp) and type(node.op) in _SAFE_UNARY:
             return float(_SAFE_UNARY[type(node.op)](visit(node.operand)))
@@ -592,20 +632,43 @@ def _safe_eval_arithmetic(expr: str) -> float | None:
     return value
 
 
+# This is a deliberately tiny formal language, not a natural-language math
+# parser.  Every accepted task is exactly one English solve command followed by
+# an arithmetic expression over decimal literals, parentheses and operators.
+# It excludes units, fractions-as-output, prose, quotations/examples, error-
+# finding prompts and line-spanning text.  The paired gold language is one
+# complete scalar literal (scientific notation allowed, locale commas denied).
+ARITHMETIC_PROOF_LANGUAGE = "en_decimal_expression_v1"
+
+# The whole task must be the arithmetic request.  Matching a prefix let
+# "What is 15 percent of 200?" evaluate to 15.0 and reach confirmed tier, so
+# the expression may only contain horizontal whitespace and never spans lines.
+_ARITHMETIC_TASK = re.compile(
+    r"(?:what[ \t]+is|calculate|compute)[ \t]+([-+*/().\d \t]+?)[ \t]*[?.]?",
+    re.I,
+)
+
+
 def _extract_simple_arithmetic_value(task: str) -> float | None:
-    patterns = [
-        r"what is\s+([-+*/().\d\s]+)\??",
-        r"calculate\s+([-+*/().\d\s]+)\??",
-        r"compute\s+([-+*/().\d\s]+)\??",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, task, re.I)
-        if not match:
-            continue
-        expr = match.group(1).strip()
-        if re.fullmatch(r"[-+*/().\d\s]+", expr):
-            return _safe_eval_arithmetic(expr)
-    return None
+    match = _ARITHMETIC_TASK.fullmatch(task.strip())
+    if match is None:
+        return None
+    return _safe_eval_arithmetic(match.group(1).strip())
+
+
+def _parse_arithmetic_proof_gold(value: Any) -> float | None:
+    """Parse only the unambiguous scalar language covered by the proof."""
+
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return parse_strict_number(value)
+    text = str(value).strip()
+    if not re.fullmatch(
+        r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?", text,
+    ):
+        return None
+    return parse_strict_number(text)
 
 
 DEFAULT_CHECKERS: list[Checker] = [

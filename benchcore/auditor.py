@@ -158,7 +158,34 @@ def audit_items_with_ledger(
             details={"phase": "post_checker_evidence_reconciliation"},
             row_uid=finding.row_uid,
         ))
+    enforced = _consolidate_choice_encoding_candidates(enforced)
     return AuditRunResult(violations=enforced, ledger=ledger)
+
+
+def _consolidate_choice_encoding_candidates(
+    violations: list[Violation],
+) -> list[Violation]:
+    """Replace N unknown-encoding item candidates with one dataset review."""
+
+    superseded_rows: set[str] = set()
+    for finding in violations:
+        if finding.defect_type != "choice_encoding_contract_mismatch":
+            continue
+        if finding.evidence.get("encoding_mode") != "unknown_cardinality_consistent":
+            continue
+        targets = finding.evidence.get("target_row_uids")
+        if isinstance(targets, list):
+            superseded_rows.update(str(value) for value in targets if value is not None)
+    if not superseded_rows:
+        return violations
+    return [
+        finding for finding in violations
+        if not (
+            finding.defect_type == "invalid_choice_gold"
+            and finding.row_uid is not None
+            and str(finding.row_uid) in superseded_rows
+        )
+    ]
 
 
 def _checker_name(checker: Any) -> str:

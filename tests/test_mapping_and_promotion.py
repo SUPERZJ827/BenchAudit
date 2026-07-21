@@ -1,8 +1,18 @@
 from benchcore.auditor import audit_items
-from benchcore.checkers import TaskSpecChecker, _violation
+from benchcore.checkers import OracleChecker, TaskSpecChecker, _violation
 from benchcore.field_mapping import infer_mapping, mapping_from_dict
-from benchcore.loader import build_items
-from benchcore.promotion import enforce_all
+from benchcore.loader import (
+    build_items,
+    explicit_mapping_provenance,
+    mapping_bindings_sha256,
+    record_schema_sha256,
+)
+from benchcore.promotion import (
+    DATASET_PROOF_VALIDATORS,
+    OBJECTIVE_PROOF_VALIDATORS,
+    PROOF_SPECS,
+    enforce_all,
+)
 from benchcore.schema import BenchmarkItem
 
 
@@ -58,6 +68,354 @@ def test_explicit_mapping_can_confirm_a_missing_required_task_field():
     findings = audit_items([item], checkers=[TaskSpecChecker()])
 
     assert findings[0].evidence_tier == "confirmed"
+
+
+def test_retrieval_candidates_do_not_confirm_invalid_choice_gold():
+    rows = [
+        {
+            "id": f"r{index}",
+            "query": "capital of France",
+            "candidates": ["docA", "docB", "docC"],
+            "target": "doc_17",
+        }
+        for index in range(5)
+    ]
+    items = build_items(rows, infer_mapping(rows))
+
+    findings = audit_items(items, checkers=[OracleChecker()])
+
+    assert len(findings) == 5
+    assert {finding.defect_type for finding in findings} == {"invalid_choice_gold"}
+    assert all(finding.evidence_tier == "review" for finding in findings)
+    assert all(
+        finding.evidence["choice_namespace_replay"]["peer_records"] == 4
+        for finding in findings
+    )
+
+
+def test_large_homogeneous_choice_namespace_can_confirm_one_invalid_gold():
+    rows = [
+        {
+            "id": f"q{index}",
+            "question": "Pick one.",
+            "choices": ["alpha", "beta", "gamma", "delta"],
+            "answer": "A",
+        }
+        for index in range(100)
+    ]
+    rows.append({
+        "id": "bad",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta", "gamma", "delta"],
+        "answer": "E",
+    })
+    items = build_items(rows, infer_mapping(rows))
+
+    findings = audit_items(items, checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].item_id == "bad"
+    assert findings[0].evidence_tier == "confirmed"
+    replay = findings[0].evidence["choice_namespace_replay"]
+    assert replay["peer_records"] == 100
+    assert replay["mappable_peer_records"] == 100
+    assert replay["wilson_lower_95"] >= 0.95
+
+
+def test_small_inferred_choice_sample_stays_review_only():
+    rows = [
+        {
+            "id": f"q{index}",
+            "question": "Pick one.",
+            "choices": ["alpha", "beta"],
+            "answer": "A",
+        }
+        for index in range(20)
+    ]
+    rows.append({
+        "id": "bad",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta"],
+        "answer": "C",
+    })
+    items = build_items(rows, infer_mapping(rows))
+
+    findings = audit_items(items, checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "review"
+
+
+def test_explicit_choice_evaluator_can_confirm_without_large_dataset():
+    mapping = mapping_from_dict({
+        "item_id": "id",
+        "task": "question",
+        "choices": "choices",
+        "gold": "answer",
+        "evaluator": "evaluator",
+    })
+    item = build_items([{
+        "id": "bad",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta"],
+        "answer": "C",
+        "evaluator": {"type": "multiple_choice", "labels": ["A", "B"]},
+    }], mapping)[0]
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "confirmed"
+
+
+def test_explicit_choice_output_contract_can_confirm_without_evaluator():
+    mapping = mapping_from_dict({
+        "item_id": "id",
+        "task": "question",
+        "choices": "choices",
+        "gold": "answer",
+        "output_contract": "output_contract",
+    })
+    item = build_items([{
+        "id": "bad",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta"],
+        "answer": "C",
+        "output_contract": {"type": "multiple_choice", "labels": ["A", "B"]},
+    }], mapping)[0]
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "confirmed"
+    assert findings[0].evidence["choice_contract_source"] == "output_contract"
+
+
+def test_content_task_type_does_not_fragment_choice_namespace_proof():
+    rows = [{
+        "id": f"q{index}",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta"],
+        "answer": "A",
+        "task_type": f"subject-{index % 4}",
+    } for index in range(100)]
+    rows.append({
+        "id": "bad",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta"],
+        "answer": "C",
+        "task_type": "subject-0",
+    })
+    items = build_items(rows, infer_mapping(rows))
+
+    findings = audit_items(items, checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "confirmed"
+    assert findings[0].evidence["choice_namespace_replay"]["peer_records"] == 100
+
+
+def test_programmatic_item_without_mapping_receipt_cannot_confirm():
+    item = BenchmarkItem(
+        item_id="math",
+        raw={},
+        task="What is 2 + 2?",
+        gold="5",
+    )
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].defect_type == "wrong_gold_answer"
+    assert findings[0].evidence_tier == "unknown"
+    assert findings[0].proof_kind == "adapter_inference"
+
+
+def test_explicit_mapping_keeps_strict_arithmetic_confirmation():
+    mapping = mapping_from_dict({
+        "item_id": "id",
+        "task": "question",
+        "gold": "answer",
+    })
+    item = build_items([{
+        "id": "math",
+        "question": "What is (2 + 2) * 3?",
+        "answer": "11",
+    }], mapping)[0]
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].defect_type == "wrong_gold_answer"
+    assert findings[0].evidence_tier == "confirmed"
+
+
+def test_incomplete_explicit_mapping_receipt_cannot_confirm():
+    item = BenchmarkItem(
+        item_id="math",
+        raw={},
+        task="What is 2 + 2?",
+        gold="5",
+        metadata={"_mapping_provenance": {"source": "explicit"}},
+    )
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "unknown"
+    assert "missing adapter_id" in findings[0].promotion_reason
+
+
+def test_shadow_adapter_cannot_self_sign_a_confirmed_mapping_receipt():
+    raw = {"question": "What is 2 + 2?", "answer": "5"}
+    bindings = {
+        "item_id": None,
+        "task": "question",
+        "choices": None,
+        "gold": "answer",
+        "aliases": None,
+        "output_contract": None,
+        "evaluator": None,
+        "context": [],
+        "metadata": [],
+    }
+    item = BenchmarkItem(
+        item_id="math",
+        raw=raw,
+        task=raw["question"],
+        gold=raw["answer"],
+        metadata={"_mapping_provenance": {
+            "receipt_version": "1",
+            "source": "generated_adapter",
+            "trust_domain": "adapter_shadow_v1",
+            "activation_mode": "active_shadow",
+            "adapter_id": "self-signed",
+            "adapter_version": "1",
+            "adapter_sha256": "a" * 64,
+            "receipt_id": "self-issued",
+            "schema_fingerprint": "b" * 64,
+            "mapping_bindings": bindings,
+            "mapping_bindings_sha256": mapping_bindings_sha256(bindings),
+            "record_schema_sha256": record_schema_sha256(raw),
+            "fields": {
+                "task": {"selected": "question", "resolved_key": "question", "row_status": "resolved"},
+                "gold": {"selected": "answer", "resolved_key": "answer", "row_status": "resolved"},
+            },
+        }},
+    )
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "unknown"
+    assert "verified registry receipt" in findings[0].promotion_reason
+
+
+def test_active_verified_string_without_registry_authority_cannot_confirm():
+    raw = {"question": "What is 2 + 2?", "answer": "5"}
+    provenance = explicit_mapping_provenance(
+        adapter_id="self-signed",
+        adapter_version="1",
+        raw=raw,
+        field_bindings={"task": "question", "gold": "answer"},
+    )
+    provenance.update({
+        "source": "generated_adapter",
+        "trust_domain": "adapter_registry_verified_v1",
+        "activation_mode": "active_verified",
+        "adapter_sha256": "a" * 64,
+        "adapter_family": "generic",
+        "receipt_id": "self-issued",
+    })
+    item = BenchmarkItem(
+        item_id="math",
+        raw=raw,
+        task=raw["question"],
+        gold=raw["answer"],
+        metadata={"_mapping_provenance": provenance},
+    )
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "unknown"
+    assert "verified registry receipt" in findings[0].promotion_reason
+
+
+def test_programmatic_receipt_is_bound_to_the_live_record_schema():
+    raw = {"question": "What is 2 + 2?", "answer": "5"}
+    provenance = explicit_mapping_provenance(
+        adapter_id="host-fixture",
+        adapter_version="1",
+        raw=raw,
+        field_bindings={"task": "question", "gold": "answer"},
+    )
+    item = BenchmarkItem(
+        item_id="math",
+        raw={**raw, "unexpected": True},
+        task=raw["question"],
+        gold=raw["answer"],
+        metadata={"_mapping_provenance": provenance},
+    )
+
+    findings = audit_items([item], checkers=[OracleChecker()])
+
+    assert len(findings) == 1
+    assert findings[0].evidence_tier == "unknown"
+    assert "live record schema" in findings[0].promotion_reason
+
+
+def test_every_confirmation_validator_declares_scope_basis_and_prerequisites():
+    registered = set(OBJECTIVE_PROOF_VALIDATORS) | set(DATASET_PROOF_VALIDATORS)
+
+    assert set(PROOF_SPECS) == registered
+    assert all(spec.scope in {"item", "dataset"} for spec in PROOF_SPECS.values())
+    assert all(
+        spec.evidence_basis in {
+            "independent_source_replay",
+            "decidable_predicate",
+            "same_heuristic_replay",
+        }
+        for spec in PROOF_SPECS.values()
+    )
+    assert all(spec.prerequisites for spec in PROOF_SPECS.values())
+
+
+def test_same_heuristic_contract_replay_cannot_confirm():
+    mapping = mapping_from_dict({
+        "item_id": "id",
+        "task": "question",
+        "choices": "choices",
+        "gold": "answer",
+        "output_contract": "output_contract",
+        "evaluator": "evaluator",
+    })
+    item = build_items([{
+        "id": "contract",
+        "question": "Pick one.",
+        "choices": ["alpha", "beta"],
+        "answer": "A",
+        "output_contract": "Return a numeric answer",
+        "evaluator": {"type": "multiple_choice"},
+    }], mapping)[0]
+    finding = _violation(
+        item,
+        "output_evaluator_contract_mismatch",
+        1.0,
+        "choice evaluator conflicts with numeric contract",
+        {
+            "output_contract": item.output_contract,
+            "evaluator": item.evaluator,
+            "inferred_evaluator": "choice",
+            "evidence_level": "answer_contract_static_consistency",
+            "proof_schema_version": "1.0",
+        },
+        review_only=False,
+        method="cross_artifact_consistency",
+    )
+
+    assert finding.evidence_tier == "review"
+    assert "heuristic assumptions" in finding.promotion_reason
 
 
 def test_llm_confidence_and_votes_cannot_self_confirm():

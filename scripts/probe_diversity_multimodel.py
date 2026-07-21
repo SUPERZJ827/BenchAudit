@@ -28,6 +28,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from benchcore.evaluator_execution import ExecutionEvaluatorAuditChecker
 from benchcore.execution import ContainerRunner
 from benchcore.llm_client import LLMClient, LLMConfig, load_llm_config
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.schema import BenchmarkItem
 from benchcore.task_uniqueness import classify_task_multiplicity
 from probe_diversity_experiment import pick_items, flagged_of, baseline_flagged, OUT
@@ -55,10 +56,20 @@ def audit_model(spec, items, runner, workers):
     def one(r):
         checker = ExecutionEvaluatorAuditChecker(client, runner=runner, gen_slack=0)
         item = BenchmarkItem(
-            item_id=f"ds1000_{r['metadata']['problem_id']}", raw={}, task=r["prompt"],
+            item_id=f"ds1000_{r['metadata']['problem_id']}", raw=r, task=r["prompt"],
             gold=r["reference_code"],
             evaluator={"code_context": r["code_context"],
-                       "n_cases": int(r["metadata"].get("test_case_cnt") or 1)})
+                       "n_cases": int(r["metadata"].get("test_case_cnt") or 1)},
+            metadata={"_mapping_provenance": explicit_mapping_provenance(
+                adapter_id="ds1000_probe_diversity_multimodel",
+                adapter_version="1",
+                raw=r,
+                field_bindings={
+                    "task": "prompt", "gold": "reference_code",
+                    "evaluator": "code_context",
+                },
+            )},
+        )
         try:
             return r["metadata"]["problem_id"], flagged_of(list(checker.check(item)))
         except Exception:
