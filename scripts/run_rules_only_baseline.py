@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from benchcore.checkers import DEFAULT_CHECKERS
 from benchcore.methods import DEFAULT_METHOD_CHECKERS
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.schema import BenchmarkItem
 
 
@@ -67,6 +68,22 @@ def load_items_with_truth(
 
 
 def item_to_benchcore(raw: dict) -> BenchmarkItem:
+    metadata = dict(raw.get("metadata") or {})
+    metadata["_mapping_provenance"] = explicit_mapping_provenance(
+        adapter_id="rules_only_baseline",
+        adapter_version="1",
+        raw=raw,
+        field_bindings={
+            "item_id": "id",
+            "task": ["question", "task"],
+            "gold": "gold",
+            "choices": "choices",
+            "aliases": "aliases",
+            "output_contract": "output_contract",
+            "evaluator": "evaluator",
+            "context": ["context", "body", "passage"],
+        },
+    )
     return BenchmarkItem(
         item_id=raw.get("id", ""),
         task=raw.get("question") or raw.get("task") or "",
@@ -76,7 +93,7 @@ def item_to_benchcore(raw: dict) -> BenchmarkItem:
         output_contract=raw.get("output_contract"),
         evaluator=raw.get("evaluator"),
         aliases=raw.get("aliases", []),
-        metadata=raw.get("metadata", {}),
+        metadata=metadata,
         raw=raw,
     )
 

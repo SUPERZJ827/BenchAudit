@@ -135,6 +135,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "critical",
         "Gold choice cannot be mapped to the available choices.",
     ),
+    "choice_encoding_contract_mismatch": DefectInfo(
+        "oracle_ground_truth",
+        "inconsistent",
+        "choice_encoding_contract_mismatch",
+        "review",
+        "Gold values use a mappable or cardinality-consistent storage encoding different from a declared answer-label format.",
+    ),
     "duplicate_choices": DefectInfo(
         "oracle_ground_truth",
         "ambiguous",

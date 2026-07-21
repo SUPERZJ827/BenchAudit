@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
-from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number
+from .evaluators import CHOICE_LABELS, choice_label_to_index, choice_values, parse_number
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
@@ -1367,7 +1367,7 @@ def _gold_is_all_of_above(item: BenchmarkItem) -> bool:
     idx = choice_label_to_index(item.gold, item.choices)
     if idx is None:
         return False
-    choice_text = str(item.choices[idx]).lower()
+    choice_text = str(choice_values(item.choices)[idx]).lower()
     return any(p in choice_text for p in _ALL_OF_ABOVE_PATTERNS)
 
 

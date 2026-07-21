@@ -10,6 +10,76 @@ from .field_mapping import infer_mapping, mapping_from_dict
 from .schema import BenchmarkItem, FieldMapping
 
 
+MAPPING_RECEIPT_VERSION = "1"
+_CANONICAL_MAPPING_FIELDS = (
+    "item_id",
+    "task",
+    "context",
+    "choices",
+    "gold",
+    "aliases",
+    "output_contract",
+    "evaluator",
+)
+
+
+def _stable_sha256(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _schema_shape(value: Any) -> Any:
+    """Return a value-free, deterministic description of a JSON-like value."""
+
+    if isinstance(value, dict):
+        return {
+            "type": "object",
+            "fields": {
+                str(key): _schema_shape(child)
+                for key, child in sorted(value.items(), key=lambda pair: str(pair[0]))
+            },
+        }
+    if isinstance(value, (list, tuple)):
+        element_shapes = {
+            json.dumps(
+                _schema_shape(child), sort_keys=True, separators=(",", ":"), default=str,
+            )
+            for child in value
+        }
+        return {
+            "type": "array",
+            "elements": [json.loads(shape) for shape in sorted(element_shapes)],
+        }
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, (int, float)):
+        return {"type": "number"}
+    if isinstance(value, str):
+        return {"type": "string"}
+    return {"type": type(value).__name__}
+
+
+def record_schema_sha256(row: dict[str, Any]) -> str:
+    """Bind a mapping receipt to the structure of the live source record."""
+
+    return _stable_sha256(_schema_shape(row))
+
+
+def mapping_bindings_sha256(bindings: dict[str, Any]) -> str:
+    """Bind a receipt to exact source-to-canonical field declarations."""
+
+    return _stable_sha256(bindings)
+
+
 def load_rows(path: Path) -> list[dict[str, Any]]:
     suffix = path.suffix.lower()
     if suffix == ".jsonl":
@@ -96,6 +166,23 @@ def _as_list(value: Any) -> list[Any]:
                 pass
         return [value]
     return [value]
+
+
+def _as_choices(value: Any) -> list[Any] | dict[Any, Any] | None:
+    if value in (None, "", [], {}):
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("{"):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+    return _as_list(value) or None
 
 
 def _get(row: dict[str, Any], key: str | None) -> Any:
@@ -192,7 +279,126 @@ def _mapping_provenance_for_row(
         ),
         "mapping_status": source,
     }
-    return {"source": source, "fields": fields}
+    selected_schema = {
+        **selected,
+        "context": list(mapping.context),
+        "metadata": list(mapping.metadata),
+    }
+    schema_fingerprint = str(
+        diagnostics.get("schema_fingerprint")
+        or hashlib.sha256(
+            json.dumps(
+                selected_schema,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+    )
+    binding_sha256 = mapping_bindings_sha256(selected_schema)
+    if source == "generated_adapter":
+        activation_mode = str(diagnostics.get("activation_mode") or "unverified")
+        trust_domain = (
+            "adapter_registry_verified_v1"
+            if activation_mode == "active_verified"
+            else "adapter_shadow_v1"
+        )
+    elif source == "explicit":
+        activation_mode = "host_explicit"
+        trust_domain = "user_explicit_mapping_v1"
+    else:
+        activation_mode = "inferred"
+        trust_domain = "inferred_mapping_v1"
+    return {
+        "receipt_version": MAPPING_RECEIPT_VERSION,
+        "source": source,
+        "trust_domain": trust_domain,
+        "activation_mode": activation_mode,
+        "adapter_id": str(
+            diagnostics.get("adapter_id")
+            or ("user_field_mapping" if source == "explicit" else "automatic_field_inference")
+        ),
+        "adapter_version": str(diagnostics.get("adapter_version") or "1"),
+        "schema_fingerprint": schema_fingerprint,
+        "adapter_sha256": diagnostics.get("adapter_sha256"),
+        "adapter_family": diagnostics.get("adapter_family"),
+        "adapter_registry_root": diagnostics.get("adapter_registry_root"),
+        "receipt_id": diagnostics.get("receipt_id"),
+        "mapping_bindings": selected_schema,
+        "mapping_bindings_sha256": binding_sha256,
+        "record_schema_sha256": record_schema_sha256(row),
+        "semantic_contracts": dict(diagnostics.get("semantic_contracts") or {}),
+        "fields": fields,
+    }
+
+
+def explicit_mapping_provenance(
+    *,
+    adapter_id: str,
+    adapter_version: str,
+    raw: dict[str, Any],
+    field_bindings: dict[str, Any],
+) -> dict[str, Any]:
+    """Issue a host-code receipt for a programmatic canonical adapter.
+
+    Unlike the old API, callers cannot supply their own fingerprint.  The
+    receipt is derived from the live source record and exact field bindings.
+    AI-generated adapters do not use this authority: they must travel through
+    the adapter registry and are capped unless its independent receipt is
+    ``active_verified``.
+    """
+
+    if not isinstance(raw, dict):
+        raise TypeError("explicit mapping provenance raw must be an object")
+    if not isinstance(field_bindings, dict) or not field_bindings:
+        raise ValueError("explicit mapping provenance requires field_bindings")
+    unknown = sorted(set(field_bindings) - set(_CANONICAL_MAPPING_FIELDS))
+    if unknown:
+        raise ValueError("unknown canonical field binding(s): " + ", ".join(unknown))
+    values = {
+        "adapter_id": str(adapter_id).strip(),
+        "adapter_version": str(adapter_version).strip(),
+    }
+    missing = [key for key, value in values.items() if not value]
+    if missing:
+        raise ValueError(
+            "explicit mapping provenance requires non-empty " + ", ".join(missing)
+        )
+    normalized_bindings = {
+        str(field): value for field, value in sorted(field_bindings.items())
+    }
+    fields: dict[str, Any] = {}
+    for field in _CANONICAL_MAPPING_FIELDS:
+        binding = normalized_bindings.get(field)
+        alternatives = (
+            list(binding) if isinstance(binding, (list, tuple)) else [binding]
+        )
+        resolved = [
+            path for path in alternatives
+            if isinstance(path, str)
+            and _get(raw, path) not in (None, "", [], {})
+        ]
+        fields[field] = {
+            "selected": binding,
+            "resolved_key": resolved[0] if resolved else None,
+            "row_status": "resolved" if resolved else "unresolved",
+            "mapping_status": "host_explicit",
+        }
+    binding_sha256 = mapping_bindings_sha256(normalized_bindings)
+    return {
+        "receipt_version": MAPPING_RECEIPT_VERSION,
+        "source": "explicit",
+        "trust_domain": "host_programmatic_mapping_v1",
+        "activation_mode": "host_explicit",
+        **values,
+        # Compatibility name retained for report consumers; it is now computed
+        # rather than a caller-controlled trust assertion.
+        "schema_fingerprint": binding_sha256,
+        "mapping_bindings": normalized_bindings,
+        "mapping_bindings_sha256": binding_sha256,
+        "record_schema_sha256": record_schema_sha256(raw),
+        "fields": fields,
+    }
 
 
 def build_items(
@@ -240,7 +446,7 @@ def build_items(
                 raw=row,
                 task=task,
                 context=context,
-                choices=_as_list(choices) or None,
+                choices=_as_choices(choices),
                 gold=gold,
                 aliases=_as_list(aliases),
                 output_contract=output_contract,

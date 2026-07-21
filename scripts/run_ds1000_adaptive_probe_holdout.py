@@ -35,6 +35,7 @@ sys.path.insert(0, str(REPO))
 from benchcore.evaluator_execution import ExecutionEvaluatorAuditChecker, generate_probes
 from benchcore.execution import ContainerRunner
 from benchcore.llm_client import LLMClient, load_llm_config
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.schema import BenchmarkItem
 try:  # Supports both ``python scripts/...`` and module-style test imports.
     from scripts.run_ds1000_defect_injection import inject
@@ -151,13 +152,23 @@ def run_condition(
         gen_slack=0,
         adaptive_probe_rounds=adaptive_rounds,
     )
+    audited_row = {**row, "audited_code_context": bad_context}
     item = BenchmarkItem(
-        item_id=f"ds1000_{row['metadata']['problem_id']}_{kind}", raw={},
+        item_id=f"ds1000_{row['metadata']['problem_id']}_{kind}", raw=audited_row,
         task=row["prompt"], gold=gold,
         evaluator={
             "code_context": bad_context,
             "n_cases": int(row["metadata"].get("test_case_cnt") or 1),
         },
+        metadata={"_mapping_provenance": explicit_mapping_provenance(
+            adapter_id="ds1000_adaptive_probe_holdout",
+            adapter_version=PROTOCOL,
+            raw=audited_row,
+            field_bindings={
+                "task": "prompt", "gold": "reference_code",
+                "evaluator": "audited_code_context",
+            },
+        )},
     )
     violations = list(checker.check_with_initial_probes(item, initial_probes))
     found = {violation.defect_type for violation in violations}

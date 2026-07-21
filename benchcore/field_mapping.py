@@ -172,6 +172,17 @@ def _is_listish(value: Any) -> bool:
         return False
 
 
+def _is_choice_collection(value: Any) -> bool:
+    if isinstance(value, dict):
+        return bool(value)
+    if isinstance(value, str) and value.strip().startswith("{"):
+        try:
+            return isinstance(json.loads(value), dict)
+        except json.JSONDecodeError:
+            return False
+    return _is_listish(value)
+
+
 def _any_nonempty(value: Any) -> bool:
     return _nonempty(value)
 
@@ -284,7 +295,9 @@ def infer_mapping(rows: list[dict[str, Any]]) -> FieldMapping:
     selectors = {
         "item_id": _select_field(rows, _candidate_paths(rows, ID_FIELDS), _any_nonempty),
         "task": _select_field(rows, _candidate_paths(rows, TASK_FIELDS), _is_text),
-        "choices": _select_field(rows, _candidate_paths(rows, CHOICE_FIELDS), _is_listish),
+        "choices": _select_field(
+            rows, _candidate_paths(rows, CHOICE_FIELDS), _is_choice_collection,
+        ),
         "gold": _select_field(rows, _candidate_paths(rows, GOLD_FIELDS), _any_nonempty),
         "aliases": _select_field(rows, _candidate_paths(rows, ALIAS_FIELDS), _is_listish),
         "output_contract": _select_field(
@@ -323,5 +336,5 @@ def mapping_from_dict(data: dict[str, Any]) -> FieldMapping:
         output_contract=data.get("output_contract"),
         evaluator=data.get("evaluator"),
         metadata=list(data.get("metadata", [])),
-        diagnostics={"source": "explicit", **dict(data.get("diagnostics") or {})},
+        diagnostics={**dict(data.get("diagnostics") or {}), "source": "explicit"},
     )

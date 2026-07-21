@@ -100,8 +100,39 @@ def test_aggregate_requires_stability_in_both_orders() -> None:
         })
     result = aggregate_trials(trials, ["task:abc"])
     assert result["task_stable_old_only"] is True
+    assert result["task_defect_supported"] is True
+    assert result["task_repair_localized"] is True
     assert result["claims"][0]["directional"] == 6
     assert result["claims"][0]["order_directional"] == {"AB": 3, "BA": 3}
+
+
+def test_aggregate_preserves_two_of_three_per_order_gate() -> None:
+    trials = []
+    for seed, order in enumerate(("AB", "BA", "BA", "AB", "AB", "BA")):
+        directional = seed != 0
+        trials.append({
+            "valid": True,
+            "seed": seed,
+            "order": order,
+            "claims": [{
+                "candidate_id": "task:abc",
+                "old": {
+                    "verdict": "supported" if directional else "refuted",
+                    "confidence": 0.9,
+                    "evidence_grounded": True,
+                },
+                "new": {"verdict": "refuted", "confidence": 0.9, "evidence_grounded": True},
+                "comparison": "old_worse" if directional else "same",
+            }],
+        })
+
+    result = aggregate_trials(trials, ["task:abc"])
+
+    assert result["claims"][0]["directional"] == 5
+    assert result["claims"][0]["order_directional"] == {"AB": 2, "BA": 3}
+    assert result["task_repair_localized"] is True
+    assert result["stability_thresholds"]["minimum_global_rate"] == 0.80
+    assert result["stability_thresholds"]["minimum_per_order_rate"] == 2 / 3
 
 
 def test_aggregate_rejects_one_order_only_effect() -> None:
@@ -125,3 +156,35 @@ def test_aggregate_rejects_one_order_only_effect() -> None:
         })
     result = aggregate_trials(trials, ["task:abc"])
     assert result["task_stable_old_only"] is False
+
+
+def test_aggregate_keeps_shared_defect_without_claiming_repair() -> None:
+    trials = []
+    for seed, order in enumerate(("AB", "BA", "BA", "AB", "AB", "BA")):
+        trials.append({
+            "valid": True,
+            "seed": seed,
+            "order": order,
+            "claims": [{
+                "candidate_id": "task:shared",
+                "old": {
+                    "verdict": "supported",
+                    "confidence": 0.95,
+                    "evidence_grounded": True,
+                },
+                "new": {
+                    "verdict": "supported",
+                    "confidence": 0.95,
+                    "evidence_grounded": True,
+                },
+                "comparison": "same",
+            }],
+        })
+
+    result = aggregate_trials(trials, ["task:shared"])
+
+    assert result["task_defect_supported"] is True
+    assert result["task_repair_localized"] is False
+    assert result["task_stable_old_only"] is False
+    assert result["claims"][0]["defect_supported"] is True
+    assert result["claims"][0]["repair_localized"] is False
