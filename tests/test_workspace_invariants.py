@@ -3,6 +3,7 @@ from pathlib import Path
 
 from benchcore.schema import BenchmarkItem
 from benchcore.methods import ContractConsistencyChecker
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.workspace_invariants import (
     WorkspaceArtifactInvariantChecker,
     collect_workspace_invariant_issues,
@@ -13,6 +14,7 @@ from benchcore.workspace_invariants import (
 def make_item(input_path: Path, **overrides) -> BenchmarkItem:
     rubric = "Was report.md created?"
     raw = {
+        "task": "Read source.txt and create report.md.",
         "rubrics": [rubric],
         "rubric_types": ["Basic Evaluation"],
         "output_files": ["report.md"],
@@ -26,6 +28,18 @@ def make_item(input_path: Path, **overrides) -> BenchmarkItem:
         "workspace_inventory": ["source.txt", "report.md"],
     }
     raw.update(overrides.pop("raw", {}))
+    metadata = dict(overrides.pop("metadata", {}) or {})
+    metadata["_mapping_provenance"] = explicit_mapping_provenance(
+        adapter_id="test_workspacebench_fixture",
+        adapter_version="1",
+        raw=raw,
+        field_bindings={
+            "task": "task",
+            "context": ["data_manifest", "file_dep_graph"],
+            "output_contract": "output_files",
+            "evaluator": "rubrics",
+        },
+    )
     return BenchmarkItem(
         item_id="workspacebench-1",
         raw=raw,
@@ -42,6 +56,7 @@ def make_item(input_path: Path, **overrides) -> BenchmarkItem:
             "rubrics": [rubric],
             "rubric_types": ["Basic Evaluation"],
         },
+        metadata=metadata,
         **overrides,
     )
 
@@ -79,6 +94,53 @@ def test_manifest_and_dependency_graph_breaks_are_confirmed(tmp_path: Path):
         "artifact_data_gap", "artifact_data_gap",
     ]
     assert all(not issue.review_only for issue in issues)
+
+
+def test_distinct_bytes_with_one_logical_input_name_are_confirmed(tmp_path: Path):
+    first = tmp_path / "0123456789abcdef_first.xlsx"
+    second = tmp_path / "fedcba9876543210_second.xlsx"
+    first.write_bytes(b"first workbook bytes")
+    second.write_bytes(b"second workbook bytes")
+    item = make_item(first, raw={
+        "input_files": [str(first), str(second)],
+        "data_manifest": [
+            {"filename": "table.xlsx", "stored_relpath": f"data/{first.name}"},
+            {"filename": "table.xlsx", "stored_relpath": f"data/{second.name}"},
+        ],
+        "file_dep_graph": [{"from": "table.xlsx", "to": "report.md"}],
+    })
+    item.context["data_manifest"] = item.raw["data_manifest"]
+
+    violations = list(
+        WorkspaceArtifactInvariantChecker(allowed_roots=[tmp_path]).check(item)
+    )
+    collision = next(
+        row for row in violations if row.defect_type == "ambiguous_input_filename"
+    )
+    assert collision.evidence_tier == "confirmed"
+    rows = collision.evidence["ambiguous_input_filenames"]
+    assert rows[0]["logical_filename"] == "table.xlsx"
+    assert len({entry["content_sha256"] for entry in rows[0]["entries"]}) == 2
+
+
+def test_same_bytes_with_one_logical_input_name_is_not_a_collision(tmp_path: Path):
+    first = tmp_path / "0123456789abcdef_first.xlsx"
+    second = tmp_path / "fedcba9876543210_second.xlsx"
+    first.write_bytes(b"identical workbook bytes")
+    second.write_bytes(b"identical workbook bytes")
+    item = make_item(first, raw={
+        "input_files": [str(first), str(second)],
+        "data_manifest": [
+            {"filename": "table.xlsx", "stored_relpath": f"data/{first.name}"},
+            {"filename": "table.xlsx", "stored_relpath": f"data/{second.name}"},
+        ],
+    })
+    item.context["data_manifest"] = item.raw["data_manifest"]
+
+    assert not any(
+        issue.defect_type == "ambiguous_input_filename"
+        for issue in collect_workspace_invariant_issues(item, allowed_roots=[tmp_path])
+    )
 
 
 def test_task_local_manifest_does_not_prove_workspace_graph_is_dangling(tmp_path: Path):

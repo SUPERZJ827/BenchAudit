@@ -72,6 +72,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "major",
         "Task, rubric, evaluator, or reference requires data absent from the provided artifacts.",
     ),
+    "ambiguous_input_filename": DefectInfo(
+        "context_attachment",
+        "ambiguous_mapping",
+        "ambiguous_input_filename",
+        "critical",
+        "Two distinct task inputs are assigned the same agent-visible logical filename.",
+    ),
     "inaccessible_attachment": DefectInfo(
         "context_attachment",
         "unavailable",
@@ -127,6 +134,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "invalid_choice_gold",
         "critical",
         "Gold choice cannot be mapped to the available choices.",
+    ),
+    "choice_encoding_contract_mismatch": DefectInfo(
+        "oracle_ground_truth",
+        "inconsistent",
+        "choice_encoding_contract_mismatch",
+        "review",
+        "Gold values use a mappable or cardinality-consistent storage encoding different from a declared answer-label format.",
     ),
     "duplicate_choices": DefectInfo(
         "oracle_ground_truth",

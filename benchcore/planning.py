@@ -7,6 +7,7 @@ from typing import Any, Iterable
 from .coverage import AuditLedgerEntry, COMPLETED_STATUSES, ledger_entry_dict
 from .package_scan import ArtifactKind, BenchmarkPackage
 from .schema import BenchmarkItem
+from .verifier_routing import VerifierRoute, route_verifiers
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class AuditPlan:
     checks: list[PlannedCheck] = field(default_factory=list)
     artifact_coverage: dict[str, str] = field(default_factory=dict)
     unknowns: list[str] = field(default_factory=list)
+    verifier_routes: list[VerifierRoute] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -45,6 +47,7 @@ class AuditPlan:
             "checks": [asdict(check) for check in self.checks],
             "artifact_coverage": dict(self.artifact_coverage),
             "unknowns": list(self.unknowns),
+            "verifier_routes": [route.to_dict() for route in self.verifier_routes],
             "summary": {
                 "executed": sum(check.status == "executed" for check in self.checks),
                 "partial": sum(check.status == "partial" for check in self.checks),
@@ -86,6 +89,12 @@ CORE_CAPABILITIES: tuple[CheckerCapability, ...] = (
     CheckerCapability("differential_candidate", requires_any=frozenset({ArtifactKind.ORACLE, ArtifactKind.TASK_SPECIFICATION}), evidence_level="differential"),
     CheckerCapability("duplicate_conflict", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION})),
     CheckerCapability("schema_drift", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION})),
+    CheckerCapability(
+        "choice_encoding_contract",
+        requires_all=frozenset({ArtifactKind.ORACLE}),
+        requires_any=frozenset({ArtifactKind.EVALUATOR, ArtifactKind.OUTPUT_CONTRACT}),
+        evidence_level="dataset_contract_consistency",
+    ),
     CheckerCapability("llm_semantic_audit", requires_any=frozenset({ArtifactKind.TASK_SPECIFICATION}), evidence_level="llm", cost_class="medium", needs_llm=True),
     CheckerCapability("cross_artifact_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), evidence_level="llm", cost_class="medium", needs_llm=True),
     CheckerCapability("grounded_rubric_consistency", requires_all=frozenset({ArtifactKind.TASK_SPECIFICATION, ArtifactKind.EVALUATOR}), families=frozenset({"workspacebench", "rubric"}), evidence_level="llm", cost_class="medium", needs_llm=True),
@@ -184,7 +193,11 @@ def build_audit_plan(
     available_llm: bool = False,
     available_execution: bool = False,
 ) -> AuditPlan:
-    family, confidence, reasons = detect_benchmark_family(package, items)
+    # Materialize one bounded sample once.  ``items`` may be a one-shot loader;
+    # passing it separately to family detection and verifier routing would make
+    # the second consumer silently see no records.
+    sampled_items = list(items or [])[:100]
+    family, confidence, reasons = detect_benchmark_family(package, sampled_items)
     if family_override is not None:
         family = family_override
         confidence = 1.0
@@ -223,6 +236,7 @@ def build_audit_plan(
         checks=checks,
         artifact_coverage=coverage,
         unknowns=_deduplicate(unknowns),
+        verifier_routes=route_verifiers(sampled_items),
     )
 
 
@@ -386,6 +400,21 @@ def write_audit_plan_markdown(path: Path, package: BenchmarkPackage, plan: Audit
     if plan.unknowns:
         lines.extend(["", "## Unknowns and Warnings", ""])
         lines.extend(f"- {warning}" for warning in plan.unknowns)
+    if plan.verifier_routes:
+        lines.extend(["", "## Per-item verifier routing", ""])
+        for route in plan.verifier_routes:
+            lines.append(
+                f"- `{route.item_id}` → `{route.route}` ({route.status}): {route.reason}"
+            )
+            if route.secondary_routes:
+                lines.append(
+                    "  - Secondary routes: "
+                    + ", ".join(f"`{name}`" for name in route.secondary_routes)
+                )
+            if route.required_evidence:
+                lines.append(
+                    "  - Required evidence: " + "; ".join(route.required_evidence)
+                )
     lines.extend(["", "## Artifact Inventory", ""])
     for artifact in package.artifacts:
         lines.append(

@@ -12,9 +12,15 @@ from .checkers import Checker, _SAFE_BINOPS, _SAFE_UNARY, _violation
 from .evaluators import (
     CHOICE_LABELS,
     answer_contract,
+    answer_values,
     answer_variants,
+    choice_gold_is_mappable,
     choice_label_to_index,
+    choice_values,
+    characterize_unknown_choice_encoding,
+    declared_choice_labels,
     evaluate_answer,
+    gold_uses_declared_choice_labels,
     infer_evaluator_type,
     normalize_text,
     parse_number,
@@ -568,6 +574,144 @@ class SchemaDriftChecker(DatasetChecker):
         )
 
 
+class ChoiceEncodingContractChecker(DatasetChecker):
+    """Report storage/answer-format divergence once per declared namespace.
+
+    An output contract often governs model responses rather than the internal
+    representation of gold data.  A semantically mappable option text or
+    numeric index is therefore not an invalid gold item.  We expose the
+    divergence once at dataset scope, review-only, so users can inspect whether
+    the evaluator intentionally normalizes it.
+    """
+
+    name = "choice_encoding_contract"
+
+    def audit_eligibility(self, item, items) -> AuditEligibility:
+        if not item.choices:
+            return AuditEligibility.not_applicable("record has no choice collection")
+        count = len(choice_values(item.choices))
+        labels = (
+            declared_choice_labels(item.evaluator, count)
+            or declared_choice_labels(item.output_contract, count)
+        )
+        return (
+            AuditEligibility.applicable("record declares an explicit choice-label namespace")
+            if labels else
+            AuditEligibility.not_applicable("record declares no explicit choice-label namespace")
+        )
+
+    def check(self, items: list[BenchmarkItem]) -> Iterable[Violation]:
+        groups: dict[str, dict[str, Any]] = {}
+        for item in items:
+            if not item.choices:
+                continue
+            count = len(choice_values(item.choices))
+            evaluator_labels = declared_choice_labels(item.evaluator, count)
+            output_labels = declared_choice_labels(item.output_contract, count)
+            labels = evaluator_labels or output_labels
+            if labels is None:
+                continue
+            source = "evaluator" if evaluator_labels is not None else "output_contract"
+            if choice_gold_is_mappable(item.gold, item.choices):
+                if gold_uses_declared_choice_labels(item.gold, labels):
+                    continue
+                mode = "mappable_alternative"
+            else:
+                mode = "unknown_cardinality_candidate"
+            key = json.dumps(
+                {
+                    "source": source,
+                    "labels": list(labels),
+                    "mode": mode,
+                    "choice_count": count,
+                    "raw_keys": sorted(str(key) for key in item.raw),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            group = groups.setdefault(key, {
+                "source": source,
+                "labels": list(labels),
+                "mode": mode,
+                "choice_count": count,
+                "items": [],
+            })
+            group["items"].append(item)
+
+        for group in groups.values():
+            affected = group["items"]
+            encoding_profile = None
+            if group["mode"] == "unknown_cardinality_candidate":
+                encoding_profile = characterize_unknown_choice_encoding(
+                    [item.gold for item in affected],
+                    group["choice_count"],
+                )
+                if not encoding_profile["coherent"]:
+                    scalar_tokens = []
+                    for item in affected:
+                        values = answer_values(item.gold)
+                        if len(values) != 1:
+                            scalar_tokens = []
+                            break
+                        scalar_tokens.append(normalize_text(values[0]))
+                    counts = Counter(scalar_tokens)
+                    top = counts.most_common(group["choice_count"])
+                    dominant = {token for token, _ in top}
+                    coverage = (
+                        sum(count for _, count in top) / len(affected)
+                        if affected else 0.0
+                    )
+                    if len(top) != group["choice_count"] or coverage < 0.95:
+                        continue
+                    affected = [
+                        item for item in affected
+                        if normalize_text(answer_values(item.gold)[0]) in dominant
+                    ]
+                    encoding_profile = {
+                        **encoding_profile,
+                        "coherent": True,
+                        "dominant_namespace": sorted(dominant),
+                        "dominant_coverage": coverage,
+                        "outlier_records_excluded": len(group["items"]) - len(affected),
+                    }
+            examples = [
+                {
+                    "item_id": item.item_id,
+                    "gold": item.gold,
+                    "mapped_components": answer_values(item.gold),
+                }
+                for item in affected[:10]
+            ]
+            yield _violation(
+                affected[0],
+                "choice_encoding_contract_mismatch",
+                0.8,
+                "Gold values use a mappable or cardinality-consistent storage encoding outside the declared answer-label format.",
+                {
+                    "contract_source": group["source"],
+                    "declared_choice_labels": group["labels"],
+                    "affected_records": len(affected),
+                    "target_row_uids": [item.row_uid for item in affected],
+                    "encoding_mode": (
+                        "unknown_cardinality_consistent"
+                        if encoding_profile is not None
+                        else "mappable_alternative"
+                    ),
+                    "encoding_profile": encoding_profile,
+                    "supersedes_defect_type": "invalid_choice_gold",
+                    "examples": examples,
+                },
+                severity="review",
+                review_only=True,
+                repair=(
+                    "Verify whether the declared format governs model output only. "
+                    "If it also governs stored golds, normalize the gold encoding; "
+                    "otherwise document evaluator normalization explicitly."
+                ),
+                method="dataset_choice_encoding_consistency",
+            )
+
+
 DEFAULT_METHOD_CHECKERS: list[Checker] = [
     TaskIntegrityChecker(),
     ContractConsistencyChecker(),
@@ -581,6 +725,7 @@ DEFAULT_METHOD_CHECKERS: list[Checker] = [
 DEFAULT_DATASET_CHECKERS: list[DatasetChecker] = [
     DuplicateConflictChecker(),
     SchemaDriftChecker(),
+    ChoiceEncodingContractChecker(),
 ]
 
 
@@ -591,7 +736,7 @@ def _semantics_preserving_variants(item: BenchmarkItem, kind: str) -> list[tuple
         if idx is not None:
             variants.extend(
                 [
-                    ("choice_text", item.choices[idx]),
+                    ("choice_text", choice_values(item.choices)[idx]),
                     ("choice_label_period", f"{CHOICE_LABELS[idx]}."),
                     ("choice_label_lowercase", CHOICE_LABELS[idx].lower()),
                 ]

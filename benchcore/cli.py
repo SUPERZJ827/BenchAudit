@@ -192,6 +192,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     audit_parser.add_argument(
+        "--execution-adaptive-probe-rounds",
+        type=int,
+        default=0,
+        help=(
+            "After a clean execution-probe pass, run up to this many fixed "
+            "alternate investigator lenses. Stops early only on executed "
+            "differential evidence; default 0 preserves the one-pass protocol."
+        ),
+    )
+    audit_parser.add_argument(
         "--execution-container-image",
         help=(
             "Container image containing Python and benchmark dependencies for the "
@@ -665,6 +675,20 @@ def run_audit(args: argparse.Namespace) -> int:
                 else None
             ),
         }
+        # Carry the registry's independently adjudicated activation state into
+        # every row-level mapping receipt.  The central promotion boundary then
+        # rejects shadow/unregistered adapters even for non-CLI callers; the
+        # post-audit evidence ceiling below remains defense in depth.
+        mapping.diagnostics.update({
+            "activation_mode": mode,
+            "receipt_id": receipt.get("receipt_id") if receipt else None,
+            "adapter_sha256": spec.sha256,
+            "adapter_family": spec.family,
+            "adapter_registry_root": (
+                str(Path(args.adapter_registry).expanduser().resolve())
+                if args.adapter_registry else None
+            ),
+        })
     else:
         mapping = load_mapping(Path(args.mapping) if args.mapping else None, source_rows)
     if args.manifest:
@@ -825,6 +849,7 @@ def run_audit(args: argparse.Namespace) -> int:
         checkers.append(ExecutionEvaluatorAuditChecker(
             client,
             runner=execution_runner,
+            adaptive_probe_rounds=args.execution_adaptive_probe_rounds,
             allow_unsafe_local=allow_unsafe_local,
         ))
     if args.llm_audit:

@@ -26,7 +26,11 @@ from typing import Any, Iterable, Mapping, Sequence
 from .auditor import audit_items
 from .loader import build_items, load_mapping
 from .schema import Violation
-from .workspace_invariants import WorkspaceArtifactInvariantChecker, parse_jsonish
+from .workspace_invariants import (
+    WorkspaceArtifactInvariantChecker,
+    parse_jsonish,
+    workspace_input_path_records,
+)
 
 
 MANIFEST_UNRESOLVED = "manifest_unresolved"
@@ -34,6 +38,7 @@ DANGLING_DEPENDENCY = "dangling_dependency"
 CONTRACT_FILENAME_CONFLICT = "contract_filename_conflict"
 RAW_EVALUATOR_RUBRIC_DIVERGENCE = "raw_evaluator_rubric_divergence"
 RUBRIC_TYPES_CARDINALITY = "rubric_types_cardinality"
+MANIFEST_FILENAME_CONTENT_COLLISION = "manifest_filename_content_collision"
 
 WORKSPACE_CHALLENGE_OPERATORS = (
     MANIFEST_UNRESOLVED,
@@ -41,6 +46,7 @@ WORKSPACE_CHALLENGE_OPERATORS = (
     CONTRACT_FILENAME_CONFLICT,
     RAW_EVALUATOR_RUBRIC_DIVERGENCE,
     RUBRIC_TYPES_CARDINALITY,
+    MANIFEST_FILENAME_CONTENT_COLLISION,
 )
 
 _EXPECTED = {
@@ -52,6 +58,9 @@ _EXPECTED = {
     ),
     RAW_EVALUATOR_RUBRIC_DIVERGENCE: ("schema_drift", "raw_evaluator_divergence"),
     RUBRIC_TYPES_CARDINALITY: ("schema_drift", "rubric_types_cardinality"),
+    MANIFEST_FILENAME_CONTENT_COLLISION: (
+        "ambiguous_input_filename", "manifest_filename_collision",
+    ),
 }
 
 _PROVENANCE_FIELDS = {
@@ -135,6 +144,8 @@ def build_workspace_challenge(
     *,
     seed: int = 20260714,
     operators: Iterable[str] | None = None,
+    root: Path | None = None,
+    allowed_roots: Iterable[Path] | None = None,
 ) -> WorkspaceChallenge:
     """Create clean/mutant pairs for every applicable source row.
 
@@ -167,7 +178,10 @@ def build_workspace_challenge(
                 f"workspace-challenge:{seed}:{source_id}:{operator}".encode("utf-8")
             ).hexdigest()[:24]
             marker_token = pair_id[:16]
-            result, reason = _apply_operator(clean, operator, marker_token)
+            result, reason = _apply_operator(
+                clean, operator, marker_token,
+                root=root, allowed_roots=allowed_roots,
+            )
             if result is None:
                 skipped.append({
                     "source_item_id": source_id,
@@ -371,6 +385,13 @@ def violation_atoms(violation: Violation | Mapping[str, Any]) -> list[FindingAto
             _finding_atom(item_id, defect_type, "dependency_dangling", payload, message)
             for payload in evidence["dangling_edges"]
         ]
+    if isinstance(evidence.get("ambiguous_input_filenames"), list):
+        return [
+            _finding_atom(
+                item_id, defect_type, "manifest_filename_collision", payload, message,
+            )
+            for payload in evidence["ambiguous_input_filenames"]
+        ]
     if "raw_output_files" in evidence and "contract_required_files" in evidence:
         payload = {
             "raw_output_files": evidence.get("raw_output_files"),
@@ -535,6 +556,9 @@ def _apply_operator(
     clean: dict[str, Any],
     operator: str,
     token: str,
+    *,
+    root: Path | None,
+    allowed_roots: Iterable[Path] | None,
 ) -> tuple[_Mutation | None, str | None]:
     if operator == MANIFEST_UNRESOLVED:
         return _manifest_unresolved(clean, token)
@@ -546,6 +570,10 @@ def _apply_operator(
         return _raw_evaluator_rubric_divergence(clean, token)
     if operator == RUBRIC_TYPES_CARDINALITY:
         return _rubric_types_cardinality(clean, token)
+    if operator == MANIFEST_FILENAME_CONTENT_COLLISION:
+        return _manifest_filename_content_collision(
+            clean, token, root=root, allowed_roots=allowed_roots,
+        )
     raise ValueError(f"unknown Workspace challenge operator: {operator}")
 
 
@@ -664,6 +692,77 @@ def _rubric_types_cardinality(
         ("evaluator.rubric_types", "rubric_types"),
         None,
     ), None
+
+
+def _manifest_filename_content_collision(
+    clean: dict[str, Any],
+    token: str,
+    *,
+    root: Path | None,
+    allowed_roots: Iterable[Path] | None,
+) -> tuple[_Mutation | None, str | None]:
+    """Give two existing materialized inputs one logical filename.
+
+    The stored paths remain distinct.  The invariant checker then independently
+    hashes the corresponding files; it only emits a defect if their bytes
+    differ, so this mutation never relies on a marker string for detection.
+    """
+    manifest = _workspace_list(clean, "data_manifest")
+    if len(manifest) < 2 or not all(isinstance(row, dict) for row in manifest):
+        return None, "requires at least two manifest entries"
+    # Choosing a pair with different bytes is part of constructing a known
+    # mutation oracle.  Read only files that pass the same explicit
+    # containment policy as the checker; without trusted roots we skip rather
+    # than dereference benchmark-controlled paths during challenge generation.
+    item = _items_for_rows([clean])[0]
+    records = workspace_input_path_records(
+        item, root, allowed_roots=allowed_roots,
+    )
+    paths_by_stored = {
+        _normalized(record["path"].name): record["path"]
+        for record in records
+        if record["allowed"] and record["path"].is_file()
+    }
+    if not paths_by_stored:
+        return None, "requires materialized inputs under explicit trusted roots"
+    hashes: dict[Path, str] = {}
+
+    def content_hash(path: Path) -> str:
+        if path not in hashes:
+            hashes[path] = hashlib.sha256(path.read_bytes()).hexdigest()
+        return hashes[path]
+
+    for left in range(len(manifest)):
+        for right in range(left + 1, len(manifest)):
+            first, second = manifest[left], manifest[right]
+            first_name = str(first.get("filename") or "").strip()
+            first_stored = str(first.get("stored_relpath") or "").strip()
+            second_stored = str(second.get("stored_relpath") or "").strip()
+            if not first_name or not first_stored or not second_stored:
+                continue
+            if _normalized(first_stored) == _normalized(second_stored):
+                continue
+            first_path = paths_by_stored.get(_normalized(Path(first_stored).name))
+            second_path = paths_by_stored.get(_normalized(Path(second_stored).name))
+            if first_path is None or second_path is None:
+                continue
+            if content_hash(first_path) == content_hash(second_path):
+                continue
+            mutated = copy.deepcopy(clean)
+            value = _workspace_list(mutated, "data_manifest")
+            assert isinstance(value[right], dict)
+            value[right]["filename"] = first_name
+            _set_workspace_list(mutated, "data_manifest", value)
+            return _Mutation(
+                mutated,
+                ("data_manifest", "context.data_manifest"),
+                # The logical filename is public benchmark data, not mutation
+                # provenance.  Keeping it in the sidecar lets scoring subtract
+                # a pre-existing collision on a *different* filename instead
+                # of falsely marking the pair as non-discriminated.
+                first_name,
+            ), None
+    return None, "requires two distinct materialized manifest inputs"
 
 
 def _clean_clone(source: dict[str, Any], clean_id: str) -> dict[str, Any]:

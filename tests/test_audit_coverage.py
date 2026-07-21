@@ -13,12 +13,24 @@ from benchcore.coverage import (
     summarize_coverage,
 )
 from benchcore.methods import DatasetChecker, DuplicateConflictChecker
+from benchcore.loader import explicit_mapping_provenance
 from benchcore.report import build_report, write_markdown_report
 from benchcore.schema import BenchmarkItem, FieldMapping
 
 
 def _item(item_id: str, task: str = "A stable task") -> BenchmarkItem:
-    return BenchmarkItem(item_id=item_id, raw={"id": item_id}, task=task)
+    raw = {"id": item_id, "task": task}
+    return BenchmarkItem(
+        item_id=item_id,
+        raw=raw,
+        task=task,
+        metadata={"_mapping_provenance": explicit_mapping_provenance(
+            adapter_id="test_audit_coverage_fixture",
+            adapter_version="1",
+            raw=raw,
+            field_bindings={"item_id": "id", "task": "task"},
+        )},
+    )
 
 
 class EmptyLegacyChecker(Checker):

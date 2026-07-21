@@ -304,6 +304,28 @@ def collect_workspace_invariant_issues(
                 },
             ))
 
+        # Workspace runners expose task inputs by their logical filename.  Two
+        # different materialized bytes assigned the same logical name are not
+        # merely duplicate metadata: one input necessarily shadows/overwrites
+        # the other in any flat filename view.  Require both contained files
+        # and distinct hashes before calling this a benchmark defect; duplicate
+        # labels alone can be harmless aliases in an incomplete distribution.
+        collisions = _manifest_filename_content_collisions(manifest, input_paths)
+        if collisions:
+            issues.append(WorkspaceInvariantIssue(
+                "ambiguous_input_filename",
+                (
+                    f"{len(collisions)} logical input filename(s) map to distinct "
+                    "materialized file contents."
+                ),
+                {
+                    "ambiguous_input_filenames": collisions,
+                    "evidence_level": "manifest_filename_collision_replay",
+                    "proof_schema_version": "1.0",
+                },
+                severity="critical",
+            ))
+
     # The graph may contain input-to-input edges, so either endpoint is valid if
     # it resolves to a manifest file or a declared output.
     inventory_complete, inventory = workspace_complete_inventory(item)
@@ -427,6 +449,65 @@ def _reference_generator_leaks(paths: list[Path]) -> list[dict[str, Any]]:
             "excerpt": text[start:end],
         })
     return rows
+
+
+def _manifest_filename_content_collisions(
+    manifest: list[dict[str, Any]],
+    input_paths: list[Path],
+) -> list[dict[str, Any]]:
+    """Find logical manifest names bound to two different pinned byte streams."""
+    paths_by_stored_name: dict[str, list[Path]] = {}
+    for path in input_paths:
+        if not path.is_file():
+            continue
+        paths_by_stored_name.setdefault(normalized_path(path.name), []).append(path)
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for entry in manifest:
+        filename = normalized_path(entry.get("filename"))
+        stored = normalized_path(Path(str(entry.get("stored_relpath") or "")).name)
+        if filename and stored:
+            grouped.setdefault(filename, []).append({
+                "filename": str(entry.get("filename") or ""),
+                "stored_name": stored,
+                "stored_relpath": str(entry.get("stored_relpath") or ""),
+            })
+
+    digest_cache: dict[Path, tuple[int, str]] = {}
+
+    def digest(path: Path) -> tuple[int, str]:
+        if path not in digest_cache:
+            payload = path.read_bytes()
+            digest_cache[path] = (
+                len(payload), hashlib.sha256(payload).hexdigest(),
+            )
+        return digest_cache[path]
+
+    collisions: list[dict[str, Any]] = []
+    for logical_name, entries in sorted(grouped.items()):
+        if len(entries) < 2:
+            continue
+        resolved: list[dict[str, Any]] = []
+        for entry in entries:
+            paths = paths_by_stored_name.get(entry["stored_name"], [])
+            # A stored basename must map to one exact materialized path.  Any
+            # unresolved/ambiguous storage mapping is handled elsewhere rather
+            # than being overclaimed as a content collision.
+            if len(paths) != 1:
+                resolved = []
+                break
+            size, content_sha = digest(paths[0])
+            resolved.append({
+                **entry,
+                "size_bytes": size,
+                "content_sha256": content_sha,
+            })
+        if resolved and len({row["content_sha256"] for row in resolved}) > 1:
+            collisions.append({
+                "logical_filename": logical_name,
+                "entries": resolved,
+            })
+    return collisions
 
 
 def _dedupe_issues(issues: list[WorkspaceInvariantIssue]) -> list[WorkspaceInvariantIssue]:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import posixpath
 import re
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,10 @@ INPUT_CONTEXT_RE = re.compile(
     re.I,
 )
 FILEISH_EXT_RE = re.compile(r"\.[A-Za-z0-9_+-]{1,12}$")
+RELATIVE_FILE_TOKEN_RE = re.compile(
+    r"(?<![\w/.-])([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]{1,12})"
+    r"(?=$|[\s,;:.)\]}'\"`])"
+)
 NON_FILE_EXTS = {
     ".com",
     ".org",
@@ -70,6 +75,7 @@ def audit_repo(repo: Path, limit: int | None) -> list[dict[str, Any]]:
         instruction = instruction_path.read_text(encoding="utf-8", errors="replace")
         test_text = read_test_text(task_dir)
         instruction_paths = extract_paths(instruction, include_relative=True)
+        instruction_paths.update(derive_generated_instruction_paths(instruction, instruction_paths))
         output_paths = extract_instruction_output_paths(instruction)
         test_exist_paths = extract_test_exists_paths(test_text)
         created_paths = created_test_paths(test_text)
@@ -149,7 +155,10 @@ def extract_paths(text: str, *, include_relative: bool = False) -> set[str]:
 
 
 def clean_path(path: str) -> str:
-    return path.rstrip(".,;:)'\"`]")
+    cleaned = path.rstrip(".,;:)'\"`]")
+    if cleaned != "/":
+        cleaned = cleaned.rstrip("/")
+    return cleaned
 
 
 def extract_instruction_output_paths(instruction: str) -> set[str]:
@@ -195,12 +204,86 @@ def created_test_paths(test_text: str) -> set[str]:
     for index, line in enumerate(lines):
         for path in extract_paths(line):
             window = "\n".join(lines[index : index + 5])
-            if ".write_text(" in window or ".unlink(" in window or "touch " in window:
+            if (
+                ".write_text(" in window
+                or ".write_bytes(" in window
+                or ".unlink(" in window
+                or ".touch(" in window
+                or ".mkdir(" in window
+                or "touch " in window
+            ):
                 paths.add(path)
     path_vars = extract_pathlib_join_paths(test_text, include_vars=True)
     for var, path in path_vars.items():
-        if re.search(rf"\b{re.escape(var)}\.(write_text|unlink)\s*\(", test_text):
+        if re.search(
+            rf"\b{re.escape(var)}\.(write_text|write_bytes|touch|mkdir|unlink)\s*\(",
+            test_text,
+        ):
             paths.add(path)
+        if re.search(
+            rf"\b_*(?:write|copy|generate|create)[A-Za-z0-9_]*\([^\n)]*\b{re.escape(var)}\b",
+            test_text,
+            re.I,
+        ):
+            paths.add(path)
+    # Verifiers commonly exercise the submitted program by asking it to create
+    # a temporary output and then asserting on that output.  Such a path is a
+    # test probe, not an undeclared artifact the agent had to provide.
+    for match in re.finditer(
+        r"(?:>>?|2>|&>)\s*['\"]?(/app/[A-Za-z0-9._/\-]+)", test_text
+    ):
+        paths.add(clean_path(match.group(1)))
+    for match in re.finditer(
+        r"(?:\+O|--output(?:=|\s+)|-o\s+)(/app/[A-Za-z0-9._/\-]+)",
+        test_text,
+    ):
+        paths.add(clean_path(match.group(1)))
+    for match in re.finditer(
+        r"['\"]--[A-Za-z0-9_-]*output[A-Za-z0-9_-]*['\"]\s*,\s*"
+        r"['\"](/app/[A-Za-z0-9._/\-]+)['\"]",
+        test_text,
+        re.I,
+    ):
+        paths.add(clean_path(match.group(1)))
+    for match in re.finditer(
+        r"['\"]-o['\"]\s*,\s*['\"]([A-Za-z0-9._/\-]+)['\"]",
+        test_text,
+    ):
+        value = match.group(1)
+        paths.add(clean_path(value if value.startswith("/") else f"/app/{value}"))
+    env_paths = {
+        name: clean_path(path)
+        for name, path in re.findall(
+            r"(?:export\s+)?([A-Z][A-Z0-9_]*)=(/app/[A-Za-z0-9._/\-]+)",
+            test_text,
+        )
+    }
+    for name, path in env_paths.items():
+        if re.search(rf">\s*\$\{{?{re.escape(name)}\}}?\b", test_text):
+            paths.add(path)
+    for match in re.finditer(
+        r"\b(?:vim|nano|touch)\s+(/app/[A-Za-z0-9._/\-]+)", test_text
+    ):
+        paths.add(clean_path(match.group(1)))
+    # Resolve the common verifier-shell pattern ``cd <workdir>`` followed by a
+    # relative redirect/tee.  The task container convention starts in /app.
+    relative_dirs = re.findall(r"(?:^|&&|;)\s*cd\s+([A-Za-z0-9._/\-]+)", test_text, re.M)
+    if relative_dirs:
+        cwd = "/app"
+        for directory in relative_dirs:
+            if directory.startswith("/"):
+                cwd = directory.rstrip("/")
+            else:
+                cwd = posixpath.normpath(f"{cwd}/{directory}")
+        for target in re.findall(
+            r"(?:\btee\s+|>>?\s*)([A-Za-z0-9._-]+)(?=\s|$)", test_text
+        ):
+            paths.add(clean_path(f"{cwd}/{target}"))
+    for match in re.finditer(
+        r"open\(\s*['\"](/app/[^'\"]+)['\"]\s*,\s*['\"][wax+]",
+        test_text,
+    ):
+        paths.add(clean_path(match.group(1)))
     return paths
 
 
@@ -276,9 +359,11 @@ def duplicate_numbered_steps(instruction: str) -> list[str]:
 def extract_relative_app_paths(text: str) -> set[str]:
     paths: set[str] = set()
     # File names with extensions, including paths like examples/foo/bar.txt.
-    for match in re.finditer(r"(?<![\w/.-])([A-Za-z0-9_./-]+\.[A-Za-z0-9_+-]+)(?![\w/.-])", text):
-        value = match.group(1).strip("./")
+    for match in RELATIVE_FILE_TOKEN_RE.finditer(text):
+        value = match.group(1).lstrip("./")
         if not value or value.startswith(("http:", "https:")):
+            continue
+        if not is_relative_output_token(value):
             continue
         if value.startswith("app/"):
             value = value.removeprefix("app/")
@@ -293,6 +378,8 @@ def extract_relative_app_paths(text: str) -> set[str]:
         value = match.group(1).strip("./")
         if value and "." not in value and "/" not in value:
             paths.add(f"/app/{value}")
+    for match in re.finditer(r"[`'\"]([A-Za-z0-9_.-]+/)[`'\"]", text):
+        paths.add(f"/app/{match.group(1)}")
     return {clean_path(path) for path in paths}
 
 
@@ -325,6 +412,21 @@ def extract_explicit_relative_output_paths(line: str, verb_start: int) -> set[st
         value = match.group(1).strip("./")
         if is_extensionless_output_name(value):
             paths.add(normalize_app_path(value))
+    # Natural-language tasks often name a file without quoting it, e.g.
+    # "The output fasta file should be titled primers.fasta."  Limit this to
+    # tokens after an output verb so versions and input filenames elsewhere in
+    # the sentence do not become output contracts.
+    for match in RELATIVE_FILE_TOKEN_RE.finditer(tail):
+        value = match.group(1)
+        if not is_relative_output_token(value):
+            continue
+        prefix = tail[: match.start()]
+        verb_matches = list(OUTPUT_VERBS_RE.finditer(prefix))
+        if not verb_matches:
+            continue
+        if INPUT_CONTEXT_RE.search(prefix[verb_matches[-1].end() :]):
+            continue
+        paths.add(normalize_app_path(value))
     return {clean_path(path) for path in paths}
 
 
@@ -333,6 +435,13 @@ def is_relative_output_token(value: str) -> bool:
     if not value or value.startswith(("/", "http:", "https:")):
         return False
     value = value.strip("./")
+    lowered = value.casefold()
+    if lowered.startswith(("e.g", "i.e")):
+        return False
+    if re.match(r"^[A-Z]/", value):
+        return False
+    if Path(value).name.startswith("_"):
+        return False
     if " " in value:
         return False
     if value.count("/") > 5:
@@ -341,6 +450,9 @@ def is_relative_output_token(value: str) -> bool:
     if not suffix or suffix in NON_FILE_EXTS:
         return False
     if re.fullmatch(r"\d+(?:\.\d+)+", value):
+        return False
+    raw_suffix = Path(value).suffix
+    if raw_suffix and raw_suffix[1:2].isupper():
         return False
     return bool(FILEISH_EXT_RE.search(value))
 
@@ -356,21 +468,52 @@ def is_extensionless_output_name(value: str) -> bool:
 
 
 def normalize_app_path(value: str) -> str:
-    value = value.strip().strip("./")
+    value = value.strip().rstrip(".,;:)'\"`]").lstrip("./")
     if value.startswith("app/"):
         value = value.removeprefix("app/")
     return f"/app/{value}"
 
 
+def derive_generated_instruction_paths(
+    instruction: str, instruction_paths: set[str]
+) -> set[str]:
+    """Expand deterministic filenames implied by explicit tool conventions.
+
+    This is deliberately a very small trusted grammar.  In particular, protoc
+    deterministically maps ``foo-bar.proto`` to ``foo_bar_pb2.py`` and
+    ``foo_bar_pb2_grpc.py``.  Treating those verifier paths as hidden contracts
+    would be a false positive when the instruction explicitly requests Python
+    protobuf generation.
+    """
+
+    lowered = instruction.casefold()
+    if "proto" not in lowered or not re.search(r"\b(generate|generated|protobuf)\b", lowered):
+        return set()
+    derived: set[str] = set()
+    for path in instruction_paths:
+        if not path.endswith(".proto"):
+            continue
+        proto = Path(path)
+        stem = proto.stem.replace("-", "_")
+        parent = str(proto.parent).rstrip("/")
+        derived.add(f"{parent}/{stem}_pb2.py")
+        derived.add(f"{parent}/{stem}_pb2_grpc.py")
+    return derived
+
+
 def path_is_covered(path: str, instruction_paths: set[str]) -> bool:
-    if path in instruction_paths:
+    normalized_path = path.rstrip("/")
+    normalized_candidates = {candidate.rstrip("/") for candidate in instruction_paths}
+    if normalized_path in normalized_candidates:
         return True
-    for candidate in instruction_paths:
+    for candidate in normalized_candidates:
         if candidate in {"/app", "/app/"}:
             continue
         # Directory-style coverage: "Clone Caffe to /app/caffe" covers tests
         # under /app/caffe/...
-        if path.startswith(candidate.rstrip("/") + "/"):
+        if normalized_path.startswith(candidate + "/"):
+            return True
+        if candidate.startswith(normalized_path + "/"):
             return True
     return False
 
