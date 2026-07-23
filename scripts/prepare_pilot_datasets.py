@@ -9,8 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from datasets import load_dataset
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -39,6 +37,8 @@ def main() -> int:
 
 
 def prepare_asdiv(sample_size: int, seed: int) -> None:
+    from datasets import load_dataset
+
     ds = load_dataset("EleutherAI/asdiv", split="validation")
     rows = []
     for index, row in enumerate(ds):
@@ -98,6 +98,8 @@ def prepare_asdiv(sample_size: int, seed: int) -> None:
 
 
 def prepare_wikitablequestions(sample_size: int, seed: int) -> None:
+    from datasets import load_dataset
+
     ds = load_dataset("lighteval/wikitablequestions", split="test")
     rows = []
     for index, row in enumerate(ds):
