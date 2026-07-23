@@ -12,7 +12,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = Path(
-    "/home/zhoujun/llmdata/datasets/svamp_platinum/svamp_platinum_all.jsonl"
+    PROJECT_ROOT / "datasets" / "svamp_platinum" / "svamp_platinum_all.jsonl"
 )
 DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/svamp_platinum_pilot100.manifest.json"
 

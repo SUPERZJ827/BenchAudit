@@ -8,7 +8,7 @@ B times and take the mean each time -> a 95% CI on P_hat that respects run-level
 tests: id=33 (hard real defect) sits ON the 0.5 decision boundary -- its CI CONTAINS 0.5 --
 while stable cases' CIs sit near 0 or 1. Also reports the flip rate over cases.
 
-Run:  /home/zhoujun/llmdata/.venv/bin/python scripts/repro_ci.py [reports/repro_confidence_k30.json]
+Run:  python scripts/repro_ci.py [reports/repro_confidence_k30.json]
 """
 from __future__ import annotations
 

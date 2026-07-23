@@ -1,5 +1,120 @@
 # BenchCore Experiment Results
 
+> Updated evidence-policy summary: 2026-07-23.
+>
+> Older tables below preserve the labels emitted by their historical runners.
+> Under the current centralized promotion policy, an LLM vote or a
+> checker-local `review_only=False` flag is not sufficient for automatic
+> confirmation. Candidate precision/recall metrics remain valid as supervised
+> ranking metrics, but legacy “confirmed” rows must not be interpreted as
+> proof-sound automatic confirmation unless their evidence is revalidated by
+> the current policy.
+
+## Current headline results
+
+### Archived-response candidate triage
+
+MMLU-Redux uses 1,000 item-level responses from 15 models. The main evaluation
+compares 181 third-party objective defects with 630 `ok` items.
+
+| Method | Average precision |
+|---|---:|
+| BenchAudit candidate risk | 0.573 |
+| Multi-model item error rate | 0.634 |
+| BenchAudit + error rate | **0.734** |
+| BenchAudit + psychometric fusion | 0.740 |
+
+The 0.006 overall advantage of the psychometric variant did not generalize
+across subjects:
+
+- paired subject mean delta against the simple fusion: `-0.0275`;
+- bootstrap 95% CI: `[-0.0821, +0.0245]`;
+- subject wins/ties/losses: `6/1/12`;
+- positive grouped folds: `3/5`.
+
+The production implementation therefore uses the simpler response-error
+fusion. All behavior-derived rows are `review-only`; response error is a
+triage signal, not a defect probability.
+
+The production code is:
+
+- `benchcore/response_triage.py`;
+- `benchcore.cli triage-responses`;
+- `tests/test_response_triage.py`.
+
+Frozen analysis protocols are under `experiments/response_triage/`.
+
+### Ranking sensitivity
+
+On the same 1,000-item MMLU-Redux subset and 15-model leaderboard, removing 181
+third-party objective defects produced:
+
+- global Kendall's tau: **0.981**;
+- maximum rank change: **1**;
+- one adjacent global rank swap;
+- no Top-1 change.
+
+Per-subject winner changes are not used as headline evidence: equal-size random
+deletion controls showed that small subject subsets and tie-breaking can
+produce similar churn.
+
+### Correlated prompt-view fallback
+
+On all 300 SVAMP-Platinum items, eight fixed DeepSeek prompt views produced:
+
+| Method | AP | P@20 | P@50 | R@50 |
+|---|---:|---:|---:|---:|
+| Static BenchAudit | 0.189 | 0.245 | 0.169 | 0.222 |
+| Prompt-view error rate | **0.554** | **0.746** | 0.477 | 0.628 |
+| Preregistered audit + view fusion | 0.528 | 0.600 | **0.548** | **0.722** |
+
+The views had pairwise correctness agreement 0.956 and are not independent
+models. The frozen fusion gate failed, so the fallback is retained only as a
+provenance-labelled review signal.
+
+A behavior-first cascade then sent only the top 100/300 items to semantic LLM
+auditors. It improved P@20 from 0.700 to 0.750 but reduced AP from 0.589 to
+0.581; the semantic gate was not promoted into automatic reranking.
+
+### Workspace counterfactual evaluation
+
+The official filesystem judge study completed 53/53 valid evaluation units
+over 11 usable baseline tasks:
+
+- deleting the complete output caused a significant drop in 11/11 tasks;
+- mean whole-output deletion delta: **-54.7 percentage points**;
+- reward-gaming self-claims were rewarded in 0/5 controls;
+- 6/11 identical-output independent re-evaluations differed by more than
+  3 percentage points;
+- identical-output mean absolute delta: **7.3 percentage points**.
+
+The result supports deterministic, rubric-targeted counterfactual testing for
+obvious missing artifacts. Fine-grained single-judge deltas remain below the
+observed judge-noise floor and are not automatically confirmed.
+
+### Terminal paired evaluation
+
+In the 31-task enriched paired subset:
+
+| Method | Recall | F1 |
+|---|---:|---:|
+| Deterministic | 0.588 | 0.741 |
+| Paired only | 0.118 | 0.211 |
+| Union | 0.647 | 0.786 |
+
+Although the union F1 increased, the preregistered paired-method retention gate
+became mathematically unreachable and the experiment was stopped. The paired
+method was not promoted into the default pipeline. `defect_supported` and
+`repair_localized` are reported separately.
+
+### Execution-evidence status
+
+Historical DS-1000 runs remain useful for manually reviewed evaluator
+counterexamples, but shared execution/adjudication drivers are capped at
+`review`. A successful process or sandbox run alone is not a trusted proof.
+Automatic confirmation requires an independently attested execution boundary
+and revalidated proof prerequisites.
+
 ## Ablation Baselines — Four-Way Comparison
 
 Four systems compared on two supervised datasets (SVAMP-Platinum n=100; MMLU-Redux n=1000).

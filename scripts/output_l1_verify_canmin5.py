@@ -6,13 +6,20 @@ compares them to the values asserted by the rubrics / reference output. This
 checks output content correctness objectively -- robust to layout -- and at the
 same time verifies whether the rubric/reference values are themselves correct.
 """
+import os
 import warnings
 from pathlib import Path
 
 import pandas as pd
 
 warnings.filterwarnings("ignore")
-ATT = Path("/home/zhoujun/llmdata/after623/图片和附件")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ATT = Path(
+    os.environ.get(
+        "BENCHAUDIT_ATTACHMENTS_DIR",
+        PROJECT_ROOT / "datasets" / "workspace_inputs",
+    )
+)
 FILES = ["0eea01c0f40c90b4_福利发放单 1.xlsx", "e8eeec2de731d599_福利发放单 2.xlsx"]
 
 # benefit -> (person-column keyword, amount-column keyword)

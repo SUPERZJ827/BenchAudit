@@ -8,7 +8,7 @@ purpose: this scan is about surfacing a SHORT, HIGH-QUALITY candidate list, not 
 Every B2 finding is still a human-review candidate (recompute code is LLM-written);
 every B1 finding means a data dimension the rubric needs is absent from the inputs.
 
-Run:  /home/zhoujun/llmdata/.venv/bin/python scripts/scan_improved.py 3 35 38 ...
+Run:  python scripts/scan_improved.py 3 35 38 ...
 """
 from __future__ import annotations
 

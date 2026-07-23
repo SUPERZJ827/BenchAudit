@@ -12,7 +12,10 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = Path(
-    "/home/zhoujun/llmdata/datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl"
+    PROJECT_ROOT
+    / "datasets"
+    / "gsm8k_platinum"
+    / "gsm8k_platinum_aligned_all.jsonl"
 )
 DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/gsm8k_platinum_pilot100.manifest.json"
 

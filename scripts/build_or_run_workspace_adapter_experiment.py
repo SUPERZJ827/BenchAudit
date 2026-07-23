@@ -47,8 +47,9 @@ REPO = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = REPO / "datasets" / "workspacebench" / "full.jsonl"
 DEFAULT_OUT_DIR = REPO / "reports" / "workspace_adapter_experiment_full388_20260715"
 DEFAULT_FULL_ROOT = Path(
-    "/home/zhoujun/.cache/huggingface/hub/"
-    "datasets--Workspace-Bench--Workspace-Bench"
+    os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")
+) / (
+    "hub/datasets--Workspace-Bench--Workspace-Bench"
 )
 PINNED_FULL_SHA256 = (
     "2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe"

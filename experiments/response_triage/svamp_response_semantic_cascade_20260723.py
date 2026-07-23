@@ -15,7 +15,7 @@ from typing import Any
 from sklearn.metrics import average_precision_score
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from benchcore.comparison import candidate_tier
@@ -27,7 +27,9 @@ LABELS = SOURCE_DIR / "labels.json"
 TRIAGE = SOURCE_DIR / "triage.json"
 PROTOCOL = (
     ROOT
-    / "scratchpad"
+    / "experiments"
+    / "response_triage"
+    / "protocols"
     / "SVAMP_RESPONSE_THEN_SEMANTIC_CASCADE_PROTOCOL_20260723.md"
 )
 OUT = ROOT / "reports" / "svamp_response_semantic_cascade_20260723"

@@ -5,7 +5,7 @@ from its invented-theme title (TP), nor see that id=37's pinned conclusion is da
 The grounded judge gets the INPUT FILE previews and decides among task_specified / data_determined /
 over_constrained -> leakage only for the last. We compare both on the discriminating cases. No prod change.
 
-Run: /home/zhoujun/llmdata/.venv/bin/python scripts/b4_grounded_probe.py
+Run: python scripts/b4_grounded_probe.py
 """
 from __future__ import annotations
 import importlib.util, sys

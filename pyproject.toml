@@ -1,7 +1,12 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "benchcore-after623"
-version = "0.1.0"
-description = "Fresh core-artifact benchmark audit prototype."
+name = "benchaudit"
+version = "0.2.0"
+description = "Evidence-aware quality and evaluator auditing for LLM and agent benchmarks."
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "defusedxml>=0.7.1",
@@ -16,6 +21,18 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+research = [
+  "numpy>=1.26",
+  "scikit-learn>=1.4",
+  "scipy>=1.12",
+]
 
 [project.scripts]
 benchcore = "benchcore.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["benchcore*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -11,8 +11,10 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_INPUT = Path(
-    "/home/zhoujun/llmdata/datasets/mmlu_redux/"
-    "mmlu_redux_all_5700_finegrained.jsonl"
+    PROJECT_ROOT
+    / "datasets"
+    / "mmlu_redux"
+    / "mmlu_redux_all_5700_finegrained.jsonl"
 )
 DEFAULT_MANIFEST = PROJECT_ROOT / "experiments/mmlu_redux_pilot200.manifest.json"
 

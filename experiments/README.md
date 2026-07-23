@@ -60,7 +60,7 @@ python scripts/run_mmlu_pilot.py --tag open_match_v1
 source ~/.bashrc
 
 python -m benchcore.cli audit \
-  /home/zhoujun/llmdata/datasets/mmlu_redux/mmlu_redux_all_5700_finegrained.jsonl \
+  datasets/mmlu_redux/mmlu_redux_all_5700_finegrained.jsonl \
   --manifest experiments/mmlu_redux_pilot200.manifest.json \
   --llm-audit \
   --llm-config configs/llm_deepseek.json \
@@ -74,7 +74,7 @@ python -m benchcore.cli audit \
 
 ```bash
 python -m benchcore.cli compare \
-  /home/zhoujun/llmdata/datasets/mmlu_redux/mmlu_redux_all_5700_finegrained.jsonl \
+  datasets/mmlu_redux/mmlu_redux_all_5700_finegrained.jsonl \
   --manifest experiments/mmlu_redux_pilot200.manifest.json \
   --report reports/mmlu_redux_pilot200_report.json \
   --truth-field metadata.error_type \
@@ -90,7 +90,7 @@ python -m benchcore.cli compare \
 
 ```bash
 python -m benchcore.cli audit \
-  /home/zhoujun/llmdata/datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl \
+  datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl \
   --manifest experiments/gsm8k_platinum_pilot110.manifest.json \
   --out reports/gsm8k_platinum_pilot110_report.json \
   --md reports/gsm8k_platinum_pilot110_report.md \
@@ -104,7 +104,7 @@ python -m benchcore.cli audit \
 
 ```bash
 python -m benchcore.cli compare \
-  /home/zhoujun/llmdata/datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl \
+  datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl \
   --manifest experiments/gsm8k_platinum_pilot110.manifest.json \
   --report reports/gsm8k_platinum_pilot110_report.json \
   --truth-field metadata.cleaning_status \
@@ -121,7 +121,7 @@ MMLU-Redux：
 
 ```bash
 python -m benchcore.cli sample \
-  /home/zhoujun/llmdata/datasets/mmlu_redux/mmlu_redux_all_5700_finegrained.jsonl \
+  datasets/mmlu_redux/mmlu_redux_all_5700_finegrained.jsonl \
   --size 200 \
   --seed 20260624 \
   --stratify-field metadata.subject \
@@ -138,7 +138,7 @@ GSM8K-Platinum：
 
 ```bash
 python -m benchcore.cli sample \
-  /home/zhoujun/llmdata/datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl \
+  datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl \
   --size 110 \
   --seed 20260624 \
   --stratify-field metadata.cleaning_status \
