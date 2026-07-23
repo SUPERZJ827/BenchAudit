@@ -9,7 +9,7 @@ report a confusion matrix + per-detector precision. Rubric #N is a 1-based index
 the task's rubric list (verified against known cases: id=23 #6→"27 pending",
 #7→"6 approved"; id=33 #4→"1,057 tertiary", #15-17→worksheet names).
 
-Run:  /home/zhoujun/llmdata/.venv/bin/python scripts/audit_vs_human.py
+Run:  python scripts/audit_vs_human.py
 """
 from __future__ import annotations
 

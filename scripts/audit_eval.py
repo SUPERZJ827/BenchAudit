@@ -8,7 +8,7 @@ rubric view of the item) and compares the detector's flag to the gold label, the
 prints a confusion matrix per detector. This is the measurement the precision work
 is optimized against -- run it before/after any detector change.
 
-Run:  /home/zhoujun/llmdata/.venv/bin/python scripts/audit_eval.py
+Run:  python scripts/audit_eval.py
 """
 from __future__ import annotations
 

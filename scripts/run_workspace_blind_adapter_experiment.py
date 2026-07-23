@@ -81,8 +81,9 @@ DEFAULT_OUT_DIR = REPO / "reports" / "workspace_blind_adapter_full388_20260715"
 DEFAULT_SCHEMA_VARIANT = "semantic_v1"
 SCHEMA_VARIANTS = (DEFAULT_SCHEMA_VARIANT, "semantic_v2")
 DEFAULT_FULL_ROOT = Path(
-    "/home/zhoujun/.cache/huggingface/hub/"
-    "datasets--Workspace-Bench--Workspace-Bench"
+    os.environ.get("HF_HOME", Path.home() / ".cache" / "huggingface")
+) / (
+    "hub/datasets--Workspace-Bench--Workspace-Bench"
 )
 PINNED_FULL_SHA256 = (
     "2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe"

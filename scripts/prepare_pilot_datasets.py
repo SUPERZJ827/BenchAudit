@@ -17,7 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from benchcore.sampling import build_sample, write_jsonl, write_manifest
 
 
-DATASET_ROOT = Path("/home/zhoujun/llmdata/datasets")
+DATASET_ROOT = PROJECT_ROOT / "datasets"
 
 
 def main() -> int:

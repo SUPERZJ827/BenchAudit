@@ -21,12 +21,18 @@ from scipy.stats import rankdata, wilcoxon
 from sklearn.metrics import average_precision_score
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SOURCE_DIR = ROOT / "reports" / "mmlu_psychometric_feasibility_20260722"
 FEATURE_PATH = SOURCE_DIR / "features.json"
 LABEL_PATH = SOURCE_DIR / "labels.json"
 SOURCE_SCORE_PATH = SOURCE_DIR / "scores.json"
-PROTOCOL_PATH = ROOT / "scratchpad" / "MMLU_SUBJECT_GROUPED_PROTOCOL_20260723.md"
+PROTOCOL_PATH = (
+    ROOT
+    / "experiments"
+    / "response_triage"
+    / "protocols"
+    / "MMLU_SUBJECT_GROUPED_PROTOCOL_20260723.md"
+)
 OUTPUT_DIR = ROOT / "reports" / "mmlu_subject_grouped_robustness_20260723"
 FOLD_PATH = OUTPUT_DIR / "subject_folds.json"
 SCORE_PATH = OUTPUT_DIR / "scores.json"

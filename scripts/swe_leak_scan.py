@@ -195,7 +195,7 @@ def write_markdown(path: Path, payload: dict[str, Any]) -> None:
     lines.append("")
     lines.append("```bash")
     lines.append(
-        "/home/zhoujun/llmdata/.venv/bin/python scripts/swe_leak_scan.py "
+        "python scripts/swe_leak_scan.py "
         "--suite both --llm-confirm --workers 8 "
         "--out-json reports/swe_leak.json --out-md reports/swe_leak.md"
     )

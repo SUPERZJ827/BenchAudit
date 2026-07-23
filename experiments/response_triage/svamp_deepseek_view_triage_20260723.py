@@ -25,19 +25,32 @@ from typing import Any
 import numpy as np
 from sklearn.metrics import average_precision_score
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from benchcore.llm_client import LLMClient, LLMConfig
 
 
 SOURCE = Path(
-    "/home/zhoujun/llmdata/datasets/svamp_platinum/svamp_platinum_all.jsonl"
+    os.environ.get(
+        "BENCHAUDIT_SVAMP_SOURCE",
+        ROOT / "datasets" / "svamp_platinum" / "svamp_platinum_all.jsonl",
+    )
 )
 MANIFEST = ROOT / "experiments" / "svamp_platinum_pilot100.manifest.json"
-PROTOCOL_V1 = ROOT / "scratchpad" / "SVAMP_DEEPSEEK_VIEW_TRIAGE_PROTOCOL_20260723.md"
+PROTOCOL_V1 = (
+    ROOT
+    / "experiments"
+    / "response_triage"
+    / "protocols"
+    / "SVAMP_DEEPSEEK_VIEW_TRIAGE_PROTOCOL_20260723.md"
+)
 PROTOCOL = (
-    ROOT / "scratchpad" / "SVAMP_DEEPSEEK_VIEW_TRIAGE_PROTOCOL_V2_20260723.md"
+    ROOT
+    / "experiments"
+    / "response_triage"
+    / "protocols"
+    / "SVAMP_DEEPSEEK_VIEW_TRIAGE_PROTOCOL_V2_20260723.md"
 )
 OUT = ROOT / "reports" / "svamp_deepseek_view_triage_20260723"
 PUBLIC = OUT / "public_items.jsonl"

@@ -11,6 +11,7 @@ benchmark instead of always running the same pipeline.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -59,7 +60,7 @@ def main() -> None:
         "goldenswag": "datasets/goldenswag/annotations_strict_train_0_20.jsonl",
         "wikitablequestions": "experiments/wikitablequestions_pilot100.jsonl",
     }
-    base = Path("/home/zhoujun/llmdata")
+    base = Path(os.environ.get("BENCHAUDIT_DATA_ROOT", REPO))
     cfg = load_llm_config(str(REPO / "configs/llm_deepseek.json"))
     cfg.cache_path = "reports/audit_planner_cache.jsonl"
     client = LLMClient(cfg)

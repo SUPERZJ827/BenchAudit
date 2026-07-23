@@ -23,7 +23,7 @@ Metrics per (case, rubric):
   * verdict_flip       = the defect flag (mismatch vs not) is NOT unanimous over K
 
 Usage:
-  /home/zhoujun/llmdata/.venv/bin/python scripts/b2_nondeterminism.py \
+  python scripts/b2_nondeterminism.py \
       --ids 23 15 269 328 44 --k 10 --temp 0.0
   add --list to only print how many rubrics each case would run (no LLM calls).
 """

@@ -12,7 +12,7 @@ The claim, if true: flips concentrate where P_hat ~= 0.5; stable cases sit near 
 We run at two vote temperatures (0.0 and 0.3) to see how much temperature actually
 contributes. Reuses the real detector prompts/grounding from auditor_agent (no prod change).
 
-Usage: /home/zhoujun/llmdata/.venv/bin/python scripts/repro_confidence.py [--k 10]
+Usage: python scripts/repro_confidence.py [--k 10]
 """
 from __future__ import annotations
 

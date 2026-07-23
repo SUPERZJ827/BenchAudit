@@ -10,7 +10,7 @@ Pipeline per (task, rubric): de-leak rubric -> neutral question; K fresh no-cach
 (real resampling); LLM satisfies-check each solve vs the original rubric; satisfy_rate = frac.
 Predict over_constrained (defect) iff satisfy_rate <= 0.5.
 
-Run: /home/zhoujun/llmdata/.venv/bin/python scripts/b4_solve_probe.py
+Run: python scripts/b4_solve_probe.py
 """
 from __future__ import annotations
 import importlib.util, sys

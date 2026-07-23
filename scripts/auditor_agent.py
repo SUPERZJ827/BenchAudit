@@ -7,7 +7,7 @@ where possible, semantic only where irreducible), then EVALUATES with a gate tha
 turns candidates into confirmed findings only with evidence.
 
 Design constraints baked in (all learned the hard way):
-  * MUST run with the project venv:  /home/zhoujun/llmdata/.venv/bin/python
+  * Run with the project virtual environment:  python
     (system python lacks openpyxl/pdfplumber/... -> file reads crash)
   * B1 field-existence uses header=None + full-content search, NOT df.columns
     (WB sheets have multi-row headers; df.columns returns 'Unnamed: *')
