@@ -69,6 +69,11 @@ from .planning import (
     write_audit_plan_markdown,
 )
 from .report import build_report, write_json_report, write_markdown_report
+from .response_triage import (
+    build_response_triage,
+    load_response_matrix,
+    write_response_triage_markdown,
+)
 from .sampling import (
     build_sample,
     load_rows_from_manifest,
@@ -351,6 +356,93 @@ def main(argv: list[str] | None = None) -> int:
     compare_parser.add_argument("--md", help="Optional comparison Markdown")
     compare_parser.add_argument("--print-summary", action="store_true")
     compare_parser.set_defaults(func=run_compare)
+
+    response_parser = subparsers.add_parser(
+        "triage-responses",
+        help=(
+            "Rank review candidates by fusing an audit report with archived "
+            "multi-model correctness responses; never promotes findings"
+        ),
+    )
+    response_parser.add_argument(
+        "responses",
+        nargs="+",
+        help=(
+            "Response JSON/JSONL file(s), or directories containing one file "
+            "per model"
+        ),
+    )
+    response_parser.add_argument(
+        "--report", required=True, help="Existing BenchAudit JSON report"
+    )
+    response_parser.add_argument(
+        "--item-id-field",
+        default="id",
+        help="Item identifier field for row-oriented response artifacts",
+    )
+    response_parser.add_argument(
+        "--model-id-field",
+        default="model_id",
+        help="Model identifier field for long-form response artifacts",
+    )
+    response_parser.add_argument(
+        "--correct-field",
+        default="correct",
+        help="Boolean correctness field",
+    )
+    response_parser.add_argument(
+        "--minimum-models",
+        type=int,
+        default=5,
+        help="Fail closed when fewer distinct models are available",
+    )
+    response_parser.add_argument(
+        "--panel-kind",
+        choices=(
+            "independent-models",
+            "single-model-views",
+            "repeated-runs",
+            "unspecified",
+        ),
+        default="unspecified",
+        help=(
+            "Declare whether columns are distinct models, correlated views of "
+            "one model, repeated runs, or unknown provenance"
+        ),
+    )
+    response_parser.add_argument(
+        "--minimum-responses-per-item",
+        type=int,
+        default=5,
+        help="Minimum observations required before applying behavior fusion",
+    )
+    response_parser.add_argument(
+        "--minimum-model-coverage",
+        type=float,
+        default=0.8,
+        help="Coverage threshold used for model-quality warnings",
+    )
+    response_parser.add_argument(
+        "--audit-score-mode",
+        choices=("priority-risk", "risk", "max-confidence"),
+        default="priority-risk",
+        help=(
+            "Fuse priority/confirmed candidate risk (safe default), all "
+            "candidate risk, or maximum finding confidence for frozen replay"
+        ),
+    )
+    response_parser.add_argument(
+        "--include-defect",
+        action="append",
+        help="Restrict the audit component to selected defect types (repeatable)",
+    )
+    response_parser.add_argument("--out", required=True, help="Output ranking JSON")
+    response_parser.add_argument("--md", help="Optional Markdown summary")
+    response_parser.add_argument(
+        "--top-k", type=int, default=50, help="Rows shown in the Markdown summary"
+    )
+    response_parser.add_argument("--print-summary", action="store_true")
+    response_parser.set_defaults(func=run_response_triage)
 
     investigate_parser = subparsers.add_parser(
         "investigate",
@@ -1480,6 +1572,71 @@ def run_compare(args: argparse.Namespace) -> int:
             indent=2,
             ensure_ascii=False,
         ))
+    return 0
+
+
+def run_response_triage(args: argparse.Namespace) -> int:
+    response_paths = [Path(value) for value in args.responses]
+    matrix = load_response_matrix(
+        response_paths,
+        item_id_field=args.item_id_field,
+        model_id_field=args.model_id_field,
+        correct_field=args.correct_field,
+    )
+    report_path = Path(args.report)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if not isinstance(report, dict):
+        raise ValueError("--report must contain a JSON object")
+    result = build_response_triage(
+        matrix,
+        report,
+        minimum_models=args.minimum_models,
+        minimum_responses_per_item=args.minimum_responses_per_item,
+        minimum_model_coverage=args.minimum_model_coverage,
+        audit_score_mode=args.audit_score_mode,
+        include_defects=set(args.include_defect or []),
+        panel_kind=args.panel_kind,
+    )
+    result["sources"]["audit_report"] = str(report_path.expanduser().resolve())
+    result["sources"]["audit_report_sha256"] = hashlib.sha256(
+        report_path.read_bytes()
+    ).hexdigest()
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(
+            result,
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if args.md:
+        write_response_triage_markdown(
+            Path(args.md), result, top_k=max(args.top_k, 0)
+        )
+    if args.print_summary:
+        print(
+            json.dumps(
+                {
+                    "items": result["quality"]["n_items"],
+                    "models": result["quality"]["n_models"],
+                    "observations": result["quality"]["n_observations"],
+                    "matrix_density": result["quality"]["matrix_density"],
+                    "behavior_eligible_items": result["quality"]["eligible_items"],
+                    "items_with_audit_signal": result["audit"][
+                        "items_with_audit_signal"
+                    ],
+                    "promotion_ceiling": result["promotion_ceiling"],
+                    "warnings": result["quality"]["warnings"],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
     return 0
 
 
