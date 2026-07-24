@@ -1,0 +1,101 @@
+{
+  "protocol_id": "pattern-memory-noncode-online-exploratory-v1",
+  "status": "exploratory_after_static_lobo_failed",
+  "frozen_at": "2026-07-25",
+  "question": "When source and target benchmark defect families differ, can prequential target-only feedback improve equal-budget verifier routing without looking at future target outcomes?",
+  "benchmarks": {
+    "workspacebench": {
+      "rows": 388,
+      "data_sha256": "2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe",
+      "evidence_sha256": "c6b7848097b3affa5d68c2b06b812ad95d7f5f7453ed02b5fe5f0724eb9ef7c8"
+    },
+    "gdpval": {
+      "rows": 220,
+      "data_sha256": "f8422fab9b21d90c0ee5f0659842ab666d418cb8940842918f9f4b0df7ae0202",
+      "evidence_sha256": "a5ebd3663ac19164e8a5358f64779b0720c5592815e38d9be3ccd8e593ded68d"
+    },
+    "jobbench": {
+      "rows": 65,
+      "data_sha256": "2f54837a0cdff0b8f8e935120eba186b89fc19af9afafd1d5d61c65b498beac8",
+      "evidence_status": "no_independent_defect_annotations"
+    }
+  },
+  "evidence_boundary": {
+    "workspacebench": [
+      "Only reannotation rows labelled 已确认·确定性矛盾 are eligible.",
+      "Only placeholder_leak maps one-to-one onto a frozen probe family without relying on WorkspaceBench output_files as a gold contract."
+    ],
+    "gdpval": [
+      "Only audit violations with evidence_tier=confirmed are eligible.",
+      "Each confirmed violation is mapped to one frozen structural probe family from its defect type and replay message."
+    ],
+    "jobbench": [
+      "The absence of findings is not treated as a clean label.",
+      "JobBench is excluded from quantitative online-policy evaluation."
+    ]
+  },
+  "selection_boundary": {
+    "allowed_before_each_target_item": [
+      "probe applicability derived from field/capability presence",
+      "source benchmark confirmed-family counts",
+      "outcomes of probes executed on earlier target items"
+    ],
+    "forbidden_before_each_target_item": [
+      "current or future target finding labels",
+      "current or future target verifier outcomes",
+      "target task or rubric text values",
+      "benchmark-specific raw field names",
+      "item identifiers"
+    ]
+  },
+  "directions": [
+    {
+      "source": "gdpval",
+      "target": "workspacebench"
+    },
+    {
+      "source": "workspacebench",
+      "target": "gdpval"
+    }
+  ],
+  "budgets_per_item": [
+    1,
+    2,
+    3
+  ],
+  "policies": {
+    "A_frozen_generic": "Frozen generic probe-family order.",
+    "R_random_static": "One random family order per permutation, fixed across all target items.",
+    "R_random_per_item": "Fresh random applicable probes per target item.",
+    "D_source_memory": "Static order by source confirmed finding yield.",
+    "H_online_ucb1": "Target-only UCB1; updates occur after the selected probes for an item execute.",
+    "I_memory_seeded_ucb1": "The same UCB1 policy with one weak source-derived pseudo-observation per source-supported family."
+  },
+  "controls": {
+    "item_order_permutations": 2000,
+    "seed": 20260725,
+    "ucb_exploration_constant": 1.4142135623730951,
+    "sensitivity_constants": [
+      0.1,
+      0.25,
+      0.5,
+      1.0,
+      1.4142135623730951
+    ],
+    "equal_probe_counts_required": true,
+    "one_reward_max_per_item_probe": true,
+    "promotion_ceiling": "review",
+    "negative_results_retained": true
+  },
+  "primary_metric": "confirmed_task_recall",
+  "secondary_metrics": [
+    "confirmed_finding_yield",
+    "late_half_confirmed_finding_yield",
+    "paired_difference_vs_random_per_item"
+  ],
+  "interpretation_gate": {
+    "cannot_establish_cross_benchmark_generalization": true,
+    "reason": "Both labelled target benchmarks were used during exploratory development and JobBench has no independent defect labels.",
+    "required_next_step": "Freeze an independently labelled unseen benchmark or new confirmed trace corpus before making a generalization claim."
+  }
+}
