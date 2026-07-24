@@ -1142,6 +1142,27 @@ def _method_is_model_based(method: str, evidence: dict[str, Any]) -> bool:
     )
 
 
+def _method_is_memory_derived(method: str, evidence: dict[str, Any]) -> bool:
+    """Recognize historical-memory provenance even if the method is renamed."""
+
+    normalized_method = method.casefold()
+    level = str(evidence.get("evidence_level") or "").casefold()
+    memory_evidence_keys = {
+        "memory_candidate_score",
+        "memory_pattern_id",
+        "memory_pattern_sha256",
+        "pattern_id",
+        "pattern_sha256",
+        "evidence_case_ids",
+    }
+    return bool(
+        "memory" in normalized_method
+        or level.startswith(("memory_", "pattern_memory_"))
+        or memory_evidence_keys & set(evidence)
+        or any(str(key).casefold().startswith("memory_") for key in evidence)
+    )
+
+
 def _proof_kind(violation: Violation) -> str:
     method = violation.detection_method.casefold()
     level = str(violation.evidence.get("evidence_level") or "").casefold()
@@ -1295,6 +1316,14 @@ def decide_promotion(
     if isinstance(provenance, dict):
         if (failure := mapping_failure()) is not None:
             return failure
+    if _method_is_memory_derived(
+        violation.detection_method, violation.evidence,
+    ):
+        return PromotionDecision(
+            "review", "historical_pattern_memory",
+            "Historical defect-pattern memory can route verification but "
+            "cannot serve as independent proof.",
+        )
     if _method_is_model_based(violation.detection_method, violation.evidence):
         return PromotionDecision(
             "review", "model_judgment",
