@@ -1,0 +1,134 @@
+{
+  "schema_version": "tracebundle.v1",
+  "benchmark_id": "tracebundle-demo",
+  "runs": [
+    {
+      "run_id": "q1-agent-a-attempt-0",
+      "item_id": "q1",
+      "system_id": "agent-a",
+      "attempt": 0,
+      "control_id": "q1-identical",
+      "control_kind": "identical",
+      "outcome": {
+        "status": "passed",
+        "correct": true,
+        "score": 1.0,
+        "reward": 1.0,
+        "error_type": null
+      },
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "process_exit",
+          "timestamp": null,
+          "message": null,
+          "attributes": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "artifacts": [
+        {
+          "artifact_id": "answer",
+          "role": "output",
+          "path": "outputs/q1/answer.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "media_type": "text/plain"
+        }
+      ],
+      "evaluations": [
+        {
+          "evaluator_id": "official-judge",
+          "verdict": "pass",
+          "rubric_id": "overall",
+          "score": 1.0,
+          "message": null
+        }
+      ],
+      "metadata": {
+        "protocol": "demo-identical-control"
+      }
+    },
+    {
+      "run_id": "q1-agent-a-attempt-1",
+      "item_id": "q1",
+      "system_id": "agent-a",
+      "attempt": 1,
+      "control_id": "q1-identical",
+      "control_kind": "identical",
+      "outcome": {
+        "status": "failed",
+        "correct": false,
+        "score": 0.4,
+        "reward": 0.4,
+        "error_type": null
+      },
+      "events": [
+        {
+          "sequence": 0,
+          "event_type": "process_exit",
+          "timestamp": null,
+          "message": null,
+          "attributes": {
+            "exit_code": 0
+          }
+        }
+      ],
+      "artifacts": [
+        {
+          "artifact_id": "answer",
+          "role": "output",
+          "path": "outputs/q1/answer.txt",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "media_type": "text/plain"
+        }
+      ],
+      "evaluations": [
+        {
+          "evaluator_id": "official-judge",
+          "verdict": "fail",
+          "rubric_id": "overall",
+          "score": 0.4,
+          "message": null
+        }
+      ],
+      "metadata": {
+        "protocol": "demo-identical-control"
+      }
+    },
+    {
+      "run_id": "q2-agent-b-attempt-0",
+      "item_id": "q2",
+      "system_id": "agent-b",
+      "attempt": 0,
+      "control_id": null,
+      "control_kind": null,
+      "outcome": {
+        "status": "passed",
+        "correct": true,
+        "score": 0.5,
+        "reward": 1.0,
+        "error_type": null
+      },
+      "events": [],
+      "artifacts": [],
+      "evaluations": [
+        {
+          "evaluator_id": "judge-a",
+          "verdict": "pass",
+          "rubric_id": "rubric-1",
+          "score": 1.0,
+          "message": null
+        },
+        {
+          "evaluator_id": "judge-b",
+          "verdict": "fail",
+          "rubric_id": "rubric-1",
+          "score": 0.0,
+          "message": null
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

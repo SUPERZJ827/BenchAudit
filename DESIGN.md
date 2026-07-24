@@ -40,6 +40,8 @@ benchcore/
   swe_leak.py        代码 benchmark 的 solution leakage 审计器
   auditor.py         运行所有 checker
   report.py          JSON / Markdown 报告输出
+  response_triage.py 历史多模型正确率矩阵的 review-only 候选排序
+  trace_bundle.py    历史执行轨迹、artifact 与 rubric verdict 的严格导入和一致性分诊
 ```
 
 ## 3. 当前 checker
