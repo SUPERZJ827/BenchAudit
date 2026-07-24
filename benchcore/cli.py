@@ -74,6 +74,12 @@ from .response_triage import (
     load_response_matrix,
     write_response_triage_markdown,
 )
+from .trace_bundle import (
+    analyze_trace_bundle,
+    load_trace_bundle,
+    trace_response_rows,
+    write_trace_audit_markdown,
+)
 from .sampling import (
     build_sample,
     load_rows_from_manifest,
@@ -443,6 +449,88 @@ def main(argv: list[str] | None = None) -> int:
     )
     response_parser.add_argument("--print-summary", action="store_true")
     response_parser.set_defaults(func=run_response_triage)
+
+    trace_parser = subparsers.add_parser(
+        "triage-traces",
+        help=(
+            "Validate archived execution traces and generate deterministic, "
+            "review-only consistency candidates"
+        ),
+    )
+    trace_parser.add_argument(
+        "traces",
+        nargs="+",
+        help=(
+            "TraceBundle v1 JSON/JSONL file(s), or directories containing "
+            "trace files"
+        ),
+    )
+    trace_parser.add_argument(
+        "--minimum-repeated-runs",
+        type=int,
+        default=2,
+        help="Minimum repeated runs needed for stability candidates",
+    )
+    trace_parser.add_argument(
+        "--score-spread-threshold",
+        type=float,
+        default=0.10,
+        help="Review threshold for repeated or identical-control score spread",
+    )
+    trace_parser.add_argument(
+        "--high-reward-threshold",
+        type=float,
+        default=0.90,
+        help="Reward threshold used to flag reward/verdict disagreement",
+    )
+    trace_parser.add_argument(
+        "--infrastructure-rate-threshold",
+        type=float,
+        default=0.20,
+        help="Dataset-level review threshold for error/timeout/cancelled runs",
+    )
+    trace_parser.add_argument(
+        "--minimum-infrastructure-runs",
+        type=int,
+        default=5,
+        help="Minimum bundle size before infrastructure-rate triage is enabled",
+    )
+    trace_parser.add_argument(
+        "--maximum-file-bytes",
+        type=int,
+        default=256 * 1024 * 1024,
+        help="Reject oversized individual trace artifacts",
+    )
+    trace_parser.add_argument(
+        "--maximum-runs",
+        type=int,
+        default=1_000_000,
+        help="Reject bundles containing more runs than this limit",
+    )
+    trace_parser.add_argument(
+        "--maximum-events-per-run",
+        type=int,
+        default=100_000,
+        help="Reject runs containing more events than this limit",
+    )
+    trace_parser.add_argument("--out", required=True, help="Output trace-audit JSON")
+    trace_parser.add_argument("--md", help="Optional Markdown summary")
+    trace_parser.add_argument(
+        "--top-k", type=int, default=100, help="Candidates shown in Markdown"
+    )
+    trace_parser.add_argument(
+        "--normalized-out",
+        help="Optional normalized TraceBundle v1 JSON for deterministic replay",
+    )
+    trace_parser.add_argument(
+        "--responses-out",
+        help=(
+            "Optional JSONL correctness export compatible with "
+            "triage-responses"
+        ),
+    )
+    trace_parser.add_argument("--print-summary", action="store_true")
+    trace_parser.set_defaults(func=run_trace_triage)
 
     investigate_parser = subparsers.add_parser(
         "investigate",
@@ -1630,6 +1718,90 @@ def run_response_triage(args: argparse.Namespace) -> int:
                     "items_with_audit_signal": result["audit"][
                         "items_with_audit_signal"
                     ],
+                    "promotion_ceiling": result["promotion_ceiling"],
+                    "warnings": result["quality"]["warnings"],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    return 0
+
+
+def run_trace_triage(args: argparse.Namespace) -> int:
+    bundle = load_trace_bundle(
+        [Path(value) for value in args.traces],
+        maximum_file_bytes=args.maximum_file_bytes,
+        maximum_runs=args.maximum_runs,
+        maximum_events_per_run=args.maximum_events_per_run,
+    )
+    result = analyze_trace_bundle(
+        bundle,
+        minimum_repeated_runs=args.minimum_repeated_runs,
+        score_spread_threshold=args.score_spread_threshold,
+        high_reward_threshold=args.high_reward_threshold,
+        infrastructure_rate_threshold=args.infrastructure_rate_threshold,
+        minimum_infrastructure_runs=args.minimum_infrastructure_runs,
+    )
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(
+            result,
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    if args.md:
+        write_trace_audit_markdown(
+            Path(args.md),
+            result,
+            top_k=max(args.top_k, 0),
+        )
+    if args.normalized_out:
+        normalized_path = Path(args.normalized_out)
+        normalized_path.parent.mkdir(parents=True, exist_ok=True)
+        normalized_path.write_text(
+            json.dumps(
+                bundle.to_document(),
+                indent=2,
+                ensure_ascii=False,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    if args.responses_out:
+        responses_path = Path(args.responses_out)
+        responses_path.parent.mkdir(parents=True, exist_ok=True)
+        rows = trace_response_rows(bundle)
+        responses_path.write_text(
+            "".join(
+                json.dumps(
+                    row,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    allow_nan=False,
+                )
+                + "\n"
+                for row in rows
+            ),
+            encoding="utf-8",
+        )
+    if args.print_summary:
+        print(
+            json.dumps(
+                {
+                    "benchmark_id": result["benchmark_id"],
+                    "runs": result["quality"]["runs"],
+                    "items": result["quality"]["items"],
+                    "systems": result["quality"]["systems"],
+                    "candidates": result["candidate_count"],
                     "promotion_ceiling": result["promotion_ceiling"],
                     "warnings": result["quality"]["warnings"],
                 },

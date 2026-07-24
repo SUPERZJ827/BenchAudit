@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SUPERZJ827/BenchAudit/configs/tracebundle_v1.schema.json",
+  "title": "BenchAudit TraceBundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "benchmark_id",
+    "runs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "tracebundle.v1"
+    },
+    "benchmark_id": {
+      "$ref": "#/$defs/nonemptyString"
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/run"
+      }
+    },
+    "metadata": {
+      "$ref": "#/$defs/jsonObject"
+    }
+  },
+  "$defs": {
+    "nonemptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullableString": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "finiteScore": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "error",
+            "timeout",
+            "cancelled",
+            "unknown"
+          ]
+        },
+        "correct": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "score": {
+          "$ref": "#/$defs/finiteScore"
+        },
+        "reward": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "error_type": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "event_type"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_type": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "message": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "attributes": {
+          "$ref": "#/$defs/jsonObject"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "role",
+        "path"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "role": {
+          "enum": [
+            "input",
+            "output",
+            "log",
+            "evaluator",
+            "reference",
+            "other"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "media_type": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluator_id",
+        "verdict"
+      ],
+      "properties": {
+        "evaluator_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "error",
+            "unknown"
+          ]
+        },
+        "rubric_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "score": {
+          "$ref": "#/$defs/finiteScore"
+        },
+        "message": {
+          "$ref": "#/$defs/nullableString"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "item_id",
+        "system_id",
+        "attempt",
+        "outcome"
+      ],
+      "properties": {
+        "run_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "item_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "system_id": {
+          "$ref": "#/$defs/nonemptyString"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "control_id": {
+          "$ref": "#/$defs/nullableString"
+        },
+        "control_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "identical",
+            "mutation",
+            "metamorphic",
+            "random",
+            "other",
+            null
+          ]
+        },
+        "outcome": {
+          "$ref": "#/$defs/outcome"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "evaluations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evaluation"
+          }
+        },
+        "metadata": {
+          "$ref": "#/$defs/jsonObject"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "control_id"
+            ],
+            "properties": {
+              "control_id": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "control_kind"
+            ],
+            "properties": {
+              "control_kind": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "control_kind"
+            ],
+            "properties": {
+              "control_kind": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "control_id"
+            ],
+            "properties": {
+              "control_id": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

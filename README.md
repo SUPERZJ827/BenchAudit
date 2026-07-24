@@ -39,6 +39,8 @@ an arbitrary benchmark.
   execution-grounded checks.
 - Fail-closed evidence tiers: `confirmed`, `review`, and `unknown`.
 - Review-only response triage using archived multi-model correctness results.
+- Strict TraceBundle ingestion for archived runs, artifacts, rubric verdicts,
+  repeated attempts, and identical controls.
 - Deterministic defect injection, provenance manifests, and regression scoring.
 - Container-backed execution with read-only filesystems, no network, dropped
   capabilities, resource limits, and digest-pinned production images.
@@ -201,7 +203,31 @@ All response-triage rows are `review-only`. High error rate can indicate a
 defect, genuine difficulty, missing knowledge, or ambiguity; it is not a defect
 probability.
 
-### 6. Build deterministic regression defects
+### 6. Ingest archived execution traces
+
+When full runs, rubric verdicts, output digests, or repeated trials are already
+available, normalize and inspect them without executing the benchmark again:
+
+```bash
+benchcore triage-traces examples/tracebundle_v1.json \
+  --out reports/trace_audit.json \
+  --md reports/trace_audit.md \
+  --normalized-out reports/tracebundle.normalized.json \
+  --responses-out reports/trace_responses.jsonl \
+  --print-summary
+```
+
+TraceBundle joins observations by stable IDs, rejects duplicate runs and unsafe
+artifact paths, preserves source SHA-256 digests, measures identical-control
+and repeated-run disagreement, and can export strict correctness observations
+for `triage-responses`. It performs no API calls or code execution. All trace
+candidates remain `review-only`; observational disagreement is not independent
+proof of a benchmark defect.
+
+See [`docs/tracebundle_v1.md`](docs/tracebundle_v1.md) for the schema, intake
+checklist, privacy boundary, and adapter guidance.
+
+### 7. Build deterministic regression defects
 
 ```bash
 benchcore inject-defects benchmark.jsonl \
