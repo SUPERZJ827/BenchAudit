@@ -115,6 +115,46 @@ counterexamples, but shared execution/adjudication drivers are capped at
 Automatic confirmation requires an independently attested execution boundary
 and revalidated proof prerequisites.
 
+### Structural defect-pattern memory
+
+A zero-API leave-one-benchmark-out study tested whether mutation-family
+priorities learned on one code benchmark transfer to another. Target selection
+used solution/evaluator structure only: it did not use task text, gold answers,
+or target EvalPlus outcomes. HumanEval had 160/164 valid tasks and MBPP had
+374/378. All arms used exactly the same number of target probes.
+
+The primary metric is witness yield: the fraction of probes that pass the
+benchmark's original tests but fail the stronger EvalPlus oracle.
+
+| Source → target | Probes | Fixed order | Random-order mean (500) | Memory guided | Random-order max | Random-order p | Paired bootstrap, memory − fixed |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| MBPP → HumanEval | 813 | 3.32% | 3.54% | **3.94%** | 3.94% | 0.072 | +0.62 pp, 95% CI [+0.12, +1.23] pp |
+| HumanEval → MBPP | 1,309 | 6.88% | 7.19% | **8.40%** | 7.64% | **0.002** | +1.53 pp, 95% CI [+0.74, +2.36] pp |
+
+The fixed family order was below the random-order mean in both directions, so
+memory-versus-fixed differences overstate the practical gain. Relative to the
+random mean, the gains were +0.40 and +1.21 percentage points. The first
+direction matched the best of 500 random orders but did not clear the 0.05
+empirical threshold; the second exceeded all 500.
+
+Task recall within the frozen mutation pool was a secondary metric:
+
+- MBPP → HumanEval: 0.667 fixed → 0.800 memory, paired 95% CI for the
+  difference [+0.029, +0.269];
+- HumanEval → MBPP: 0.952 fixed → 0.984 memory, paired 95% CI
+  [−0.029, +0.096], which includes zero.
+
+In both directions, memory-guided task recall only matched the maximum random
+order. The equal-budget half-guided/half-exploration arm provided no gain
+(0.667 and 0.937 task recall), so it was not promoted.
+
+This experiment supports a narrow claim: source-learned structural failure
+families can improve the yield of executable verifier probes across these two
+code benchmarks. It does **not** estimate natural-defect recall or justify
+automatic confirmation. Pattern-memory output has a centralized hard ceiling
+of `review`, and raw schema-key features are disabled by default to prevent
+benchmark fingerprinting.
+
 ## Ablation Baselines — Four-Way Comparison
 
 Four systems compared on two supervised datasets (SVAMP-Platinum n=100; MMLU-Redux n=1000).
