@@ -798,11 +798,29 @@ def evaluate_direction(
     random_control = {}
     for key in ("witness_yield", "task_recall"):
         values = [row[key] for row in random_metrics]
+        memory_value = metrics["D_pattern_guided"][key]
+        tolerance = 1e-15
+        random_at_or_above_memory = sum(
+            value >= memory_value - tolerance for value in values
+        )
         random_control[key] = {
             "mean": sum(values) / len(values),
             "p05": percentile(values, 0.05),
             "p95": percentile(values, 0.95),
             "maximum": max(values),
+            "memory_guided_value": memory_value,
+            "memory_minus_random_mean": (
+                memory_value - (sum(values) / len(values))
+            ),
+            "fraction_random_at_or_below_memory": (
+                sum(value <= memory_value + tolerance for value in values)
+                / len(values)
+            ),
+            "random_at_or_above_memory": random_at_or_above_memory,
+            "random_draws": len(values),
+            "empirical_one_sided_p": (
+                (random_at_or_above_memory + 1) / (len(values) + 1)
+            ),
         }
 
     bootstrap_rng = random.Random(20260725)

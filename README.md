@@ -341,12 +341,23 @@ The full tables, definitions, and limitations are in [RESULTS.md](RESULTS.md).
 | Workspace official counterfactual study | Whole-output deletion detected in 11/11; mean −54.7 pp | Strong sensitivity to obvious absence |
 | Workspace identical-output control | 6/11 independent re-evaluations changed by more than 3 pp | Fine-grained single-judge deltas require a noise control |
 | Terminal enriched paired subset | Deterministic F1 0.741; union F1 0.786 | The preregistered paired-method gate still failed; the method was not promoted |
-| EvalPlus structural-memory LOBO | MBPP→HumanEval task recall 0.667→0.800; HumanEval→MBPP 0.952→0.984 at equal probe counts | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
+| EvalPlus structural-memory LOBO | Witness yield: random-order mean 3.54%→memory 3.94% (MBPP→HumanEval); 7.19%→8.40% (HumanEval→MBPP) | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
 
-The EvalPlus recall denominator contains only tasks for which the frozen
-mutation pool exposed at least one original-pass / stronger-oracle-fail
-witness. It is verifier-routing recall within that pool, not estimated recall
-over all natural benchmark defects.
+The EvalPlus result is deliberately reported against 500 random family
+orders, rather than only against one fixed generic order that happened to
+score below the random mean in both directions. The memory ordering reached
+the best random-order witness yield for MBPP→HumanEval and exceeded all 500
+random orders for HumanEval→MBPP. The corresponding one-sided random-order
+empirical p-values were 0.072 and 0.002: only the second direction clears a
+conventional 0.05 threshold. Task recall improved from 0.667 to 0.800 and from
+0.952 to 0.984 against the fixed order, but the second paired confidence
+interval included zero and both values only matched the best random order. The
+half-guided/half-exploration arm did not improve task recall.
+
+All EvalPlus metrics are conditional on a frozen mutation pool. A task is in
+the recall denominator only when that pool contains at least one
+original-tests-pass / stronger-oracle-fail witness. These are verifier-routing
+metrics, not estimates of recall over all natural benchmark defects.
 
 Negative results are retained. In particular:
 
@@ -357,7 +368,9 @@ Negative results are retained. In particular:
 - a semantic second-stage improved some top-K precision but did not improve
   average precision;
 - stricter Terminal release pairing filtered false candidates but lost too much
-  recall.
+  recall;
+- the structural-memory half-exploration arm matched or underperformed the
+  fixed-order arm, so it was not promoted.
 
 ## Repository layout
 
