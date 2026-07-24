@@ -247,7 +247,10 @@ benchcore memory-shadow benchmark.jsonl \
 Same-dataset and same-family evidence is excluded by default. A match only
 routes a verifier and has a hard `review` ceiling; it never changes existing
 findings or confirms a defect. Concrete evidence cases are provenance pointers
-and do not participate in retrieval.
+and do not participate in retrieval. Raw schema-key features are also disabled
+by default because unique field names can fingerprint a benchmark; enable them
+only for explicit within-schema rediscovery with
+`--include-raw-key-features`.
 
 The zero-API leave-one-benchmark-out experiment can be replayed with:
 
@@ -338,7 +341,7 @@ The full tables, definitions, and limitations are in [RESULTS.md](RESULTS.md).
 | Workspace official counterfactual study | Whole-output deletion detected in 11/11; mean −54.7 pp | Strong sensitivity to obvious absence |
 | Workspace identical-output control | 6/11 independent re-evaluations changed by more than 3 pp | Fine-grained single-judge deltas require a noise control |
 | Terminal enriched paired subset | Deterministic F1 0.741; union F1 0.786 | The preregistered paired-method gate still failed; the method was not promoted |
-| EvalPlus structural-memory LOBO | MBPP→HumanEval task recall 0.690→0.828; HumanEval→MBPP 0.952→0.984 at equal probe counts | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
+| EvalPlus structural-memory LOBO | MBPP→HumanEval task recall 0.667→0.800; HumanEval→MBPP 0.952→0.984 at equal probe counts | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
 
 The EvalPlus recall denominator contains only tasks for which the frozen
 mutation pool exposed at least one original-pass / stronger-oracle-fail
