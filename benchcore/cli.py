@@ -507,6 +507,14 @@ def main(argv: list[str] | None = None) -> int:
             "capability:execute_candidate (repeatable)"
         ),
     )
+    memory_parser.add_argument(
+        "--include-raw-key-features",
+        action="store_true",
+        help=(
+            "Opt into schema-key features; disabled by default because unique "
+            "field names can fingerprint a benchmark"
+        ),
+    )
     memory_parser.add_argument("--out", required=True, help="Output shadow report JSON")
     memory_parser.add_argument("--md", help="Optional Markdown summary")
     memory_parser.add_argument("--print-summary", action="store_true")
@@ -1867,6 +1875,7 @@ def run_memory_shadow(args: argparse.Namespace) -> int:
             item,
             signals=signals,
             extra_features=args.feature or [],
+            include_raw_keys=args.include_raw_key_features,
             dataset=args.dataset,
             dataset_family=args.dataset_family,
         )
@@ -1918,6 +1927,7 @@ def run_memory_shadow(args: argparse.Namespace) -> int:
             "maximum_per_family": policy.maximum_per_family,
             "top_k": args.top_k,
             "extra_features": sorted(args.feature or []),
+            "includes_raw_key_features": args.include_raw_key_features,
             "uses_task_or_answer_text": False,
         },
         "summary": {

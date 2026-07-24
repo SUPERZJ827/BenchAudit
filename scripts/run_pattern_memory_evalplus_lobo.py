@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import ast
 import copy
+import hashlib
 import json
 import math
 import random
@@ -393,6 +394,7 @@ def run_task(
     task: Task,
     *,
     per_family: int,
+    per_probe_timeout: float,
     timeout_seconds: float,
 ) -> dict[str, Any]:
     mutants = generate_mutants(task.source, per_family)
@@ -405,12 +407,19 @@ def run_task(
         "plus_test": task.plus_test,
         "original_call": task.original_call,
         "plus_call": task.plus_call,
-        "per_probe_timeout": 2.0,
+        "per_probe_timeout": per_probe_timeout,
     }
     result = runner.run(
         CommandSpec(
             argv=(sys.executable, "-c", DRIVER),
             cwd=Path.cwd(),
+            env={
+                "PYTHONHASHSEED": "0",
+                "OPENBLAS_NUM_THREADS": "1",
+                "OMP_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "TZ": "UTC",
+            },
             stdin=json.dumps(payload, ensure_ascii=False),
         ),
         ExecutionPolicy(
@@ -419,6 +428,13 @@ def run_task(
             memory_mb=768,
             cpu_count=1.0,
             pids_limit=64,
+            allowed_environment=frozenset({
+                "PYTHONHASHSEED",
+                "OPENBLAS_NUM_THREADS",
+                "OMP_NUM_THREADS",
+                "MKL_NUM_THREADS",
+                "TZ",
+            }),
         ),
     )
     row: dict[str, Any] = {
@@ -455,6 +471,7 @@ def collect(
     limit: int,
     workers: int,
     per_family: int,
+    per_probe_timeout: float,
     container_image: str,
 ) -> list[dict[str, Any]]:
     tasks = load_tasks(benchmark, limit)
@@ -467,7 +484,11 @@ def collect(
                 runner,
                 task,
                 per_family=per_family,
-                timeout_seconds=max(30.0, per_family * len(FAMILIES) * 4.5),
+                per_probe_timeout=per_probe_timeout,
+                timeout_seconds=max(
+                    30.0,
+                    per_family * len(FAMILIES) * per_probe_timeout * 2.5,
+                ),
             ): task
             for task in tasks
         }
@@ -848,6 +869,7 @@ def main() -> None:
     parser.add_argument("--per-family", type=int, default=2)
     parser.add_argument("--budget", type=int, default=6)
     parser.add_argument("--minimum-source-witness-tasks", type=int, default=2)
+    parser.add_argument("--per-probe-timeout", type=float, default=5.0)
     parser.add_argument("--container-image", default="ds1000-audit:v1")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
@@ -860,6 +882,8 @@ def main() -> None:
         args.minimum_source_witness_tasks,
     ) < 1:
         raise ValueError("limits, workers, budgets, and thresholds must be positive")
+    if args.per_probe_timeout <= 0:
+        raise ValueError("--per-probe-timeout must be positive")
     resolved_image = subprocess.check_output(
         [
             "docker",
@@ -879,6 +903,7 @@ def main() -> None:
         limit=args.limit_humaneval,
         workers=args.workers,
         per_family=args.per_family,
+        per_probe_timeout=args.per_probe_timeout,
         container_image=resolved_image,
     )
     mbpp = collect(
@@ -886,6 +911,7 @@ def main() -> None:
         limit=args.limit_mbpp,
         workers=args.workers,
         per_family=args.per_family,
+        per_probe_timeout=args.per_probe_timeout,
         container_image=resolved_image,
     )
     result = {
@@ -896,6 +922,7 @@ def main() -> None:
             "oracle": "original-pass and EvalPlus-fail",
             "promotion_ceiling": "review",
             "per_family": args.per_family,
+            "per_probe_timeout": args.per_probe_timeout,
             "budget_per_task": args.budget,
             "container_image_requested": args.container_image,
             "container_image_resolved": resolved_image,
@@ -929,6 +956,38 @@ def main() -> None:
             ),
         ],
         "raw": {"humaneval": humaneval, "mbpp": mbpp},
+    }
+    stable_summary = {
+        "protocol": result["protocol"],
+        "collection": result["collection"],
+        "directions": [{
+            key: direction[key]
+            for key in (
+                "source",
+                "target",
+                "valid_target_tasks",
+                "witnessable_target_tasks",
+                "learned_pattern_families",
+                "metrics",
+                "random_family_order_control",
+                "paired_bootstrap_D_minus_A",
+                "memory_sha256",
+            )
+        } for direction in result["directions"]],
+    }
+    result["reproducibility"] = {
+        "stable_summary_sha256": hashlib.sha256(
+            json.dumps(
+                stable_summary,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest(),
+        "excludes_nondeterministic_fields": [
+            "runner.elapsed_seconds",
+            "raw result ordering",
+        ],
     }
     output = Path(args.out)
     output.parent.mkdir(parents=True, exist_ok=True)

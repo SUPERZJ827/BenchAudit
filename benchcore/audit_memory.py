@@ -526,6 +526,7 @@ def query_from_item(
     *,
     signals: Iterable[str] = (),
     extra_features: Iterable[str] = (),
+    include_raw_keys: bool = False,
     dataset: str | None = None,
     dataset_family: str | None = None,
 ) -> PatternQuery:
@@ -545,7 +546,10 @@ def query_from_item(
         if value not in (None, "", [], {}):
             features.add(f"field:{name}")
             features.add(f"shape:{name}:{_shape_name(value)}")
-    if isinstance(item.raw, Mapping):
+    # Raw field names can fingerprint a benchmark even when their values are
+    # hidden.  Keep them out of leakage-sensitive matching unless the caller
+    # explicitly opts into schema-specific rediscovery.
+    if include_raw_keys and isinstance(item.raw, Mapping):
         for raw_key in item.raw:
             features.add(normalize_feature(f"raw_key:{raw_key}"))
     features.update(_mapping_descriptor_features("evaluator", item.evaluator))

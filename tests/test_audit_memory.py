@@ -17,7 +17,12 @@ from benchcore.audit_memory import (
     render_pattern_context,
     score_pattern_hits,
 )
+from benchcore.auditor import audit_items
+from benchcore.checkers import TaskSpecChecker
 from benchcore.cli import main
+from benchcore.field_mapping import mapping_from_dict
+from benchcore.loader import build_items
+from benchcore.promotion import enforce_promotion_policy
 from benchcore.schema import BenchmarkItem
 
 
@@ -281,6 +286,27 @@ def test_query_uses_structure_not_task_gold_or_subject_text() -> None:
     assert "two plus two" not in serialized
 
 
+def test_raw_schema_keys_are_disabled_by_default_and_explicitly_opt_in() -> None:
+    first = BenchmarkItem(
+        item_id="one",
+        raw={"benchmark_specific_alpha": "value"},
+        task="same",
+        evaluator={"type": "unit_test"},
+    )
+    second = BenchmarkItem(
+        item_id="two",
+        raw={"benchmark_specific_beta": "value"},
+        task="same",
+        evaluator={"type": "unit_test"},
+    )
+    assert query_from_item(first).features == query_from_item(second).features
+
+    first_opted_in = query_from_item(first, include_raw_keys=True)
+    second_opted_in = query_from_item(second, include_raw_keys=True)
+    assert first_opted_in.features != second_opted_in.features
+    assert "raw_key:benchmark_specific_alpha" in first_opted_in.features
+
+
 def test_structurally_identical_cross_benchmark_items_match_same_pattern() -> None:
     pattern = make_pattern(
         "p1",
@@ -359,6 +385,22 @@ def test_context_is_bounded_untrusted_and_review_only() -> None:
     assert score_pattern_hits(hits) > 0.0
 
 
+def test_central_promotion_blocks_memory_derived_objective_finding() -> None:
+    mapping = mapping_from_dict({"item_id": "id", "task": "question"})
+    item = build_items([{"id": "one"}], mapping)[0]
+    finding = audit_items([item], checkers=[TaskSpecChecker()])[0]
+    assert finding.evidence_tier == "confirmed"
+
+    # Even a proof tuple that normally confirms is capped once historical
+    # pattern provenance is attached. This is enforced centrally rather than
+    # relying on the shadow CLI's report label.
+    finding.evidence["memory_pattern_id"] = "historical-missing-task"
+    enforce_promotion_policy(finding, item)
+    assert finding.evidence_tier == "review"
+    assert finding.proof_kind == "historical_pattern_memory"
+    assert finding.review_only is True
+
+
 def test_memory_shadow_cli_never_changes_findings(tmp_path: Path) -> None:
     dataset = tmp_path / "items.jsonl"
     dataset.write_text(
@@ -408,6 +450,7 @@ def test_memory_shadow_cli_never_changes_findings(tmp_path: Path) -> None:
     assert payload["shadow_mode"] is True
     assert payload["changes_audit_findings"] is False
     assert payload["promotion_ceiling"] == "review"
+    assert payload["retrieval_policy"]["includes_raw_key_features"] is False
     assert payload["items"][0]["hits"][0]["promotion_ceiling"] == "review"
     assert "defect_type:evaluator_unsoundness" in " ".join(
         payload["items"][0]["observed_signals"]
