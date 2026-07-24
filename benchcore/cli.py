@@ -32,6 +32,14 @@ from .artifact_consistency import (
     RubricCoverageChecker,
     RubricOutputContractConsistencyChecker,
 )
+from .audit_memory import (
+    MEMORY_PROMOTION_CEILING,
+    DefectPatternMatcher,
+    DefectPatternStore,
+    PatternMatchPolicy,
+    query_from_item,
+    score_pattern_hits,
+)
 from .auditor import audit_items_with_ledger
 from .comparison import compare_report, write_comparison_markdown
 from .forensic import build_forensic_bundle, write_forensic_json, write_forensic_markdown
@@ -449,6 +457,60 @@ def main(argv: list[str] | None = None) -> int:
     )
     response_parser.add_argument("--print-summary", action="store_true")
     response_parser.set_defaults(func=run_response_triage)
+
+    memory_parser = subparsers.add_parser(
+        "memory-shadow",
+        help=(
+            "Match review-only structural defect patterns without changing "
+            "findings or confirmation decisions"
+        ),
+    )
+    memory_parser.add_argument(
+        "input", help="Input benchmark file (.jsonl, .json, .csv, .tsv, .parquet)"
+    )
+    memory_parser.add_argument(
+        "--memory", required=True, help="Evidence-aware defect-pattern JSONL"
+    )
+    memory_parser.add_argument(
+        "--report",
+        help="Optional existing audit JSON whose label-free finding types seed retrieval",
+    )
+    memory_parser.add_argument("--mapping", help="Optional field mapping JSON")
+    memory_parser.add_argument("--dataset", help="Dataset identity for leakage exclusion")
+    memory_parser.add_argument(
+        "--dataset-family", help="Dataset-family identity for leakage exclusion"
+    )
+    memory_parser.add_argument(
+        "--allow-same-dataset",
+        action="store_true",
+        help="Allow known-issue rediscovery from the same dataset (off by default)",
+    )
+    memory_parser.add_argument(
+        "--allow-same-dataset-family",
+        action="store_true",
+        help="Allow within-family retrieval (off by default)",
+    )
+    memory_parser.add_argument("--limit", type=int)
+    memory_parser.add_argument("--offset", type=int, default=0)
+    memory_parser.add_argument("--top-k", type=int, default=6)
+    memory_parser.add_argument(
+        "--maximum-per-family",
+        type=int,
+        default=2,
+        help="Diversity cap for retrieved defect families",
+    )
+    memory_parser.add_argument(
+        "--feature",
+        action="append",
+        help=(
+            "Declare a structural capability or observation such as "
+            "capability:execute_candidate (repeatable)"
+        ),
+    )
+    memory_parser.add_argument("--out", required=True, help="Output shadow report JSON")
+    memory_parser.add_argument("--md", help="Optional Markdown summary")
+    memory_parser.add_argument("--print-summary", action="store_true")
+    memory_parser.set_defaults(func=run_memory_shadow)
 
     trace_parser = subparsers.add_parser(
         "triage-traces",
@@ -1726,6 +1788,211 @@ def run_response_triage(args: argparse.Namespace) -> int:
             )
         )
     return 0
+
+
+def run_memory_shadow(args: argparse.Namespace) -> int:
+    """Match defect patterns while preserving the current audit verdicts."""
+
+    if args.top_k < 1:
+        raise ValueError("--top-k must be >=1")
+    if args.maximum_per_family < 1:
+        raise ValueError("--maximum-per-family must be >=1")
+    input_path = Path(args.input).expanduser().resolve()
+    memory_path = Path(args.memory).expanduser().resolve()
+    source_rows = load_rows(input_path)
+    mapping = load_mapping(Path(args.mapping) if args.mapping else None, source_rows)
+    source_indices = slice_rows(
+        list(range(len(source_rows))), args.offset, args.limit,
+    )
+    rows = [source_rows[index] for index in source_indices]
+    items = build_items(rows, mapping, source_indices=source_indices)
+
+    report_path = Path(args.report).expanduser().resolve() if args.report else None
+    report_sha256 = None
+    signals_by_row_uid: dict[str, set[str]] = {}
+    signals_by_item_id: dict[str, set[str]] = {}
+    item_id_counts: dict[str, int] = {}
+    for item in items:
+        item_id_counts[item.item_id] = item_id_counts.get(item.item_id, 0) + 1
+    ambiguous_item_id_signals_skipped = 0
+    if report_path is not None:
+        report_payload = json.loads(report_path.read_text(encoding="utf-8"))
+        if not isinstance(report_payload, dict):
+            raise ValueError("--report must contain a JSON object")
+        violations = report_payload.get("violations", [])
+        if not isinstance(violations, list):
+            raise ValueError("--report violations must be a list")
+        for violation in violations:
+            if not isinstance(violation, dict):
+                continue
+            row_uid = str(violation.get("row_uid", "")).strip()
+            item_id = str(violation.get("item_id", "")).strip()
+            if not row_uid and not item_id:
+                continue
+            values: set[str] = set()
+            for key in (
+                "defect_type",
+                "detection_method",
+                "artifact",
+                "evidence_tier",
+                "proof_kind",
+            ):
+                value = str(violation.get(key, "")).strip()
+                if value:
+                    values.add(f"{key}:{value}")
+            if row_uid:
+                signals_by_row_uid.setdefault(row_uid, set()).update(values)
+            elif item_id_counts.get(item_id, 0) == 1:
+                signals_by_item_id.setdefault(item_id, set()).update(values)
+            else:
+                ambiguous_item_id_signals_skipped += 1
+        report_sha256 = hashlib.sha256(report_path.read_bytes()).hexdigest()
+
+    store = DefectPatternStore.load_jsonl(memory_path)
+    matcher = DefectPatternMatcher(store)
+    policy = PatternMatchPolicy(
+        allow_same_dataset=args.allow_same_dataset,
+        allow_same_dataset_family=args.allow_same_dataset_family,
+        maximum_per_family=args.maximum_per_family,
+    )
+    per_item: list[dict] = []
+    retrieved_ids: set[str] = set()
+    family_counts: dict[str, int] = {}
+    for item in items:
+        signals = sorted(
+            signals_by_row_uid.get(item.row_uid or "", set())
+            | signals_by_item_id.get(item.item_id, set())
+        )
+        query = query_from_item(
+            item,
+            signals=signals,
+            extra_features=args.feature or [],
+            dataset=args.dataset,
+            dataset_family=args.dataset_family,
+        )
+        hits = matcher.match(query, top_k=args.top_k, policy=policy)
+        for hit in hits:
+            retrieved_ids.add(hit.pattern.pattern_id)
+            family = hit.pattern.defect_family
+            family_counts[family] = family_counts.get(family, 0) + 1
+        per_item.append({
+            "item_id": item.item_id,
+            "row_uid": item.row_uid,
+            "source_row_index": item.source_row_index,
+            "observed_signals": signals,
+            "structural_features": sorted(query.features),
+            "memory_candidate_score": score_pattern_hits(hits),
+            "hits": [hit.to_dict() for hit in hits],
+            "promotion_ceiling": MEMORY_PROMOTION_CEILING,
+        })
+
+    payload = {
+        "schema_version": "benchcore-audit-memory-shadow-report-v1",
+        "shadow_mode": True,
+        "changes_audit_findings": False,
+        "promotion_ceiling": MEMORY_PROMOTION_CEILING,
+        "input": {
+            "path": str(input_path),
+            "sha256": hashlib.sha256(input_path.read_bytes()).hexdigest(),
+            "items": len(items),
+            "offset": max(args.offset, 0),
+            "limit": args.limit,
+            "dataset": args.dataset,
+            "dataset_family": args.dataset_family,
+        },
+        "memory": {
+            "path": str(memory_path),
+            "file_sha256": hashlib.sha256(memory_path.read_bytes()).hexdigest(),
+            "store_sha256": store.sha256,
+            "patterns": len(store.patterns),
+            "retrieved_unique_patterns": len(retrieved_ids),
+        },
+        "audit_report": {
+            "path": str(report_path) if report_path is not None else None,
+            "sha256": report_sha256,
+            "ambiguous_item_id_signals_skipped": ambiguous_item_id_signals_skipped,
+        },
+        "retrieval_policy": {
+            "allow_same_dataset": policy.allow_same_dataset,
+            "allow_same_dataset_family": policy.allow_same_dataset_family,
+            "maximum_per_family": policy.maximum_per_family,
+            "top_k": args.top_k,
+            "extra_features": sorted(args.feature or []),
+            "uses_task_or_answer_text": False,
+        },
+        "summary": {
+            "items": len(per_item),
+            "items_with_hits": sum(bool(row["hits"]) for row in per_item),
+            "retrieved_hit_count": sum(len(row["hits"]) for row in per_item),
+            "retrieved_families": dict(sorted(family_counts.items())),
+        },
+        "items": per_item,
+    }
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        ) + "\n",
+        encoding="utf-8",
+    )
+    if args.md:
+        _write_memory_shadow_markdown(Path(args.md), payload)
+    if args.print_summary:
+        print(json.dumps({
+            **payload["summary"],
+            "memory_patterns": payload["memory"]["patterns"],
+            "retrieved_unique_patterns": payload["memory"][
+                "retrieved_unique_patterns"
+            ],
+            "promotion_ceiling": payload["promotion_ceiling"],
+            "changes_audit_findings": payload["changes_audit_findings"],
+        }, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _write_memory_shadow_markdown(path: Path, payload: dict) -> None:
+    summary = payload["summary"]
+    lines = [
+        "# Defect-Pattern Memory Shadow Report",
+        "",
+        "> Historical patterns are untrusted, review-only verifier-routing "
+        "hints. Matching uses structural features, not task/answer text, and "
+        "this shadow run does not change audit findings.",
+        "",
+        f"- Items: `{summary['items']}`",
+        f"- Items with pattern hits: `{summary['items_with_hits']}`",
+        f"- Retrieved pattern hits: `{summary['retrieved_hit_count']}`",
+        f"- Unique patterns: `{payload['memory']['retrieved_unique_patterns']}`",
+        f"- Promotion ceiling: `{payload['promotion_ceiling']}`",
+        f"- Changes audit findings: `{payload['changes_audit_findings']}`",
+        "- Uses task or answer text: `False`",
+        "",
+        "## Top structural pattern matches",
+        "",
+        "| Item | Candidate score | Rank | Pattern | Family | Score |",
+        "|---|---:|---:|---|---|---:|",
+    ]
+    shown = 0
+    for row in payload["items"]:
+        for hit in row["hits"]:
+            lines.append(
+                f"| {row['item_id']} | {row['memory_candidate_score']:.3f} "
+                f"| {hit['rank']} | {hit['pattern_id']} "
+                f"| {hit['defect_family']} "
+                f"| {hit['score']:.3f} |"
+            )
+            shown += 1
+            if shown >= 200:
+                break
+        if shown >= 200:
+            break
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def run_trace_triage(args: argparse.Namespace) -> int:

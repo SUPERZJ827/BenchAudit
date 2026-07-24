@@ -227,7 +227,46 @@ proof of a benchmark defect.
 See [`docs/tracebundle_v1.md`](docs/tracebundle_v1.md) for the schema, intake
 checklist, privacy boundary, and adapter guidance.
 
-### 7. Build deterministic regression defects
+### 7. Route audits with defect-pattern memory
+
+Defect-pattern memory stores reusable failure mechanisms and verifier recipes,
+not historical task text or answers. Matching uses only schema/evaluator
+features, capabilities, and existing audit signals:
+
+```bash
+benchcore memory-shadow benchmark.jsonl \
+  --memory examples/defect_patterns.v1.jsonl \
+  --dataset NewCodeBenchmark \
+  --dataset-family new-code-eval \
+  --feature capability:execute_candidate \
+  --feature mutation_point:numeric_constant \
+  --out reports/pattern_shadow.json \
+  --md reports/pattern_shadow.md
+```
+
+Same-dataset and same-family evidence is excluded by default. A match only
+routes a verifier and has a hard `review` ceiling; it never changes existing
+findings or confirms a defect. Concrete evidence cases are provenance pointers
+and do not participate in retrieval.
+
+The zero-API leave-one-benchmark-out experiment can be replayed with:
+
+```bash
+python scripts/run_pattern_memory_evalplus_lobo.py \
+  --limit-humaneval 164 \
+  --limit-mbpp 378 \
+  --workers 12 \
+  --per-family 2 \
+  --budget 6 \
+  --minimum-source-witness-tasks 2 \
+  --out /tmp/pattern_memory_evalplus_lobo.json
+```
+
+It requires the `research` dependencies and the local `ds1000-audit:v1`
+container. The hidden outcome is original-tests-pass / EvalPlus-tests-fail.
+Task text and target EvalPlus outcomes are not used for probe selection.
+
+### 8. Build deterministic regression defects
 
 ```bash
 benchcore inject-defects benchmark.jsonl \
@@ -299,6 +338,12 @@ The full tables, definitions, and limitations are in [RESULTS.md](RESULTS.md).
 | Workspace official counterfactual study | Whole-output deletion detected in 11/11; mean −54.7 pp | Strong sensitivity to obvious absence |
 | Workspace identical-output control | 6/11 independent re-evaluations changed by more than 3 pp | Fine-grained single-judge deltas require a noise control |
 | Terminal enriched paired subset | Deterministic F1 0.741; union F1 0.786 | The preregistered paired-method gate still failed; the method was not promoted |
+| EvalPlus structural-memory LOBO | MBPP→HumanEval task recall 0.690→0.828; HumanEval→MBPP 0.952→0.984 at equal probe counts | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
+
+The EvalPlus recall denominator contains only tasks for which the frozen
+mutation pool exposed at least one original-pass / stronger-oracle-fail
+witness. It is verifier-routing recall within that pool, not estimated recall
+over all natural benchmark defects.
 
 Negative results are retained. In particular:
 
@@ -352,8 +397,9 @@ handling policy explicitly permits it.
   with benchmark defects.
 - Trusted confirmation for executable benchmarks requires an independent
   adjudication boundary, not merely a successful sandbox run.
-- Large cross-benchmark holdouts and additional domain verifiers remain future
-  work.
+- Pattern-memory evidence currently covers executable Python evaluator
+  incompleteness; broader natural benchmarks and non-code domains remain
+  future work.
 
 The intended direction is a cost-aware cascade:
 
