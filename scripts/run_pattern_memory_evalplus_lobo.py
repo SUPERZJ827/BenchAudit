@@ -18,6 +18,10 @@ from typing import Any
 
 from datasets import load_dataset
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from benchcore.audit_memory import (
     MEMORY_SCHEMA_VERSION,
     DefectPattern,
@@ -125,6 +129,9 @@ FAMILIES = (
     "drop_wrapper_call",
     "return_default",
 )
+HUMANEVAL_BASE_REVISION = "7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544"
+HUMANEVAL_PLUS_REVISION = "d32357cf319e50e9c8d8dab5ea876c72b0fd321b"
+MBPP_PLUS_REVISION = "b2d74c91837c3f2a20c1299ae98133cbe7cfa077"
 
 
 def _is_docstring_constant(node: ast.Constant, parent: ast.AST | None) -> bool:
@@ -348,9 +355,17 @@ def load_tasks(benchmark: str, limit: int) -> list[Task]:
     if benchmark == "humaneval":
         original = {
             row["task_id"]: row
-            for row in load_dataset("openai/openai_humaneval", split="test")
+            for row in load_dataset(
+                "openai/openai_humaneval",
+                split="test",
+                revision=HUMANEVAL_BASE_REVISION,
+            )
         }
-        plus = load_dataset("evalplus/humanevalplus", split="test")
+        plus = load_dataset(
+            "evalplus/humanevalplus",
+            split="test",
+            revision=HUMANEVAL_PLUS_REVISION,
+        )
         tasks = []
         for row in plus:
             base = original[row["task_id"]]
@@ -369,7 +384,11 @@ def load_tasks(benchmark: str, limit: int) -> list[Task]:
             ))
         return tasks[:limit]
     if benchmark == "mbpp":
-        plus = load_dataset("evalplus/mbppplus", split="test")
+        plus = load_dataset(
+            "evalplus/mbppplus",
+            split="test",
+            revision=MBPP_PLUS_REVISION,
+        )
         tasks = []
         for row in plus:
             imports = "\n".join(row.get("test_imports") or [])
