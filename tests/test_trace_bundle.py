@@ -333,7 +333,7 @@ class TraceBundleAnalysisTest(unittest.TestCase):
         )
         self.assertEqual(
             identical["evidence"]["mismatch_modalities"],
-            ["outcome", "score", "artifact"],
+            ["outcome", "correctness", "score", "artifact"],
         )
         self.assertNotIn("repeated_outcome_disagreement", defect_types)
         self.assertNotIn("repeated_score_instability", defect_types)
@@ -387,6 +387,319 @@ class TraceBundleAnalysisTest(unittest.TestCase):
         defect_types = {row["defect_type"] for row in result["candidates"]}
         self.assertIn("repeated_outcome_disagreement", defect_types)
         self.assertIn("repeated_score_instability", defect_types)
+
+    def test_same_output_digest_exposes_cross_system_verdict_instability(self) -> None:
+        digest = "c" * 64
+        bundle = self._load(
+            [
+                _run(
+                    "r1",
+                    "q1",
+                    "system-a",
+                    0,
+                    status="passed",
+                    correct=True,
+                    score=0.9,
+                    artifacts=[
+                        {
+                            "artifact_id": "answer-a",
+                            "role": "output",
+                            "path": "run-a/final.txt",
+                            "sha256": digest,
+                        }
+                    ],
+                ),
+                _run(
+                    "r2",
+                    "q1",
+                    "system-b",
+                    0,
+                    status="failed",
+                    correct=False,
+                    score=0.1,
+                    artifacts=[
+                        {
+                            "artifact_id": "answer-b",
+                            "role": "output",
+                            "path": "run-b/final.txt",
+                            "sha256": digest,
+                        }
+                    ],
+                ),
+            ]
+        )
+        result = analyze_trace_bundle(bundle)
+        candidate = next(
+            row
+            for row in result["candidates"]
+            if row["defect_type"] == "output_equivalent_evaluation_mismatch"
+        )
+        self.assertEqual(
+            candidate["evidence"]["mismatch_modalities"],
+            ["outcome", "correctness", "score"],
+        )
+        self.assertEqual(candidate["run_ids"], ["r1", "r2"])
+        self.assertEqual(
+            candidate["evidence"]["output_sha256_multiset"],
+            [digest],
+        )
+        self.assertEqual(candidate["evidence_tier"], "review")
+        self.assertFalse(candidate["confirmation_eligible"])
+        self.assertFalse(
+            candidate["evidence"]["output_only_contract_declared"]
+        )
+        self.assertLess(candidate["confidence"], 0.95)
+
+    def test_same_output_compares_matching_evaluator_and_rubric(self) -> None:
+        digest = "d" * 64
+        bundle = self._load(
+            [
+                _run(
+                    "r1",
+                    "q1",
+                    "system-a",
+                    0,
+                    status="passed",
+                    artifacts=[
+                        {
+                            "artifact_id": "out",
+                            "role": "output",
+                            "path": "a.txt",
+                            "sha256": digest,
+                        }
+                    ],
+                    evaluations=[
+                        {
+                            "evaluator_id": "judge",
+                            "rubric_id": "r1",
+                            "verdict": "pass",
+                            "score": 1.0,
+                        }
+                    ],
+                ),
+                _run(
+                    "r2",
+                    "q1",
+                    "system-b",
+                    0,
+                    status="passed",
+                    artifacts=[
+                        {
+                            "artifact_id": "out",
+                            "role": "output",
+                            "path": "b.txt",
+                            "sha256": digest,
+                        }
+                    ],
+                    evaluations=[
+                        {
+                            "evaluator_id": "judge",
+                            "rubric_id": "r1",
+                            "verdict": "fail",
+                            "score": 0.0,
+                        }
+                    ],
+                ),
+            ]
+        )
+        result = analyze_trace_bundle(bundle)
+        candidate = next(
+            row
+            for row in result["candidates"]
+            if row["defect_type"] == "output_equivalent_evaluation_mismatch"
+        )
+        self.assertEqual(
+            candidate["evidence"]["mismatch_modalities"],
+            ["evaluator_verdict", "evaluator_score"],
+        )
+        contradiction = candidate["evidence"]["evaluator_contradictions"][0]
+        self.assertEqual(contradiction["evaluator_id"], "judge")
+        self.assertEqual(contradiction["rubric_id"], "r1")
+        self.assertEqual(contradiction["verdicts"], ["fail", "pass"])
+
+    def test_output_equivalence_never_crosses_item_or_digest_boundaries(self) -> None:
+        bundle = self._load(
+            [
+                _run(
+                    "r1",
+                    "q1",
+                    "m1",
+                    0,
+                    status="passed",
+                    artifacts=[{
+                        "artifact_id": "out",
+                        "role": "output",
+                        "path": "out.txt",
+                        "sha256": "a" * 64,
+                    }],
+                ),
+                _run(
+                    "r2",
+                    "q2",
+                    "m2",
+                    0,
+                    status="failed",
+                    correct=False,
+                    artifacts=[{
+                        "artifact_id": "out",
+                        "role": "output",
+                        "path": "out.txt",
+                        "sha256": "a" * 64,
+                    }],
+                ),
+                _run(
+                    "r3",
+                    "q1",
+                    "m3",
+                    0,
+                    status="failed",
+                    correct=False,
+                    artifacts=[{
+                        "artifact_id": "out",
+                        "role": "output",
+                        "path": "out.txt",
+                        "sha256": "b" * 64,
+                    }],
+                ),
+            ]
+        )
+        result = analyze_trace_bundle(bundle)
+        self.assertNotIn(
+            "output_equivalent_evaluation_mismatch",
+            {row["defect_type"] for row in result["candidates"]},
+        )
+
+    def test_identical_control_does_not_duplicate_same_output_candidate(self) -> None:
+        digest = "e" * 64
+        artifacts = [{
+            "artifact_id": "out",
+            "role": "output",
+            "path": "out.txt",
+            "sha256": digest,
+        }]
+        bundle = self._load(
+            [
+                _run(
+                    "r1",
+                    "q1",
+                    "m1",
+                    0,
+                    status="passed",
+                    score=0.9,
+                    control_id="same",
+                    control_kind="identical",
+                    artifacts=artifacts,
+                ),
+                _run(
+                    "r2",
+                    "q1",
+                    "m1",
+                    1,
+                    status="failed",
+                    correct=False,
+                    score=0.1,
+                    control_id="same",
+                    control_kind="identical",
+                    artifacts=artifacts,
+                ),
+            ]
+        )
+        result = analyze_trace_bundle(bundle)
+        defect_types = [
+            row["defect_type"] for row in result["candidates"]
+        ]
+        self.assertEqual(defect_types.count("identical_control_mismatch"), 1)
+        self.assertNotIn("output_equivalent_evaluation_mismatch", defect_types)
+
+    def test_identical_control_owns_cross_run_evaluator_disagreement(self) -> None:
+        digest = "f" * 64
+        artifacts = [{
+            "artifact_id": "out",
+            "role": "output",
+            "path": "out.txt",
+            "sha256": digest,
+        }]
+        bundle = self._load(
+            [
+                _run(
+                    "r1",
+                    "q1",
+                    "m1",
+                    0,
+                    status="passed",
+                    control_id="same",
+                    control_kind="identical",
+                    artifacts=artifacts,
+                    evaluations=[{
+                        "evaluator_id": "judge",
+                        "rubric_id": "r1",
+                        "verdict": "pass",
+                    }],
+                ),
+                _run(
+                    "r2",
+                    "q1",
+                    "m1",
+                    1,
+                    status="passed",
+                    control_id="same",
+                    control_kind="identical",
+                    artifacts=artifacts,
+                    evaluations=[{
+                        "evaluator_id": "judge",
+                        "rubric_id": "r1",
+                        "verdict": "fail",
+                    }],
+                ),
+            ]
+        )
+        result = analyze_trace_bundle(bundle)
+        candidates = [
+            row for row in result["candidates"]
+            if row["defect_type"] in {
+                "identical_control_mismatch",
+                "output_equivalent_evaluation_mismatch",
+            }
+        ]
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(
+            candidates[0]["defect_type"],
+            "identical_control_mismatch",
+        )
+        self.assertEqual(
+            candidates[0]["evidence"]["mismatch_modalities"],
+            ["evaluator_verdict"],
+        )
+
+    def test_reused_control_id_never_joins_different_items(self) -> None:
+        bundle = self._load(
+            [
+                _run(
+                    "r1",
+                    "q1",
+                    "m1",
+                    0,
+                    status="passed",
+                    control_id="common-name",
+                    control_kind="identical",
+                ),
+                _run(
+                    "r2",
+                    "q2",
+                    "m1",
+                    0,
+                    status="failed",
+                    correct=False,
+                    control_id="common-name",
+                    control_kind="identical",
+                ),
+            ]
+        )
+        result = analyze_trace_bundle(bundle)
+        self.assertNotIn(
+            "identical_control_mismatch",
+            {row["defect_type"] for row in result["candidates"]},
+        )
 
     def test_response_export_uses_aligned_attempt_columns(self) -> None:
         bundle = self._load(

@@ -219,10 +219,11 @@ benchcore triage-traces examples/tracebundle_v1.json \
 
 TraceBundle joins observations by stable IDs, rejects duplicate runs and unsafe
 artifact paths, preserves source SHA-256 digests, measures identical-control
-and repeated-run disagreement, and can export strict correctness observations
-for `triage-responses`. It performs no API calls or code execution. All trace
-candidates remain `review-only`; observational disagreement is not independent
-proof of a benchmark defect.
+and repeated-run disagreement, detects inconsistent evaluation of byte-identical
+outputs even when systems use different artifact paths, and can export strict
+correctness observations for `triage-responses`. It performs no API calls or
+code execution. All trace candidates remain `review-only`; observational
+disagreement is not independent proof of a benchmark defect.
 
 See [`docs/tracebundle_v1.md`](docs/tracebundle_v1.md) for the schema, intake
 checklist, privacy boundary, and adapter guidance.

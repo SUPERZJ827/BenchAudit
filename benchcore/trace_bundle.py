@@ -679,6 +679,74 @@ def _output_signature(run: TraceRun) -> tuple[tuple[str, str, str], ...] | None:
     return tuple(sorted(outputs)) if outputs else None
 
 
+def _output_content_signature(run: TraceRun) -> tuple[str, ...] | None:
+    """Return a path-independent, complete digest multiset for output artifacts.
+
+    Equivalence is intentionally fail-closed: a run is not comparable when it
+    has no output artifact or when any output artifact lacks a digest.  Paths
+    and artifact IDs are excluded because two systems commonly store the same
+    bytes under different run-local names.
+    """
+
+    outputs = [
+        artifact for artifact in run.artifacts if artifact.role == "output"
+    ]
+    if not outputs or any(artifact.sha256 is None for artifact in outputs):
+        return None
+    return tuple(sorted(artifact.sha256 for artifact in outputs if artifact.sha256))
+
+
+def _evaluation_contradictions(
+    runs: Iterable[TraceRun],
+    *,
+    minimum_repeated_runs: int,
+    score_spread_threshold: float,
+) -> tuple[list[dict[str, Any]], bool, bool]:
+    evaluations: dict[
+        tuple[str, str | None], list[tuple[str, TraceEvaluation]]
+    ] = defaultdict(list)
+    for run in runs:
+        for evaluation in run.evaluations:
+            evaluations[
+                (evaluation.evaluator_id, evaluation.rubric_id)
+            ].append((run.run_id, evaluation))
+
+    contradictions = []
+    has_verdict_mismatch = False
+    has_score_mismatch = False
+    for (evaluator_id, rubric_id), entries in sorted(
+        evaluations.items(),
+        key=lambda row: (row[0][0], row[0][1] or ""),
+    ):
+        if len({run_id for run_id, _ in entries}) < minimum_repeated_runs:
+            continue
+        verdicts = sorted({evaluation.verdict for _, evaluation in entries})
+        scores = [
+            evaluation.score
+            for _, evaluation in entries
+            if evaluation.score is not None
+        ]
+        verdict_mismatch = "pass" in verdicts and "fail" in verdicts
+        score_spread = None
+        if len(scores) >= minimum_repeated_runs:
+            observed_spread = max(scores) - min(scores)
+            if observed_spread >= score_spread_threshold:
+                score_spread = observed_spread
+        if not verdict_mismatch and score_spread is None:
+            continue
+        has_verdict_mismatch |= verdict_mismatch
+        has_score_mismatch |= score_spread is not None
+        contradictions.append({
+            "evaluator_id": evaluator_id,
+            "rubric_id": rubric_id,
+            "verdicts": verdicts,
+            "scores": scores,
+            "score_spread": score_spread,
+            "run_ids": sorted({run_id for run_id, _ in entries}),
+        })
+    return contradictions, has_verdict_mismatch, has_score_mismatch
+
+
 def analyze_trace_bundle(
     bundle: TraceBundle,
     *,
@@ -703,7 +771,10 @@ def analyze_trace_bundle(
 
     candidates: list[dict[str, Any]] = []
     by_item_system: dict[tuple[str, str], list[TraceRun]] = defaultdict(list)
-    identical_groups: dict[str, list[TraceRun]] = defaultdict(list)
+    identical_groups: dict[tuple[str, str], list[TraceRun]] = defaultdict(list)
+    output_equivalent_groups: dict[
+        tuple[str, tuple[str, ...]], list[TraceRun]
+    ] = defaultdict(list)
     status_counts: Counter[str] = Counter()
     event_counts: Counter[str] = Counter()
     correct_runs = 0
@@ -720,7 +791,12 @@ def analyze_trace_bundle(
         reward_runs += run.outcome.reward is not None
         output_digest_runs += _output_signature(run) is not None
         if run.control_kind == "identical" and run.control_id is not None:
-            identical_groups[run.control_id].append(run)
+            identical_groups[(run.item_id, run.control_id)].append(run)
+        output_content_signature = _output_content_signature(run)
+        if output_content_signature is not None:
+            output_equivalent_groups[
+                (run.item_id, output_content_signature)
+            ].append(run)
 
         nonzero_exits = []
         for event in run.events:
@@ -835,6 +911,117 @@ def analyze_trace_bundle(
                     )
                 )
 
+    comparable_output_groups = 0
+    for (item_id, output_signature), runs in sorted(
+        output_equivalent_groups.items()
+    ):
+        if len(runs) < minimum_repeated_runs:
+            continue
+        comparable_output_groups += 1
+        identical_keys = {
+            run.control_id
+            for run in runs
+            if run.control_kind == "identical" and run.control_id is not None
+        }
+        pure_identical_group = (
+            len(identical_keys) == 1
+            and all(
+                run.control_kind == "identical"
+                and run.control_id in identical_keys
+                for run in runs
+            )
+        )
+        if pure_identical_group:
+            # The stronger declared-control analysis below owns this run group.
+            continue
+
+        modalities: list[str] = []
+        statuses = sorted({run.outcome.status for run in runs})
+        correctness = sorted({
+            run.outcome.correct
+            for run in runs
+            if run.outcome.correct is not None
+        })
+        scores = [
+            run.outcome.score for run in runs if run.outcome.score is not None
+        ]
+        score_spread = None
+        if len(scores) >= minimum_repeated_runs:
+            observed_spread = max(scores) - min(scores)
+            if observed_spread >= score_spread_threshold:
+                score_spread = observed_spread
+
+        if "passed" in statuses and "failed" in statuses:
+            modalities.append("outcome")
+        if correctness == [False, True]:
+            modalities.append("correctness")
+        if score_spread is not None:
+            modalities.append("score")
+
+        (
+            evaluator_contradictions,
+            has_evaluator_verdict_mismatch,
+            has_evaluator_score_mismatch,
+        ) = _evaluation_contradictions(
+            runs,
+            minimum_repeated_runs=minimum_repeated_runs,
+            score_spread_threshold=score_spread_threshold,
+        )
+        if has_evaluator_verdict_mismatch:
+            modalities.append("evaluator_verdict")
+        if has_evaluator_score_mismatch:
+            modalities.append("evaluator_score")
+        if not modalities:
+            continue
+
+        key = f"{item_id}\0{json.dumps(output_signature)}"
+        decisive = any(
+            modality in {"outcome", "correctness", "evaluator_verdict"}
+            for modality in modalities
+        )
+        output_only_contract_declared = all(
+            run.metadata.get("evaluation_scope") == "output" for run in runs
+        )
+        confidence = (
+            0.95
+            if decisive and output_only_contract_declared
+            else 0.85
+            if decisive
+            else 0.80
+            if output_only_contract_declared
+            else 0.70
+        )
+        candidates.append(
+            _candidate(
+                candidate_id=_candidate_id(
+                    "output_equivalent_evaluation_mismatch", key
+                ),
+                item_ids=[item_id],
+                run_ids=[run.run_id for run in runs],
+                defect_type="output_equivalent_evaluation_mismatch",
+                message=(
+                    "Runs with byte-identical output artifacts receive "
+                    "inconsistent evaluation evidence; verify whether the "
+                    "evaluator is output-only before treating this as a defect."
+                ),
+                confidence=confidence,
+                evidence={
+                    "mismatch_modalities": modalities,
+                    "output_sha256_multiset": list(output_signature),
+                    "system_ids": sorted({run.system_id for run in runs}),
+                    "statuses": statuses,
+                    "correctness": correctness,
+                    "scores": scores,
+                    "score_spread": score_spread,
+                    "score_spread_threshold": score_spread_threshold,
+                    "evaluator_contradictions": evaluator_contradictions,
+                    "output_only_contract_declared": (
+                        output_only_contract_declared
+                    ),
+                },
+            )
+        )
+
     for (item_id, system_id), runs in sorted(by_item_system.items()):
         if len(runs) < minimum_repeated_runs:
             continue
@@ -903,11 +1090,17 @@ def analyze_trace_bundle(
                     )
                 )
 
-    for control_id, runs in sorted(identical_groups.items()):
+    for (item_id, control_id), runs in sorted(identical_groups.items()):
         if len(runs) < minimum_repeated_runs:
             continue
         statuses = {run.outcome.status for run in runs}
         outcome_mismatch = "passed" in statuses and "failed" in statuses
+        correctness = sorted({
+            run.outcome.correct
+            for run in runs
+            if run.outcome.correct is not None
+        })
+        correctness_mismatch = correctness == [False, True]
         scores = [
             run.outcome.score for run in runs if run.outcome.score is not None
         ]
@@ -924,18 +1117,41 @@ def analyze_trace_bundle(
         artifact_mismatch = (
             len(signatures) >= minimum_repeated_runs and len(set(signatures)) > 1
         )
-        if outcome_mismatch or score_spread is not None or artifact_mismatch:
+        (
+            evaluator_contradictions,
+            evaluator_verdict_mismatch,
+            evaluator_score_mismatch,
+        ) = _evaluation_contradictions(
+            runs,
+            minimum_repeated_runs=minimum_repeated_runs,
+            score_spread_threshold=score_spread_threshold,
+        )
+        if (
+            outcome_mismatch
+            or correctness_mismatch
+            or score_spread is not None
+            or artifact_mismatch
+            or evaluator_verdict_mismatch
+            or evaluator_score_mismatch
+        ):
             modalities = []
             if outcome_mismatch:
                 modalities.append("outcome")
+            if correctness_mismatch:
+                modalities.append("correctness")
             if score_spread is not None:
                 modalities.append("score")
             if artifact_mismatch:
                 modalities.append("artifact")
+            if evaluator_verdict_mismatch:
+                modalities.append("evaluator_verdict")
+            if evaluator_score_mismatch:
+                modalities.append("evaluator_score")
             candidates.append(
                 _candidate(
                     candidate_id=_candidate_id(
-                        "identical_control_mismatch", control_id
+                        "identical_control_mismatch",
+                        f"{item_id}\0{control_id}",
                     ),
                     item_ids=[run.item_id for run in runs],
                     run_ids=[run.run_id for run in runs],
@@ -944,17 +1160,27 @@ def analyze_trace_bundle(
                         "Runs declared as an identical control disagree in "
                         f"{', '.join(modalities)} evidence."
                     ),
-                    confidence=0.95 if outcome_mismatch else 0.90,
+                    confidence=(
+                        0.95
+                        if (
+                            outcome_mismatch
+                            or correctness_mismatch
+                            or evaluator_verdict_mismatch
+                        )
+                        else 0.90
+                    ),
                     evidence={
                         "control_id": control_id,
                         "mismatch_modalities": modalities,
                         "statuses": [run.outcome.status for run in runs],
+                        "correctness": correctness,
                         "scores": scores,
                         "score_spread": score_spread,
                         "score_spread_threshold": score_spread_threshold,
                         "output_signatures": [
                             list(signature) for signature in signatures
                         ],
+                        "evaluator_contradictions": evaluator_contradictions,
                     },
                 )
             )
@@ -1042,6 +1268,7 @@ def analyze_trace_bundle(
             "runs_with_output_digest": output_digest_runs,
             "repeated_item_system_groups": repeat_groups,
             "identical_control_groups": len(identical_groups),
+            "output_equivalent_groups": comparable_output_groups,
             "infrastructure_failure_rate": infrastructure_rate,
             "warnings": warnings,
         },
