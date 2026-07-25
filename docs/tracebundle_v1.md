@@ -119,11 +119,15 @@ Runs may declare:
 ```
 
 Only use `identical` when the compared condition is genuinely identical under
-the frozen protocol. `triage-traces` can then measure:
+the frozen protocol. Control IDs are scoped to an item, so reusing a generic
+name such as `repeat-0` on different items never joins those items.
+`triage-traces` can then measure:
 
 - pass/fail mismatch;
+- explicit correctness mismatch;
 - score spread;
-- output artifact digest mismatch.
+- output artifact digest mismatch;
+- matching evaluator/rubric verdict or score disagreement across runs.
 
 Declaring a control does not prove identity cryptographically. Preserve the
 input, evaluator, environment, and prompt digests under `metadata` when they
@@ -136,7 +140,10 @@ The current implementation can flag:
 - repeated pass/fail disagreement;
 - repeated score instability;
 - one atomic identical-control mismatch finding with outcome, score, and
-  artifact modalities (rather than duplicate findings for one root cause);
+  artifact/evaluator modalities (rather than duplicate findings for one root
+  cause);
+- byte-identical output artifacts receiving inconsistent outcome, correctness,
+  score, or matching evaluator/rubric evidence across systems or attempts;
 - evaluators disagreeing on the same run and rubric;
 - a passed run containing a non-zero process exit;
 - pass/fail status disagreeing with explicit `correct`;
@@ -145,7 +152,14 @@ The current implementation can flag:
 
 These are candidate-generation rules, not universal defect predicates. For
 example, repeated pass/fail disagreement may be caused by a stochastic task
-rather than a broken evaluator.
+rather than a broken evaluator. Output equivalence is grouped by item ID and a
+complete multiset of output SHA-256 digests. Paths and artifact IDs may differ,
+but every output artifact in a compared run must have a digest; incomplete
+artifact evidence is never treated as equality. Because some agentic evaluators
+also judge trajectories, byte-identical outputs are not universal proof that
+scores must match. Adapters may set `metadata.evaluation_scope` to `output`
+when that contract is known; otherwise the candidate keeps a lower confidence
+and explicitly asks reviewers to verify evaluator scope.
 
 ## CLI
 
