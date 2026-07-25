@@ -1,0 +1,110 @@
+{
+  "protocol_id": "pattern-memory-codecontests-train-staged-holdout-v3",
+  "frozen_at": "2026-07-25",
+  "status": "confirmatory_before_train_split_execution",
+  "prior_results": {
+    "test_v1_decision": "invalidated_by_execution_nondeterminism",
+    "valid_v2_decision": "promising_point_estimate_but_failed_preregistered_sample_size_and_paired_ci_gates",
+    "valid_v2_stable_summary_sha256": "9f62170835d7a536954cc225d47f8c6e7ba6637e907c7a32d136ee55feffd47e",
+    "source_evidence_sha256": {
+      "humaneval": "6cf4547ccfc36f62b216a18730582137af47c61c15dd34ab1577af1bedc24bb9",
+      "mbpp": "f38fe2c34ca2cc6f01e903b8d7568634c04e079efea78477c90364297a513c8f"
+    }
+  },
+  "question": "On an untouched CodeContests train holdout, does a preregistered multi-reference validity stage recover enough trustworthy target tasks for the budget-4 source-memory policy to improve both witness yield and task coverage?",
+  "source_benchmarks": {
+    "humaneval": {
+      "limit": 100,
+      "base_dataset": "openai/openai_humaneval",
+      "base_revision": "7dce6050a7d6d172f3cc5c32aa97f52fa1a2e544",
+      "strong_dataset": "evalplus/humanevalplus",
+      "strong_revision": "d32357cf319e50e9c8d8dab5ea876c72b0fd321b"
+    },
+    "mbpp": {
+      "limit": 100,
+      "dataset": "evalplus/mbppplus",
+      "revision": "b2d74c91837c3f2a20c1299ae98133cbe7cfa077"
+    }
+  },
+  "target_benchmark": {
+    "name": "codecontests",
+    "dataset": "deepmind/code_contests",
+    "revision": "802411c3010cb00d1b05bad57ca77365a3c699d6",
+    "split": "train",
+    "candidate_limit": 160,
+    "selection_rule": [
+      "iterate the pinned train split in dataset order",
+      "require at least one public test",
+      "require at least ten private+generated strong tests",
+      "require at least one PYTHON3 reference solution",
+      "exclude tasks that declare input_file or output_file",
+      "retain at most the first three PYTHON3 reference solutions",
+      "without generating mutants, test retained references in stored order and select the first that passes both weak and strong evaluators",
+      "generate mutants only for the selected valid reference"
+    ],
+    "maximum_python3_reference_candidates": 3,
+    "weak_evaluator": "all public_tests with whitespace-token comparison",
+    "strong_oracle": "private_tests followed by generated_tests, capped at the first 50 cases",
+    "strong_case_cap": 50,
+    "minimum_strong_cases": 10,
+    "per_case_timeout_seconds": 10.0,
+    "reference_validity_rule": "the selected reference solution must pass both weak and strong test sets twice: once in the canonical-only stage and once in the mutation execution stage"
+  },
+  "mutation_protocol": {
+    "families": [
+      "comparison_boundary",
+      "arithmetic_operator",
+      "boolean_operator",
+      "condition_negation",
+      "numeric_constant",
+      "range_boundary",
+      "slice_boundary",
+      "drop_wrapper_call",
+      "return_default"
+    ],
+    "mutants_per_family": 2,
+    "budget_per_task": 4,
+    "selection_features": "solution/evaluator AST structure only",
+    "target_problem_text_used": false,
+    "target_weak_or_strong_outcomes_used_for_probe_selection": false,
+    "target_strong_outcomes_used_only_for_reference_validity_and_post_selection_witness_labels": true
+  },
+  "memory_gate": {
+    "minimum_source_benchmarks": 2,
+    "minimum_witness_tasks_per_source_benchmark": 2,
+    "primary_source": "humaneval+mbpp",
+    "primary_target": "codecontests-train"
+  },
+  "controls": {
+    "random_family_orders": 500,
+    "paired_bootstrap_resamples": 2000,
+    "execution_workers": 4,
+    "seed_random_order": 20260724,
+    "seed_bootstrap": 20260725,
+    "equal_probe_counts_required": true,
+    "negative_results_retained": true,
+    "promotion_ceiling": "review"
+  },
+  "success_gate": {
+    "minimum_valid_target_tasks": 100,
+    "minimum_witnessable_target_tasks": 20,
+    "primary_metric": "witness_yield",
+    "memory_minus_random_mean_gt": 0.0,
+    "empirical_one_sided_p_lte": 0.05,
+    "paired_bootstrap_ci95_lower_gt": 0.0,
+    "task_recall_not_below_random_mean": true,
+    "task_recall_paired_ci95_lower_gt": 0.0,
+    "two_complete_runs_must_have_identical_stable_summary_sha256": true
+  },
+  "interpretation": {
+    "passing_claim": "A third, untouched stdin/stdout holdout confirms a narrow cross-benchmark mutation-family routing gain after a frozen reference-validity stage.",
+    "failure_claim": "The cross-benchmark routing gain remains unconfirmed; report the validity recovery and all failed gates without further train-split tuning.",
+    "promotion_ceiling": "review"
+  },
+  "container": {
+    "image": "ds1000-audit:v1",
+    "resolved_image": "sha256:9e30f4122a069ab7f626cdd70a3c11ddbbf44a9bd0cc4cc834136a2a2f08e995",
+    "network": "none",
+    "read_only": true
+  }
+}
