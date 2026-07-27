@@ -650,6 +650,9 @@ def _candidate(
     evidence: dict[str, Any],
     confidence: float,
 ) -> dict[str, Any]:
+    candidate_evidence = dict(evidence)
+    candidate_evidence["evidence_level"] = "historical_trace_observation"
+    candidate_evidence["trace_bundle_candidate_id"] = candidate_id
     return {
         "candidate_id": candidate_id,
         "item_ids": sorted(set(item_ids)),
@@ -661,7 +664,7 @@ def _candidate(
         "evidence_tier": "review",
         "review_only": True,
         "confirmation_eligible": False,
-        "evidence": evidence,
+        "evidence": candidate_evidence,
     }
 
 

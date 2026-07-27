@@ -16,8 +16,14 @@ from benchcore.auditor import audit_items
 from benchcore.checkers import TaskSpecChecker
 from benchcore.field_mapping import mapping_from_dict
 from benchcore.loader import build_items
-from benchcore.promotion import enforce_promotion_policy
-from benchcore.trace_bundle import analyze_trace_bundle
+from benchcore.promotion import (
+    HISTORICAL_RESULT_PROVENANCE_EVIDENCE_KEYS,
+    enforce_promotion_policy,
+)
+from benchcore.trace_bundle import (
+    _candidate as _trace_candidate,
+    analyze_trace_bundle,
+)
 
 
 class ReleasedResultAdapterTest(unittest.TestCase):
@@ -428,12 +434,32 @@ class ReleasedResultAuditTest(unittest.TestCase):
             self.assertFalse(candidate["confirmation_eligible"])
 
     def test_central_promotion_caps_released_result_provenance(self) -> None:
+        candidate = _candidate(
+            kind="published_reference_evaluator_failure",
+            item_ids=["one"],
+            run_ids=["run-one"],
+            message="fixture",
+            confidence=0.9,
+            evidence={
+                "affected_items": 1,
+                "evidence_level": "objective_replay",
+                "released_result_candidate_id": "forged",
+            },
+        )
+        self.assertEqual(
+            candidate["evidence"]["evidence_level"],
+            "released_result_observation",
+        )
+        self.assertEqual(
+            candidate["evidence"]["released_result_candidate_id"],
+            candidate["candidate_id"],
+        )
         mapping = mapping_from_dict({"item_id": "id", "task": "question"})
         item = build_items([{"id": "one"}], mapping)[0]
         finding = audit_items([item], checkers=[TaskSpecChecker()])[0]
         self.assertEqual(finding.evidence_tier, "confirmed")
 
-        finding.evidence["released_result_source_sha256"] = "a" * 64
+        finding.evidence = dict(candidate["evidence"])
         enforce_promotion_policy(finding, item)
         self.assertEqual(finding.evidence_tier, "review")
         self.assertEqual(finding.proof_kind, "historical_result_observation")
@@ -460,6 +486,33 @@ class ReleasedResultAuditTest(unittest.TestCase):
         self.assertEqual(finding.evidence_tier, "review")
         self.assertEqual(finding.proof_kind, "historical_result_observation")
         self.assertTrue(finding.review_only)
+
+    def test_every_registered_historical_sentinel_is_actually_emitted(self) -> None:
+        released_candidate = _candidate(
+            kind="published_reference_evaluator_failure",
+            item_ids=["one"],
+            run_ids=["released-run"],
+            message="fixture",
+            confidence=0.9,
+            evidence={"affected_items": 1},
+        )
+        trace_candidate = _trace_candidate(
+            candidate_id="trace:fixture:1234",
+            item_ids=["one"],
+            run_ids=["trace-run"],
+            defect_type="repeated_outcome_disagreement",
+            message="fixture",
+            evidence={"run_count": 2},
+            confidence=0.8,
+        )
+        emitted_keys = (
+            set(released_candidate["evidence"])
+            | set(trace_candidate["evidence"])
+        )
+
+        self.assertTrue(
+            HISTORICAL_RESULT_PROVENANCE_EVIDENCE_KEYS <= emitted_keys
+        )
 
 
 if __name__ == "__main__":

@@ -1142,23 +1142,28 @@ def _method_is_model_based(method: str, evidence: dict[str, Any]) -> bool:
     )
 
 
+MEMORY_PROVENANCE_EVIDENCE_KEYS = frozenset({
+    "memory_candidate_score",
+    "pattern_id",
+    "pattern_sha256",
+    "evidence_case_ids",
+})
+
+HISTORICAL_RESULT_PROVENANCE_EVIDENCE_KEYS = frozenset({
+    "released_result_candidate_id",
+    "trace_bundle_candidate_id",
+})
+
+
 def _method_is_memory_derived(method: str, evidence: dict[str, Any]) -> bool:
     """Recognize historical-memory provenance even if the method is renamed."""
 
     normalized_method = method.casefold()
     level = str(evidence.get("evidence_level") or "").casefold()
-    memory_evidence_keys = {
-        "memory_candidate_score",
-        "memory_pattern_id",
-        "memory_pattern_sha256",
-        "pattern_id",
-        "pattern_sha256",
-        "evidence_case_ids",
-    }
     return bool(
         "memory" in normalized_method
         or level.startswith(("memory_", "pattern_memory_"))
-        or memory_evidence_keys & set(evidence)
+        or MEMORY_PROVENANCE_EVIDENCE_KEYS & set(evidence)
         or any(str(key).casefold().startswith("memory_") for key in evidence)
     )
 
@@ -1176,19 +1181,13 @@ def _method_is_historical_result_derived(
 
     normalized_method = method.casefold()
     level = str(evidence.get("evidence_level") or "").casefold()
-    explicit_keys = {
-        "released_result_source_sha256",
-        "released_result_candidate_id",
-        "trace_bundle_candidate_id",
-        "historical_trace_run_ids",
-    }
     return bool(
         normalized_method in {
             "released_result_consistency",
             "historical_trace_consistency",
         }
         or level.startswith(("released_result_", "historical_trace_"))
-        or explicit_keys & set(evidence)
+        or HISTORICAL_RESULT_PROVENANCE_EVIDENCE_KEYS & set(evidence)
         or any(
             str(key).casefold().startswith(("released_result_", "trace_bundle_"))
             for key in evidence

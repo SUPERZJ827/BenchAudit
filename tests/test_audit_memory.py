@@ -22,7 +22,10 @@ from benchcore.checkers import TaskSpecChecker
 from benchcore.cli import main
 from benchcore.field_mapping import mapping_from_dict
 from benchcore.loader import build_items
-from benchcore.promotion import enforce_promotion_policy
+from benchcore.promotion import (
+    MEMORY_PROVENANCE_EVIDENCE_KEYS,
+    enforce_promotion_policy,
+)
 from benchcore.schema import BenchmarkItem
 
 
@@ -386,6 +389,15 @@ def test_context_is_bounded_untrusted_and_review_only() -> None:
 
 
 def test_central_promotion_blocks_memory_derived_objective_finding() -> None:
+    pattern = make_pattern("historical-missing-task")
+    query = PatternQuery(
+        query_id="q",
+        features=frozenset({
+            "field:evaluator",
+            "capability:execute_candidate",
+        }),
+    )
+    hit = DefectPatternMatcher(DefectPatternStore([pattern])).match(query)[0]
     mapping = mapping_from_dict({"item_id": "id", "task": "question"})
     item = build_items([{"id": "one"}], mapping)[0]
     finding = audit_items([item], checkers=[TaskSpecChecker()])[0]
@@ -394,7 +406,8 @@ def test_central_promotion_blocks_memory_derived_objective_finding() -> None:
     # Even a proof tuple that normally confirms is capped once historical
     # pattern provenance is attached. This is enforced centrally rather than
     # relying on the shadow CLI's report label.
-    finding.evidence["memory_pattern_id"] = "historical-missing-task"
+    finding.detection_method = "objective_recompute"
+    finding.evidence = hit.to_dict()
     enforce_promotion_policy(finding, item)
     assert finding.evidence_tier == "review"
     assert finding.proof_kind == "historical_pattern_memory"
@@ -452,6 +465,11 @@ def test_memory_shadow_cli_never_changes_findings(tmp_path: Path) -> None:
     assert payload["promotion_ceiling"] == "review"
     assert payload["retrieval_policy"]["includes_raw_key_features"] is False
     assert payload["items"][0]["hits"][0]["promotion_ceiling"] == "review"
+    emitted_provenance_keys = (
+        set(payload["items"][0])
+        | set(payload["items"][0]["hits"][0])
+    )
+    assert MEMORY_PROVENANCE_EVIDENCE_KEYS <= emitted_provenance_keys
     assert "defect_type:evaluator_unsoundness" in " ".join(
         payload["items"][0]["observed_signals"]
     )

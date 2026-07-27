@@ -5,9 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from benchcore.auditor import audit_items
+from benchcore.checkers import TaskSpecChecker
 from benchcore.cli import main
+from benchcore.field_mapping import mapping_from_dict
+from benchcore.loader import build_items
+from benchcore.promotion import enforce_promotion_policy
 from benchcore.trace_bundle import (
     TRACE_SCHEMA_VERSION,
+    _candidate,
     analyze_trace_bundle,
     load_trace_bundle,
     trace_response_rows,
@@ -343,6 +349,41 @@ class TraceBundleAnalysisTest(unittest.TestCase):
             self.assertEqual(candidate["evidence_tier"], "review")
             self.assertTrue(candidate["review_only"])
             self.assertFalse(candidate["confirmation_eligible"])
+
+    def test_emitted_trace_provenance_survives_detection_method_rename(self) -> None:
+        candidate = _candidate(
+            candidate_id="trace:fixture:1234",
+            item_ids=["one"],
+            run_ids=["run-one"],
+            defect_type="repeated_outcome_disagreement",
+            message="fixture",
+            evidence={
+                "run_count": 2,
+                "evidence_level": "objective_replay",
+                "trace_bundle_candidate_id": "forged",
+            },
+            confidence=0.8,
+        )
+        self.assertEqual(
+            candidate["evidence"]["evidence_level"],
+            "historical_trace_observation",
+        )
+        self.assertEqual(
+            candidate["evidence"]["trace_bundle_candidate_id"],
+            "trace:fixture:1234",
+        )
+        mapping = mapping_from_dict({"item_id": "id", "task": "question"})
+        item = build_items([{"id": "one"}], mapping)[0]
+        finding = audit_items([item], checkers=[TaskSpecChecker()])[0]
+        self.assertEqual(finding.evidence_tier, "confirmed")
+
+        finding.detection_method = "objective_recompute"
+        finding.evidence = dict(candidate["evidence"])
+        enforce_promotion_policy(finding, item)
+
+        self.assertEqual(finding.evidence_tier, "review")
+        self.assertEqual(finding.proof_kind, "historical_result_observation")
+        self.assertTrue(finding.review_only)
 
     def test_infrastructure_cluster_is_dataset_level_review(self) -> None:
         bundle = self._load(
