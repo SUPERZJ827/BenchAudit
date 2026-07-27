@@ -442,6 +442,9 @@ def _candidate(
     item_list = sorted(set(item_ids))
     key = f"{kind}\0{_stable_json(item_list)}"
     candidate_id = f"released:{kind}:{_sha256_text(key)[:16]}"
+    candidate_evidence = dict(evidence)
+    candidate_evidence["evidence_level"] = "released_result_observation"
+    candidate_evidence["released_result_candidate_id"] = candidate_id
     return {
         "candidate_id": candidate_id,
         "item_ids": item_list,
@@ -453,7 +456,7 @@ def _candidate(
         "evidence_tier": "review",
         "review_only": True,
         "confirmation_eligible": False,
-        "evidence": evidence,
+        "evidence": candidate_evidence,
     }
 
 
