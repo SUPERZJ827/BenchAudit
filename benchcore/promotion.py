@@ -1163,6 +1163,39 @@ def _method_is_memory_derived(method: str, evidence: dict[str, Any]) -> bool:
     )
 
 
+def _method_is_historical_result_derived(
+    method: str, evidence: dict[str, Any],
+) -> bool:
+    """Recognize observational result/trace provenance across renamed methods.
+
+    Published verdicts and execution histories are useful triage signals, but
+    they are not an independent replay of the benchmark contract.  The check is
+    intentionally centralized so a future caller cannot promote such evidence
+    merely by changing a detection method string.
+    """
+
+    normalized_method = method.casefold()
+    level = str(evidence.get("evidence_level") or "").casefold()
+    explicit_keys = {
+        "released_result_source_sha256",
+        "released_result_candidate_id",
+        "trace_bundle_candidate_id",
+        "historical_trace_run_ids",
+    }
+    return bool(
+        normalized_method in {
+            "released_result_consistency",
+            "historical_trace_consistency",
+        }
+        or level.startswith(("released_result_", "historical_trace_"))
+        or explicit_keys & set(evidence)
+        or any(
+            str(key).casefold().startswith(("released_result_", "trace_bundle_"))
+            for key in evidence
+        )
+    )
+
+
 def _proof_kind(violation: Violation) -> str:
     method = violation.detection_method.casefold()
     level = str(violation.evidence.get("evidence_level") or "").casefold()
@@ -1323,6 +1356,14 @@ def decide_promotion(
             "review", "historical_pattern_memory",
             "Historical defect-pattern memory can route verification but "
             "cannot serve as independent proof.",
+        )
+    if _method_is_historical_result_derived(
+        violation.detection_method, violation.evidence,
+    ):
+        return PromotionDecision(
+            "review", "historical_result_observation",
+            "Released results and historical traces can prioritize independent "
+            "replay but cannot serve as proof of a benchmark defect.",
         )
     if _method_is_model_based(violation.detection_method, violation.evidence):
         return PromotionDecision(
