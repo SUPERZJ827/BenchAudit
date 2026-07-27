@@ -108,6 +108,33 @@ def test_python_variants_preserve_ast_and_never_change_indentation():
     assert all("    return x + 1" in variant.transformed for variant in variants)
 
 
+def test_sql_layout_variants_preserve_original_bytes_without_rewriting_tokens():
+    source = "SELECT '/* literal */' AS value;"
+    variants = generate_semantics_preserving_variants(
+        source,
+        {"schema_version": "benchcore-metamorphic-contract-v1",
+         "semantic_profile": "sql_layout",
+         "evaluator_identity": "fixture:sql:v1"},
+    )
+
+    assert {
+        variant.transformation_id for variant in variants
+    } == {
+        "sql_leading_whitespace",
+        "sql_trailing_whitespace",
+        "sql_leading_plain_comment",
+    }
+    assert all(source in variant.transformed for variant in variants)
+    assert all(
+        variant.semantics_proof["kind"] == "declared_sql_layout_equivalence"
+        for variant in variants
+    )
+    assert all(
+        variant.semantics_proof["original_bytes_preserved"] is True
+        for variant in variants
+    )
+
+
 def test_free_text_has_no_confirmable_variant_without_explicit_trim_contract():
     assert generate_semantics_preserving_variants(
         "answer",
