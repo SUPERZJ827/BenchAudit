@@ -1,0 +1,156 @@
+{
+  "schema_version": "benchaudit-safety-claims-v1",
+  "claims": [
+    {
+      "claim_id": "historical-result-method-rename-ceiling",
+      "statement": "Released-result evidence remains capped at review even if its detection method is renamed.",
+      "enforcement_paths": [
+        "benchcore/released_results.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_released_results.py",
+        "function": "test_emitted_provenance_survives_detection_method_rename",
+        "kind": "rename_detection_method",
+        "required_tokens": [
+          "reference_drift_replay",
+          "review"
+        ]
+      }
+    },
+    {
+      "claim_id": "historical-trace-method-rename-ceiling",
+      "statement": "Historical-trace evidence remains capped at review even if its detection method is renamed.",
+      "enforcement_paths": [
+        "benchcore/trace_bundle.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_trace_bundle.py",
+        "function": "test_emitted_trace_provenance_survives_detection_method_rename",
+        "kind": "rename_detection_method",
+        "required_tokens": [
+          "objective_recompute",
+          "review"
+        ]
+      }
+    },
+    {
+      "claim_id": "historical-sentinel-is-live",
+      "statement": "Every active historical provenance sentinel is emitted by a real producer.",
+      "enforcement_paths": [
+        "benchcore/released_results.py",
+        "benchcore/trace_bundle.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_released_results.py",
+        "function": "test_every_registered_historical_sentinel_is_actually_emitted",
+        "kind": "register_never_emitted_sentinel",
+        "required_tokens": [
+          "HISTORICAL_RESULT_PROVENANCE_EVIDENCE_KEYS",
+          "emitted_keys"
+        ]
+      }
+    },
+    {
+      "claim_id": "task-inventory-hash-seed-determinism",
+      "statement": "Inventory path precedence is deterministic across Python hash seeds.",
+      "enforcement_paths": [
+        "benchcore/task_contract.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_task_contract.py",
+        "function": "test_inventory_path_precedence_is_stable_across_hash_seeds",
+        "kind": "vary_python_hash_seed",
+        "required_tokens": [
+          "PYTHONHASHSEED",
+          "range(1, 6)"
+        ]
+      }
+    },
+    {
+      "claim_id": "task-input-is-not-output",
+      "statement": "A model-extracted path explicitly present only in the input inventory is suppressed rather than reported as a missing output.",
+      "enforcement_paths": [
+        "benchcore/task_contract.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_task_contract.py",
+        "function": "test_input_filename_extraction_is_suppressed_as_role_ambiguous",
+        "kind": "misclassify_input_as_output",
+        "required_tokens": [
+          "input_files",
+          "suppressed_input_output_overlap_paths"
+        ]
+      }
+    },
+    {
+      "claim_id": "pattern-memory-review-ceiling",
+      "statement": "Pattern-memory provenance cannot promote an otherwise objective finding to confirmed.",
+      "enforcement_paths": [
+        "benchcore/audit_memory.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_audit_memory.py",
+        "function": "test_central_promotion_blocks_memory_derived_objective_finding",
+        "kind": "attach_memory_to_confirmable_finding",
+        "required_tokens": [
+          "objective_recompute",
+          "historical_pattern_memory"
+        ]
+      }
+    },
+    {
+      "claim_id": "metamorphic-attestation-required",
+      "statement": "A metamorphic verdict flip without independent transcript attestation cannot become confirmed.",
+      "enforcement_paths": [
+        "benchcore/metamorphic_evaluator.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_metamorphic_evaluator.py",
+        "function": "test_format_flip_is_review_without_independent_attestation",
+        "kind": "remove_transcript_attestation",
+        "required_tokens": [
+          "exact_lexeme=True",
+          "review_only"
+        ]
+      }
+    },
+    {
+      "claim_id": "metamorphic-semantics-payload-bound",
+      "statement": "Tampering with a metamorphic semantics payload removes confirmation.",
+      "enforcement_paths": [
+        "benchcore/metamorphic_evaluator.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_metamorphic_evaluator.py",
+        "function": "test_tampered_semantics_payload_loses_confirmation",
+        "kind": "tamper_transformed_hash",
+        "required_tokens": [
+          "transformed_sha256",
+          "enforce_promotion_policy"
+        ]
+      }
+    },
+    {
+      "claim_id": "metamorphic-timeout-is-indeterminate",
+      "statement": "Evaluator timeout is recorded as indeterminate and is never treated as a semantic failure.",
+      "enforcement_paths": [
+        "benchcore/metamorphic_evaluator.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_metamorphic_evaluator.py",
+        "function": "test_timeout_is_indeterminate_not_a_semantic_failure",
+        "kind": "inject_timeout_observation",
+        "required_tokens": [
+          "EvaluatorObservation.timeout",
+          "indeterminate"
+        ]
+      }
+    }
+  ]
+}

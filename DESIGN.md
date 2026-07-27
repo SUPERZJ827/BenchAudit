@@ -135,6 +135,26 @@ human/expert evidence
 禁止用“在测试 finding 上手工添加一个 gate key”替代真实 producer
 测试；这种测试只能证明 gate 会读该 key，不能证明系统实际会发射它。
 
+### 3.2.2 安全声称登记表
+
+凡代码或文档声称“即使 X 仍然 Y”“无法绕过”“确定性”或“永不升级”，
+都必须登记在 `docs/security_claims_registry.json`。每条登记必须同时给出：
+
+| 字段 | 约束 |
+|---|---|
+| `claim_id` | 稳定且唯一 |
+| `statement` | 可证伪的安全断言，不写愿景 |
+| `enforcement_paths` | 实际强制该断言的代码路径 |
+| `mutation_test.file/function` | CI 会真实执行的对抗测试 |
+| `mutation_test.kind` | 被注入的破坏方式 |
+| `required_tokens` | 证明测试确实包含该破坏和结果断言的最小锚点 |
+
+`scripts/validate_safety_claim_registry.py` 在 CI 测试中验证登记路径、测试函数
+和对抗锚点都真实存在。新增安全断言但不登记、登记一个不存在的测试、或把
+对抗逻辑从测试中删掉，都会使测试失败。登记表不是证据本身；其中引用的
+mutation test 必须亲自构造绕过、非确定性、篡改或超时条件，并断言中央策略
+仍然 fail-closed。
+
 ## 3.3 LLM 职责分解与证据门控
 
 三个 LLM auditor 使用相同 canonical task package，但分别完成不同判断：
