@@ -62,9 +62,19 @@ _OUTPUT_INVENTORY_KEYS = {
     "expected_files",
     "deliverables",
     "output_manifest",
+}
+_INPUT_INVENTORY_KEYS = {
+    "input_files",
+    "inputs",
+    "attachments",
+    "data_files",
+    "source_files",
+    "input_manifest",
     "reference_files",
 }
-_PATH_VALUE_KEYS = {"path", "name", "file", "filename", "relative_path"}
+# A manifest record can expose several aliases at once. Keep an explicit,
+# deterministic precedence rather than depending on randomized set iteration.
+_PATH_VALUE_KEYS = ("path", "relative_path", "filename", "file", "name")
 _MAX_EVIDENCE_PATHS = 200
 
 
@@ -174,19 +184,51 @@ def _output_inventory(item: BenchmarkItem) -> tuple[bool, tuple[str, ...]]:
     return available, tuple(dict.fromkeys(paths))
 
 
+def _input_inventory(item: BenchmarkItem) -> tuple[bool, tuple[str, ...]]:
+    paths: list[str] = []
+    available = False
+    for key, value in item.raw.items():
+        if str(key).casefold() in _INPUT_INVENTORY_KEYS:
+            available = True
+            paths.extend(_paths_from_inventory(value))
+    return available, tuple(dict.fromkeys(paths))
+
+
 def replay_task_contract_inventory(
     item: BenchmarkItem, contract: TaskContract
 ) -> dict[str, Any]:
     output_inventory_available, observed_outputs = _output_inventory(item)
-    missing_outputs = (
-        sorted(set(contract.expected_output_paths) - set(observed_outputs))
-        if output_inventory_available
-        else []
+    input_inventory_available, observed_inputs = _input_inventory(item)
+    expected_outputs = set(contract.expected_output_paths)
+    observed_output_set = set(observed_outputs)
+    missing_candidates = (
+        expected_outputs - observed_output_set if output_inventory_available else set()
+    )
+    # Exact grounding proves that a filename occurs in the task, but it does not
+    # prove that the filename denotes an output. If a model-extracted requirement
+    # is explicitly listed as an input, abstain on that candidate instead of
+    # converting a role-classification mistake into a benchmark defect.
+    suppressed_role_ambiguous = sorted(
+        missing_candidates & set(observed_inputs)
+        if input_inventory_available
+        else set()
+    )
+    missing_outputs = sorted(
+        missing_candidates - set(suppressed_role_ambiguous)
     )
     return {
         "output_inventory_available": output_inventory_available,
+        "input_inventory_available": input_inventory_available,
         "expected_output_count": len(contract.expected_output_paths),
         "observed_output_count": len(observed_outputs),
+        "observed_input_count": len(observed_inputs),
+        "suppressed_input_output_overlap_count": len(suppressed_role_ambiguous),
+        "suppressed_input_output_overlap_paths": suppressed_role_ambiguous[
+            :_MAX_EVIDENCE_PATHS
+        ],
+        "suppressed_input_output_overlap_paths_truncated": (
+            len(suppressed_role_ambiguous) > _MAX_EVIDENCE_PATHS
+        ),
         "missing_output_count": len(missing_outputs),
         "missing_output_paths": missing_outputs[:_MAX_EVIDENCE_PATHS],
         "missing_output_paths_truncated": len(missing_outputs) > _MAX_EVIDENCE_PATHS,
@@ -254,14 +296,14 @@ class LLMTaskContractAuditor(BaseLLMAuditor):
             _violation(
                 item,
                 "task_artifact_contract_mismatch",
-                0.85,
+                0.75,
                 "Published output inventory omits a task-declared deliverable filename.",
                 {
                     "evidence_level": "llm_extraction_static_inventory_replay",
                     "contract": asdict(contract),
                     **replay,
                 },
-                severity="major",
+                severity="review",
                 review_only=True,
                 repair="Publish the required filename or correct the task/output inventory.",
                 method=self.name,

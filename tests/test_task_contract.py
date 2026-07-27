@@ -1,5 +1,10 @@
+import json
+import os
+import subprocess
+import sys
 import unittest
 from argparse import Namespace
+from pathlib import Path
 
 from benchcore.cli import _remote_egress_manifest
 from benchcore.schema import BenchmarkItem
@@ -52,6 +57,28 @@ class TaskContractParsingTest(unittest.TestCase):
         with self.assertRaisesRegex(TaskContractValidationError, "unsafe path"):
             parse_task_contract("请总结1.txt,2.txt,.....100.txt为123.txt", response)
 
+    def test_inventory_path_precedence_is_stable_across_hash_seeds(self):
+        program = (
+            "import json; "
+            "from benchcore.task_contract import _paths_from_inventory; "
+            "print(json.dumps(_paths_from_inventory("
+            "{'path':'a.txt','name':'b.txt','file':'c.txt'})))"
+        )
+        outputs = set()
+        for seed in range(1, 6):
+            environment = dict(os.environ)
+            environment["PYTHONHASHSEED"] = str(seed)
+            outputs.add(
+                subprocess.check_output(
+                    [sys.executable, "-c", program],
+                    cwd=Path(__file__).resolve().parents[1],
+                    env=environment,
+                    text=True,
+                ).strip()
+            )
+
+        self.assertEqual(outputs, {json.dumps(["a.txt"])})
+
 
 class TaskContractAuditorTest(unittest.TestCase):
     def test_reports_a_replayed_output_filename_mismatch(self):
@@ -74,7 +101,52 @@ class TaskContractAuditorTest(unittest.TestCase):
         )
         self.assertEqual(violations[0].evidence_tier, "review")
         self.assertTrue(violations[0].review_only)
+        self.assertEqual(violations[0].severity, "review")
         self.assertEqual(violations[0].evidence["missing_output_paths"], ["123.txt"])
+
+    def test_input_filename_extraction_is_suppressed_as_role_ambiguous(self):
+        task = "请总结1.txt,2.txt,.....100.txt为123.txt"
+        response = {
+            "schema_version": "task-output-contract.v1",
+            "output_requirements": [{"path": "1.txt", "evidence": "1.txt"}],
+        }
+        item = BenchmarkItem(
+            item_id="input-misclassified-as-output",
+            raw={
+                "task": task,
+                "input_files": ["1.txt"],
+                "output_files": ["123.txt"],
+            },
+            task=task,
+        )
+
+        violations = list(LLMTaskContractAuditor(FakeClient(response)).check(item))
+
+        self.assertEqual(violations, [])
+        replay = item.metadata["_llm_observations"]["llm_task_contract"]["inventory_replay"]
+        self.assertEqual(replay["suppressed_input_output_overlap_paths"], ["1.txt"])
+        self.assertEqual(replay["missing_output_count"], 0)
+
+    def test_reference_files_are_inputs_not_an_output_inventory_by_default(self):
+        task = "Use data.csv and save into report.docx"
+        item = BenchmarkItem(
+            item_id="reference-input",
+            raw={"task": task, "reference_files": ["data.csv"]},
+            task=task,
+        )
+        response = {
+            "schema_version": "task-output-contract.v1",
+            "output_requirements": [
+                {"path": "report.docx", "evidence": "report.docx"}
+            ],
+        }
+
+        violations = list(LLMTaskContractAuditor(FakeClient(response)).check(item))
+
+        self.assertEqual(violations, [])
+        replay = item.metadata["_llm_observations"]["llm_task_contract"]["inventory_replay"]
+        self.assertFalse(replay["output_inventory_available"])
+        self.assertTrue(replay["input_inventory_available"])
 
     def test_missing_input_files_are_out_of_scope_when_output_name_matches(self):
         task = "请总结1.txt,2.txt,.....100.txt为123.txt"
