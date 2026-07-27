@@ -187,8 +187,14 @@ instead of reporting it as a missing deliverable. Only a replayed,
 non-ambiguous filename mismatch produces a review-severity finding, and that
 finding remains in the `review` evidence tier. This conservative gate can miss
 an in-place output that deliberately reuses an input filename; such cases need
-an explicit output manifest. This stage does not judge whether the output
-semantically covers the input files.
+an explicit output manifest. Conversely, when no explicit input inventory is
+available, a model can still misclassify an input name as an output name; local
+replay cannot safely disambiguate that role, so any resulting mismatch remains
+review-only. Input declarations are currently read only from explicit
+input-side fields in the raw item. They are not inferred from
+`output_contract`; benchmarks with a separate structured input contract should
+expose it through a verified adapter or mapping receipt. This stage does not
+judge whether the output semantically covers the input files.
 
 ### 5. Triage using archived model responses
 
