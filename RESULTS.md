@@ -1,6 +1,6 @@
 # BenchCore Experiment Results
 
-> Updated evidence-policy summary: 2026-07-23.
+> Updated evidence-policy summary: 2026-07-27.
 >
 > Older tables below preserve the labels emitted by their historical runners.
 > Under the current centralized promotion policy, an LLM vote or a
@@ -11,6 +11,31 @@
 > the current policy.
 
 ## Current headline results
+
+### Released-result evidence audit
+
+A zero-API audit converted 35,847 historical result rows from SQL Dialect
+Translation, PortugueseSpider, and DBCode into the common TraceBundle evidence
+format. Historical verdicts remain observational and have a centralized
+promotion ceiling of `review`.
+
+- SQL Dialect Translation: 65/556 references contain literal parser diagnostic
+  payloads; SQLGlot 30.2.1 rejects 66/556 references. A pinned replay reproduced
+  all 556 published reference statuses with zero mismatches.
+- Against published parser failure as a non-semantic proxy, prediction failure
+  rate achieved AUROC 0.825, literal diagnostic detection 0.992, and their
+  fusion 0.996. At K=66, the diagnostic detector reached P=R=0.985 versus
+  random expected precision 0.119.
+- PortugueseSpider: structural match and database execution disagreed on
+  6,476/29,986 rows (21.60%, 95% Wilson CI 21.13%–22.07%). Eight of 19 systems
+  changed rank position; pairwise Kendall tau excluding ties was 0.871.
+- DBCode: full-harness and function-test verdicts disagreed on 60/316 paired
+  rows (18.99%, 95% Wilson CI 15.05%–23.67%). The four paired systems did not
+  exchange rank positions.
+
+The evaluator disagreements identify replay priorities; they do not determine
+which evaluator is correct. Full details and evidence boundaries are in
+`reports/released_result_evidence/released_result_evidence_20260727.md`.
 
 ### Archived-response candidate triage
 
