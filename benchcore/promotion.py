@@ -7,6 +7,7 @@ This module is the single authority that maps observations to evidence tiers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -740,6 +741,121 @@ def _execution_attestation_valid(evidence: dict[str, Any]) -> bool:
     )
 
 
+def _metamorphic_gold_replay(
+    violation: Violation, item: BenchmarkItem | None,
+) -> bool:
+    from . import metamorphic_evaluator
+
+    evidence = violation.evidence
+    baseline = evidence.get("baseline")
+    evaluator = item.evaluator if item is not None else None
+    contract = (
+        evaluator.get("metamorphic_contract")
+        if isinstance(evaluator, dict)
+        else None
+    )
+    original = item.gold if item is not None else None
+    original_sha256 = (
+        hashlib.sha256(original.encode("utf-8")).hexdigest()
+        if isinstance(original, str)
+        else None
+    )
+    identity = contract.get("evaluator_identity") if isinstance(contract, dict) else None
+    identity_sha256 = (
+        hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        if isinstance(identity, str)
+        else None
+    )
+    return bool(
+        isinstance(original, str)
+        and isinstance(contract, dict)
+        and evidence.get("evaluator") == evaluator
+        and evidence.get("contract") == contract
+        and evidence.get("evaluator_identity") == contract.get("evaluator_identity")
+        and evidence.get("original_answer_sha256") == original_sha256
+        and evidence.get("reference_code_sha256") == original_sha256
+        and evidence.get("code_context_sha256") == identity_sha256
+        and evidence.get("driver_sha256") == hashlib.sha256(
+            Path(metamorphic_evaluator.__file__).read_bytes()
+        ).hexdigest()
+        and isinstance(baseline, dict)
+        and baseline.get("status") == "completed"
+        and baseline.get("accepted") is False
+        and all(
+            _sha256(evidence.get(key))
+            for key in (
+                "driver_sha256",
+                "reference_code_sha256",
+                "code_context_sha256",
+            )
+        )
+        and _execution_attestation_valid(evidence)
+    )
+
+
+def _metamorphic_invariance_replay(
+    violation: Violation, item: BenchmarkItem | None,
+) -> bool:
+    from . import metamorphic_evaluator
+
+    evidence = violation.evidence
+    baseline = evidence.get("baseline")
+    variant_observation = evidence.get("variant_observation")
+    variant = evidence.get("variant")
+    evaluator = item.evaluator if item is not None else None
+    contract = (
+        evaluator.get("metamorphic_contract")
+        if isinstance(evaluator, dict)
+        else None
+    )
+    original = item.gold if item is not None else None
+    original_sha256 = (
+        hashlib.sha256(original.encode("utf-8")).hexdigest()
+        if isinstance(original, str)
+        else None
+    )
+    identity = contract.get("evaluator_identity") if isinstance(contract, dict) else None
+    identity_sha256 = (
+        hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        if isinstance(identity, str)
+        else None
+    )
+    if not (
+        isinstance(original, str)
+        and isinstance(contract, dict)
+        and isinstance(variant, dict)
+        and evidence.get("evaluator") == evaluator
+        and evidence.get("contract") == contract
+        and evidence.get("evaluator_identity") == contract.get("evaluator_identity")
+        and evidence.get("original_answer_sha256") == original_sha256
+        and evidence.get("reference_code_sha256") == original_sha256
+        and evidence.get("code_context_sha256") == identity_sha256
+        and evidence.get("driver_sha256") == hashlib.sha256(
+            Path(metamorphic_evaluator.__file__).read_bytes()
+        ).hexdigest()
+        and isinstance(baseline, dict)
+        and baseline.get("status") == "completed"
+        and isinstance(baseline.get("accepted"), bool)
+        and isinstance(variant_observation, dict)
+        and variant_observation.get("status") == "completed"
+        and isinstance(variant_observation.get("accepted"), bool)
+        and baseline["accepted"] != variant_observation["accepted"]
+        and all(
+            _sha256(evidence.get(key))
+            for key in (
+                "driver_sha256",
+                "reference_code_sha256",
+                "code_context_sha256",
+            )
+        )
+        and _execution_attestation_valid(evidence)
+    ):
+        return False
+    from .metamorphic_evaluator import replay_semantics_proof
+
+    return replay_semantics_proof(original, variant, contract)
+
+
 def _dataset_duplicate_id(
     violation: Violation, item: BenchmarkItem | None,
 ) -> bool:
@@ -912,6 +1028,16 @@ OBJECTIVE_PROOF_VALIDATORS: dict[
     ("static_rule", "safe_arithmetic_replay", "wrong_gold_answer"): _arithmetic_replay,
     ("static_rule", "declared_alias_replay", "overstrict_evaluator"): _declared_evaluator_replay,
     ("evaluator_replay", "declared_evaluator_replay", "gold_rejected_by_evaluator"): _declared_evaluator_replay,
+    (
+        "execution_metamorphic",
+        "executed_metamorphic_gold_replay",
+        "gold_rejected_by_evaluator",
+    ): _metamorphic_gold_replay,
+    (
+        "execution_metamorphic",
+        "executed_metamorphic_invariance_replay",
+        "metamorphic_inconsistency",
+    ): _metamorphic_invariance_replay,
     ("cross_artifact_consistency", "answer_contract_static_consistency", "output_evaluator_contract_mismatch"): _contract_replay,
     ("workspace_artifact_invariants", "filesystem_manifest_replay", "artifact_data_gap"): _workspace_manifest_replay,
     ("workspace_artifact_invariants", "dependency_graph_replay", "artifact_data_gap"): _workspace_dependency_replay,
@@ -995,6 +1121,16 @@ DISABLED_UNATTESTED_PROOFS = frozenset({
         "executed_kill_matrix_confirmed",
         "evaluator_mutation_survived",
     ),
+    (
+        "execution_metamorphic",
+        "executed_metamorphic_gold_replay",
+        "gold_rejected_by_evaluator",
+    ),
+    (
+        "execution_metamorphic",
+        "executed_metamorphic_invariance_replay",
+        "metamorphic_inconsistency",
+    ),
 })
 
 
@@ -1036,6 +1172,16 @@ PROOF_FIELD_DEPENDENCIES: dict[tuple[str, str, str], tuple[str, ...]] = {
     ("workspace_artifact_invariants", "metadata_evaluator_replay", "schema_drift"): ("evaluator",),
     ("workspace_artifact_invariants", "workspace_runner_visibility_replay", "solution_leak"): ("context", "evaluator"),
     ("execution_replay", "executed_harness", "gold_rejected_by_evaluator"): ("gold", "evaluator"),
+    (
+        "execution_metamorphic",
+        "executed_metamorphic_gold_replay",
+        "gold_rejected_by_evaluator",
+    ): ("gold", "evaluator"),
+    (
+        "execution_metamorphic",
+        "executed_metamorphic_invariance_replay",
+        "metamorphic_inconsistency",
+    ): ("gold", "evaluator"),
     ("execution_differential", "executed_differential_confirmed", "overstrict_evaluator"): ("gold", "evaluator"),
     ("execution_kill_matrix", "executed_kill_matrix_confirmed", "evaluator_mutation_survived"): ("gold", "evaluator"),
     ("dataset_duplicate_scan", "dataset_identifier_collision", "duplicate_item_id"): ("item_id",),
