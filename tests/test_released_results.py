@@ -8,6 +8,7 @@ from pathlib import Path
 from benchcore.released_results import (
     ReleasedResultMapping,
     ReleasedResultSource,
+    _candidate,
     adapt_released_results,
     analyze_released_results,
 )
@@ -434,6 +435,28 @@ class ReleasedResultAuditTest(unittest.TestCase):
 
         finding.evidence["released_result_source_sha256"] = "a" * 64
         enforce_promotion_policy(finding, item)
+        self.assertEqual(finding.evidence_tier, "review")
+        self.assertEqual(finding.proof_kind, "historical_result_observation")
+        self.assertTrue(finding.review_only)
+
+    def test_emitted_provenance_survives_detection_method_rename(self) -> None:
+        candidate = _candidate(
+            kind="published_reference_evaluator_failure",
+            item_ids=["one"],
+            run_ids=["run-one"],
+            message="fixture",
+            confidence=0.9,
+            evidence={"affected_items": 1},
+        )
+        mapping = mapping_from_dict({"item_id": "id", "task": "question"})
+        item = build_items([{"id": "one"}], mapping)[0]
+        finding = audit_items([item], checkers=[TaskSpecChecker()])[0]
+        self.assertEqual(finding.evidence_tier, "confirmed")
+
+        finding.detection_method = "reference_drift_replay"
+        finding.evidence = dict(candidate["evidence"])
+        enforce_promotion_policy(finding, item)
+
         self.assertEqual(finding.evidence_tier, "review")
         self.assertEqual(finding.proof_kind, "historical_result_observation")
         self.assertTrue(finding.review_only)
