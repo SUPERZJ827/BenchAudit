@@ -58,6 +58,7 @@ from .llm_auditor import (
 )
 from .code_verifier import CodeExecVerifier
 from .llm_client import LLMClient, load_llm_config
+from .task_contract import LLMTaskContractAuditor
 from .investigator import (
     investigate_audit_report,
     refine_investigation_report,
@@ -162,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
         default="gold,question,option",
         help=(
             "Comma-separated LLM auditors: gold,gold-single,question,option,"
-            "presentation; use all for every core auditor"
+            "presentation,taskcontract; use all for every core auditor"
         ),
     )
     audit_parser.add_argument(
@@ -1113,6 +1114,7 @@ def run_audit(args: argparse.Namespace) -> int:
             "quantity": QuantityConsistencyLLMAuditor,
             "holistic": HolisticSamplingLLMAuditor,
             "codeexec": CodeExecVerifier,
+            "taskcontract": LLMTaskContractAuditor,
         }
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
@@ -1317,20 +1319,33 @@ def _remote_egress_manifest(
             ("task", "reference_or_gold", "evaluator_code_and_configuration"),
         )
     if args.llm_audit:
-        add(
-            "generic_llm_auditors",
-            (
-                "task",
-                "context",
-                "choices",
-                "gold",
-                "aliases",
-                "output_contract",
-                "evaluator",
-                "benchmark_metadata",
-            ),
-            attachment_content=True,
-        )
+        requested = {
+            name.strip()
+            for name in str(args.llm_auditors).split(",")
+            if name.strip()
+        }
+        if requested == {"taskcontract"}:
+            capability = LLMTaskContractAuditor.remote_egress_capability
+            add(
+                LLMTaskContractAuditor.name,
+                tuple(capability["outbound_fields"]),
+                attachment_content=bool(capability["attachment_content"]),
+            )
+        else:
+            add(
+                "generic_llm_auditors",
+                (
+                    "task",
+                    "context",
+                    "choices",
+                    "gold",
+                    "aliases",
+                    "output_contract",
+                    "evaluator",
+                    "benchmark_metadata",
+                ),
+                attachment_content=True,
+            )
     if args.swe_leak_llm_confirm:
         add(
             "solution_leak",
