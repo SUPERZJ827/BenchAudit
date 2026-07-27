@@ -118,6 +118,23 @@ human/expert evidence
 - 真实 evaluator/test script/SQL execution 的结果才属于 execution-backed evidence；
 - LLM 语义判断需要结合阈值、review routing 或其他方法交叉验证。
 
+### 3.2.1 Producer-to-promotion provenance contract
+
+任何声称“即使 detection method 改名也会保持 evidence ceiling”的证据源，
+必须满足完整的 producer-to-promotion 契约：
+
+1. 真实 producer 强制发射稳定的 `evidence_level` 和/或 provenance ID；
+2. 保留字段在复制调用方 evidence 后赋值，调用方不能覆盖；
+3. promotion gate 使用显式注册的 provenance key，而不是只匹配 method 名；
+4. CI 必须使用真实 producer 输出，把 method 改成无关名称后再执行中央
+   promotion，并断言 tier、`proof_kind` 和 `review_only`；
+5. gate 中每个注册为当前有效的 sentinel key，必须至少出现在一个真实
+   producer 的输出中。只为读取历史产物保留的兼容 alias 必须单独标为
+   legacy，不能计入当前纵深防御层数。
+
+禁止用“在测试 finding 上手工添加一个 gate key”替代真实 producer
+测试；这种测试只能证明 gate 会读该 key，不能证明系统实际会发射它。
+
 ## 3.3 LLM 职责分解与证据门控
 
 三个 LLM auditor 使用相同 canonical task package，但分别完成不同判断：
