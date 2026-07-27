@@ -40,6 +40,7 @@ Only the following semantic profiles are supported:
 
 | Profile | Transformations | Replayed proof |
 |---|---|---|
+| `mcq_choice` | fixed option permutation plus synchronized gold-label permutation | explicit label namespace and preservation of the selected choice |
 | `numeric_value` | fractional trailing zero, optional leading zero, trailing token-external space | exact finite `Decimal` equality |
 | `python_ast` | terminal newline, trailing comment | equality of Python ASTs with attributes removed |
 | `sql_layout` | leading/trailing token-external whitespace, fixed non-hint leading comment | opt-in SQL contract plus byte-for-byte preservation of the original SQL |
@@ -53,6 +54,16 @@ Every contract must bind an exact `evaluator_identity`. Every emitted relation
 contains a non-empty `semantics_preserving_rationale`, but promotion does not
 trust the prose or a stored `verified=true` flag: it regenerates the variant
 from the live gold and contract and compares the complete evidence payload.
+
+### MR-3: MCQ permutation consistency
+
+This relation is enabled only when the contract supplies an explicit,
+cardinality-matched choice-label namespace. BenchAudit reverses the option
+sequence, moves the gold label to the selected choice's new position, and
+replays the evaluator on the cloned canonical item. Unknown, ambiguous, or
+inferred encodings are not transformed. The original and transformed selected
+choice must have identical canonical bytes. Without independent transcript
+attestation, a verdict flip remains review.
 
 ## Execution boundary
 

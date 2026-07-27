@@ -151,6 +151,40 @@
           "indeterminate"
         ]
       }
+    },
+    {
+      "claim_id": "mcq-permutation-attestation-required",
+      "statement": "An MCQ permutation verdict flip without independent transcript attestation cannot become confirmed.",
+      "enforcement_paths": [
+        "benchcore/metamorphic_evaluator.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_metamorphic_evaluator.py",
+        "function": "test_mcq_position_dependency_is_review_without_attestation",
+        "kind": "remove_transcript_attestation",
+        "required_tokens": [
+          "executed_mcq_permutation_replay",
+          "review_only"
+        ]
+      }
+    },
+    {
+      "claim_id": "mcq-permutation-is-content-bound",
+      "statement": "Tampering with the synchronized MCQ permutation payload removes confirmation.",
+      "enforcement_paths": [
+        "benchcore/metamorphic_evaluator.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_metamorphic_evaluator.py",
+        "function": "test_tampered_mcq_permutation_payload_loses_confirmation",
+        "kind": "replace_synchronized_permutation",
+        "required_tokens": [
+          "\"permutation\"",
+          "enforce_promotion_policy"
+        ]
+      }
     }
   ]
 }

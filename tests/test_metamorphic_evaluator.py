@@ -8,6 +8,7 @@ from benchcore.loader import explicit_mapping_provenance
 from benchcore.metamorphic_evaluator import (
     EvaluatorObservation,
     MetamorphicEvaluatorAuditChecker,
+    generate_mcq_permutation,
     generate_semantics_preserving_variants,
 )
 from benchcore.promotion import enforce_promotion_policy
@@ -48,6 +49,21 @@ class NumericValueEvaluator:
         return EvaluatorObservation.completed(accepted)
 
 
+class CanonicalMCQEvaluator:
+    identity = "fixture:canonical-mcq-evaluator:v1"
+
+    def evaluate(self, item, answer):
+        return EvaluatorObservation.completed(answer == item.gold)
+
+
+class FixedFirstPositionEvaluator:
+    identity = "fixture:fixed-first-position:v1"
+
+    def evaluate(self, item, answer):
+        del item
+        return EvaluatorObservation.completed(answer == "A")
+
+
 def numeric_item(item_id: str, gold: str) -> BenchmarkItem:
     evaluator = {
         "metamorphic_contract": {
@@ -70,6 +86,49 @@ def numeric_item(item_id: str, gold: str) -> BenchmarkItem:
         raw=raw,
         field_bindings={
             "item_id": "id",
+            "gold": "answer",
+            "evaluator": "evaluator",
+        },
+    )
+    return item
+
+
+def mcq_item(
+    item_id: str,
+    *,
+    evaluator_identity: str = "fixture:canonical-mcq-evaluator:v1",
+) -> BenchmarkItem:
+    evaluator = {
+        "metamorphic_contract": {
+            "schema_version": "benchcore-metamorphic-contract-v1",
+            "semantic_profile": "mcq_choice",
+            "evaluator_identity": evaluator_identity,
+            "choice_labels": ["A", "B", "C", "D"],
+        }
+    }
+    raw = {
+        "id": item_id,
+        "question": "Which value is first?",
+        "options": ["alpha", "beta", "gamma", "delta"],
+        "answer": "A",
+        "evaluator": evaluator,
+    }
+    item = BenchmarkItem(
+        item_id=item_id,
+        raw=raw,
+        task=raw["question"],
+        choices=list(raw["options"]),
+        gold=raw["answer"],
+        evaluator=evaluator,
+    )
+    item.metadata["_mapping_provenance"] = explicit_mapping_provenance(
+        adapter_id="test_metamorphic_mcq",
+        adapter_version="1",
+        raw=raw,
+        field_bindings={
+            "item_id": "id",
+            "task": "question",
+            "choices": "options",
             "gold": "answer",
             "evaluator": "evaluator",
         },
@@ -133,6 +192,97 @@ def test_sql_layout_variants_preserve_original_bytes_without_rewriting_tokens():
         variant.semantics_proof["original_bytes_preserved"] is True
         for variant in variants
     )
+
+
+def test_mcq_permutation_moves_gold_with_the_same_selected_choice():
+    item = mcq_item("permutation-proof")
+    variant = generate_mcq_permutation(
+        item, item.evaluator["metamorphic_contract"],
+    )
+
+    assert variant is not None
+    assert variant.permutation == (3, 2, 1, 0)
+    assert variant.original_gold_label == "A"
+    assert variant.permuted_gold_label == "D"
+    assert variant.original_choices[0] == variant.permuted_choices[3] == "alpha"
+    assert variant.to_evidence()["semantics_proof"] == {
+        "schema_version": "benchcore-metamorphic-proof-v1",
+        "kind": "mcq_synchronized_permutation",
+        "selected_choice_preserved": True,
+        "verified": True,
+    }
+
+
+def test_mcq_permutation_requires_an_explicit_label_namespace():
+    item = mcq_item("missing-label-contract")
+    contract = dict(item.evaluator["metamorphic_contract"])
+    contract.pop("choice_labels")
+
+    assert generate_mcq_permutation(item, contract) is None
+
+
+def test_one_hundred_clean_mcq_evaluators_produce_zero_findings():
+    checker = MetamorphicEvaluatorAuditChecker(CanonicalMCQEvaluator())
+    items = [mcq_item(f"clean-mcq-{index}") for index in range(100)]
+
+    findings = audit_items(items, checkers=[checker], workers=8)
+
+    assert findings == []
+
+
+def test_mcq_position_dependency_is_review_without_attestation():
+    item = mcq_item(
+        "position-review",
+        evaluator_identity="fixture:fixed-first-position:v1",
+    )
+    checker = MetamorphicEvaluatorAuditChecker(FixedFirstPositionEvaluator())
+
+    findings = audit_items([item], checkers=[checker])
+
+    assert [finding.defect_type for finding in findings] == [
+        "metamorphic_inconsistency"
+    ]
+    assert findings[0].evidence["evidence_level"] == (
+        "executed_mcq_permutation_replay"
+    )
+    assert findings[0].evidence_tier == "review"
+    assert findings[0].review_only is True
+
+
+def test_attested_mcq_position_dependency_is_confirmed():
+    item = mcq_item(
+        "position-confirmed",
+        evaluator_identity="fixture:fixed-first-position:v1",
+    )
+    checker = MetamorphicEvaluatorAuditChecker(
+        FixedFirstPositionEvaluator(),
+        transcript_attester=DeterministicAttester(),
+        transcript_verifier=AcceptingIndependentVerifier(),
+    )
+
+    findings = audit_items([item], checkers=[checker])
+
+    assert [finding.evidence_tier for finding in findings] == ["confirmed"]
+    assert findings[0].proof_kind == "isolated_execution"
+
+
+def test_tampered_mcq_permutation_payload_loses_confirmation():
+    item = mcq_item(
+        "position-tampered",
+        evaluator_identity="fixture:fixed-first-position:v1",
+    )
+    checker = MetamorphicEvaluatorAuditChecker(
+        FixedFirstPositionEvaluator(),
+        transcript_attester=DeterministicAttester(),
+        transcript_verifier=AcceptingIndependentVerifier(),
+    )
+    finding = audit_items([item], checkers=[checker])[0]
+    assert finding.evidence_tier == "confirmed"
+
+    finding.evidence["variant"]["permutation"] = [0, 1, 2, 3]
+    enforce_promotion_policy(finding, item)
+
+    assert finding.evidence_tier == "review"
 
 
 def test_free_text_has_no_confirmable_variant_without_explicit_trim_contract():

@@ -13,6 +13,7 @@ untyped whitespace edits are intentionally outside this module.
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
@@ -28,12 +29,14 @@ from .execution_attestation import (
     request_execution_attestation,
     verify_execution_attestation,
 )
+from .evaluators import choice_values, declared_choice_labels, normalize_text
 from .schema import BenchmarkItem, Violation
 
 
 METAMORPHIC_CONTRACT_VERSION = "benchcore-metamorphic-contract-v1"
 METAMORPHIC_PROOF_VERSION = "benchcore-metamorphic-proof-v1"
 SUPPORTED_SEMANTIC_PROFILES = frozenset({
+    "mcq_choice",
     "numeric_value",
     "python_ast",
     "sql_layout",
@@ -87,6 +90,40 @@ class MetamorphicVariant:
 
 
 @dataclass(frozen=True)
+class MCQPermutationVariant:
+    relation_id: str
+    permutation: tuple[int, ...]
+    original_labels: tuple[str, ...]
+    permuted_labels: tuple[str, ...]
+    original_gold_label: str
+    permuted_gold_label: str
+    original_choices: tuple[Any, ...]
+    permuted_choices: tuple[Any, ...]
+    selected_choice_sha256: str
+    semantics_preserving_rationale: str
+
+    def to_evidence(self) -> dict[str, Any]:
+        return {
+            "relation_id": self.relation_id,
+            "permutation": list(self.permutation),
+            "original_labels": list(self.original_labels),
+            "permuted_labels": list(self.permuted_labels),
+            "original_gold_label": self.original_gold_label,
+            "permuted_gold_label": self.permuted_gold_label,
+            "original_choices_sha256": _sha256_text(_canonical_json(self.original_choices)),
+            "permuted_choices_sha256": _sha256_text(_canonical_json(self.permuted_choices)),
+            "selected_choice_sha256": self.selected_choice_sha256,
+            "semantics_preserving_rationale": self.semantics_preserving_rationale,
+            "semantics_proof": {
+                "schema_version": METAMORPHIC_PROOF_VERSION,
+                "kind": "mcq_synchronized_permutation",
+                "selected_choice_preserved": True,
+                "verified": True,
+            },
+        }
+
+
+@dataclass(frozen=True)
 class EvaluatorObservation:
     status: str
     accepted: bool | None
@@ -128,6 +165,12 @@ class MetamorphicEvaluator(Protocol):
     def evaluate(
         self, item: BenchmarkItem, answer: str,
     ) -> EvaluatorObservation: ...
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
 
 
 def _validated_contract(value: Any) -> dict[str, Any] | None:
@@ -363,6 +406,81 @@ def replay_semantics_proof(
     return False
 
 
+def _exact_declared_label_index(
+    gold: Any, labels: tuple[str, ...],
+) -> int | None:
+    if not isinstance(gold, str):
+        return None
+    normalized = normalize_text(gold)
+    matches = [
+        index
+        for index, label in enumerate(labels)
+        if normalize_text(label) == normalized
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def generate_mcq_permutation(
+    item: BenchmarkItem, contract: Mapping[str, Any],
+) -> MCQPermutationVariant | None:
+    """Build one deterministic, synchronized MCQ option/gold permutation."""
+    validated = _validated_contract(dict(contract))
+    if validated is None or validated["semantic_profile"] != "mcq_choice":
+        return None
+    choices = tuple(choice_values(item.choices))
+    if len(choices) < 2:
+        return None
+    labels = declared_choice_labels(validated, len(choices))
+    if labels is None:
+        return None
+    gold_index = _exact_declared_label_index(item.gold, labels)
+    if gold_index is None:
+        return None
+
+    permutation = tuple(reversed(range(len(choices))))
+    permuted_choices = tuple(choices[index] for index in permutation)
+    new_gold_index = permutation.index(gold_index)
+    selected_original = choices[gold_index]
+    selected_permuted = permuted_choices[new_gold_index]
+    if _canonical_json(selected_original) != _canonical_json(selected_permuted):
+        return None
+    return MCQPermutationVariant(
+        relation_id="mcq_permutation_consistency",
+        permutation=permutation,
+        original_labels=labels,
+        permuted_labels=labels,
+        original_gold_label=str(item.gold),
+        permuted_gold_label=labels[new_gold_index],
+        original_choices=choices,
+        permuted_choices=permuted_choices,
+        selected_choice_sha256=_sha256_text(_canonical_json(selected_original)),
+        semantics_preserving_rationale=(
+            "The option sequence is deterministically permuted while the gold "
+            "label is moved to the new position of the byte-identical selected "
+            "choice."
+        ),
+    )
+
+
+def replay_mcq_permutation(
+    item: BenchmarkItem,
+    variant_evidence: Mapping[str, Any],
+    contract: Mapping[str, Any],
+) -> bool:
+    replayed = generate_mcq_permutation(item, contract)
+    return replayed is not None and replayed.to_evidence() == dict(variant_evidence)
+
+
+def materialize_mcq_permutation_item(
+    item: BenchmarkItem, variant: MCQPermutationVariant,
+) -> BenchmarkItem:
+    """Clone canonical item fields; adapters must consume canonical fields."""
+    transformed = copy.deepcopy(item)
+    transformed.choices = list(variant.permuted_choices)
+    transformed.gold = variant.permuted_gold_label
+    return transformed
+
+
 class MetamorphicEvaluatorAuditChecker(Checker):
     """Run deterministic MRs against an injected executable evaluator adapter."""
 
@@ -425,13 +543,24 @@ class MetamorphicEvaluatorAuditChecker(Checker):
         if contract is None or not isinstance(item.gold, str) or not item.gold:
             return
         variants = generate_semantics_preserving_variants(item.gold, contract)
+        mcq_variant = generate_mcq_permutation(item, contract)
         baseline = self._observe(self.evaluator, item, item.gold)
         observations: list[tuple[MetamorphicVariant, EvaluatorObservation]] = []
+        mcq_observation: EvaluatorObservation | None = None
         if baseline.status == "completed":
             observations = [
                 (variant, self._observe(self.evaluator, item, variant.transformed))
                 for variant in variants
             ]
+            if mcq_variant is not None:
+                permuted_item = materialize_mcq_permutation_item(
+                    item, mcq_variant,
+                )
+                mcq_observation = self._observe(
+                    self.evaluator,
+                    permuted_item,
+                    mcq_variant.permuted_gold_label,
+                )
 
         report = {
             "driver_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
@@ -450,6 +579,14 @@ class MetamorphicEvaluatorAuditChecker(Checker):
                 }
                 for variant, observation in observations
             ],
+            "item_probes": (
+                [{
+                    "relation": mcq_variant.to_evidence(),
+                    "observation": mcq_observation.to_dict(),
+                }]
+                if mcq_variant is not None and mcq_observation is not None
+                else []
+            ),
             "probe_failures": [
                 {
                     "relation": variant.to_evidence(),
@@ -475,6 +612,7 @@ class MetamorphicEvaluatorAuditChecker(Checker):
             "evaluator_identity": self.evaluator.identity,
             "baseline": baseline.to_dict(),
             "variants": report["probes"],
+            "item_variants": report["item_probes"],
             **trust_evidence,
         }
         if baseline.status != "completed":
@@ -537,6 +675,40 @@ class MetamorphicEvaluatorAuditChecker(Checker):
                 repair=(
                     "Evaluate the answer's declared semantic value instead of "
                     "its incidental representation."
+                ),
+                method="execution_metamorphic",
+                artifact="evaluator",
+            )
+
+        if (
+            mcq_variant is not None
+            and mcq_observation is not None
+            and mcq_observation.status == "completed"
+            and baseline.accepted is True
+            and mcq_observation.accepted is False
+        ):
+            yield _violation(
+                item,
+                "metamorphic_inconsistency",
+                0.99 if attested else 0.7,
+                (
+                    "Synchronously permuting MCQ options and the gold label "
+                    "changes the evaluator verdict."
+                ),
+                {
+                    **common_evidence,
+                    "baseline": baseline.to_dict(),
+                    "variant_observation": mcq_observation.to_dict(),
+                    "variant": mcq_variant.to_evidence(),
+                    "verdict_direction": "pass_to_fail",
+                    "evidence_level": "executed_mcq_permutation_replay",
+                    "proof_schema_version": "1.0",
+                },
+                severity="major" if attested else "review",
+                review_only=not attested,
+                repair=(
+                    "Resolve the correct choice by synchronized label/position "
+                    "mapping rather than a fixed option position."
                 ),
                 method="execution_metamorphic",
                 artifact="evaluator",
