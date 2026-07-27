@@ -722,6 +722,17 @@ def _execution_mutant_replay(
     )
 
 
+def _differential_oracle_replay(
+    violation: Violation, item: BenchmarkItem | None,
+) -> bool:
+    from .differential_oracle import replay_differential_oracle_proof
+
+    return bool(
+        replay_differential_oracle_proof(violation, item)
+        and _execution_attestation_valid(violation.evidence)
+    )
+
+
 def _execution_attestation_valid(evidence: dict[str, Any]) -> bool:
     """Prevent a benchmark-supplied trust-domain string from enabling proof.
 
@@ -1106,6 +1117,11 @@ OBJECTIVE_PROOF_VALIDATORS: dict[
         "executed_mcq_permutation_replay",
         "metamorphic_inconsistency",
     ): _metamorphic_mcq_permutation_replay,
+    (
+        "execution_differential_oracle",
+        "executed_differential_oracle_replay",
+        "evaluator_mutation_survived",
+    ): _differential_oracle_replay,
     ("cross_artifact_consistency", "answer_contract_static_consistency", "output_evaluator_contract_mismatch"): _contract_replay,
     ("workspace_artifact_invariants", "filesystem_manifest_replay", "artifact_data_gap"): _workspace_manifest_replay,
     ("workspace_artifact_invariants", "dependency_graph_replay", "artifact_data_gap"): _workspace_dependency_replay,
@@ -1204,6 +1220,11 @@ DISABLED_UNATTESTED_PROOFS = frozenset({
         "executed_mcq_permutation_replay",
         "metamorphic_inconsistency",
     ),
+    (
+        "execution_differential_oracle",
+        "executed_differential_oracle_replay",
+        "evaluator_mutation_survived",
+    ),
 })
 
 
@@ -1260,6 +1281,11 @@ PROOF_FIELD_DEPENDENCIES: dict[tuple[str, str, str], tuple[str, ...]] = {
         "executed_mcq_permutation_replay",
         "metamorphic_inconsistency",
     ): ("choices", "gold", "evaluator"),
+    (
+        "execution_differential_oracle",
+        "executed_differential_oracle_replay",
+        "evaluator_mutation_survived",
+    ): ("gold", "evaluator"),
     ("execution_differential", "executed_differential_confirmed", "overstrict_evaluator"): ("gold", "evaluator"),
     ("execution_kill_matrix", "executed_kill_matrix_confirmed", "evaluator_mutation_survived"): ("gold", "evaluator"),
     ("dataset_duplicate_scan", "dataset_identifier_collision", "duplicate_item_id"): ("item_id",),
