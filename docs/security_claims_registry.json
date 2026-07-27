@@ -185,6 +185,56 @@
           "enforce_promotion_policy"
         ]
       }
+    },
+    {
+      "claim_id": "differential-oracle-attestation-required",
+      "statement": "A weak-pass/strong-fail differential without independent transcript attestation cannot become confirmed.",
+      "enforcement_paths": [
+        "benchcore/differential_oracle.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_differential_oracle.py",
+        "function": "test_same_witness_without_attestation_is_review_only",
+        "kind": "remove_transcript_attestation",
+        "required_tokens": [
+          "attested=False",
+          "\"review\""
+        ]
+      }
+    },
+    {
+      "claim_id": "differential-oracle-timeout-is-indeterminate",
+      "statement": "A timeout under either oracle is indeterminate and cannot become a coverage-gap finding.",
+      "enforcement_paths": [
+        "benchcore/differential_oracle.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_differential_oracle.py",
+        "function": "test_timeout_is_indeterminate_not_rejection",
+        "kind": "replace_strong_rejection_with_timeout",
+        "required_tokens": [
+          "OracleObservation.timeout",
+          "== []"
+        ]
+      }
+    },
+    {
+      "claim_id": "differential-oracle-candidate-manifest-bound",
+      "statement": "Tampering with a differential candidate hash removes confirmation.",
+      "enforcement_paths": [
+        "benchcore/differential_oracle.py",
+        "benchcore/promotion.py"
+      ],
+      "mutation_test": {
+        "file": "tests/test_differential_oracle.py",
+        "function": "test_promotion_replay_rejects_tampered_candidate_hash",
+        "kind": "tamper_candidate_source_hash",
+        "required_tokens": [
+          "candidate_source_sha256",
+          "\"review\""
+        ]
+      }
     }
   ]
 }

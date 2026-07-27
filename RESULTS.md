@@ -336,3 +336,28 @@ Full three-tier breakdown for reference.
 | GSM8K | 0.667 | 0.600 | 0.632 | 0.400 | 1.000 | 0.571 | 0.714 | 1.000 | **0.833** |
 | MMLU-Redux (n=1000) | 0.875 | 0.210 | 0.339 | 0.641 | 0.686 | **0.663** | 0.727 | 0.503 | 0.595 |
 | MMLU vote3 (n=1000) | 0.811 | 0.268 | **0.402** | 0.629 | 0.751 | **0.685** | 0.720 | 0.527 | 0.608 |
+
+---
+
+## Generic differential-oracle confirmation (2026-07-27)
+
+A frozen MR-4 protocol compared HumanEval/MBPP base tests with their declared
+EvalPlus stronger oracles.  One generic proof validator was used for both
+benchmarks; it contains no task-ID allowlist or benchmark-specific proof
+branch.  Independent worker transcripts are signed and centrally replayed.
+
+| Dataset | Valid tasks | Candidates | Completed pairs | Confirmed gaps | Affected tasks | Witness yield |
+|---|---:|---:|---:|---:|---:|---:|
+| HumanEval | 162/164 | 1,171 | 1,166 | **50** | **30** | **4.29%** |
+| MBPP | 376/378 | 1,560 | 1,554 | **124** | **63** | **7.98%** |
+| Total | 538/542 | 2,731 | 2,720 | **174** | **93** | **6.40%** |
+
+All five negative controls produced zero confirmed findings: canonical
+solutions, identical outcomes, timeout-as-rejection, swapped weak/strong
+direction, and missing attestation.  Two complete runs produced the same stable
+summary SHA-256 and the same 174 finding/transcript identities.
+
+This confirms a **relative evaluator coverage gap** against a declared stronger
+oracle; it is not an absolute claim that every stronger-oracle test perfectly
+captures human intent.  Full protocol and limitations:
+`docs/experiments/EVALPLUS_DIFFERENTIAL_CONFIRMATION_RESULTS_20260727.md`.

@@ -1,0 +1,64 @@
+{
+  "schema_version": "evalplus-differential-confirmation-summary-v1",
+  "date": "2026-07-27",
+  "claim": "declared weak oracle accepts a candidate rejected by a declared stronger oracle",
+  "claim_scope": "relative evaluator coverage gap; not an absolute human-intent error",
+  "protocol": {
+    "container_image": "sha256:9e30f4122a069ab7f626cdd70a3c11ddbbf44a9bd0cc4cc834136a2a2f08e995",
+    "execution_driver_sha256": "d09a0bed8b913ccf8da966c3528f53f65781b718bd96bfefd1b44d4537d77637",
+    "per_family": 2,
+    "per_probe_timeout_seconds": 10,
+    "task_timeout_seconds": 90,
+    "workers": 8,
+    "operational_retries": 1,
+    "llm_calls": 0
+  },
+  "benchmarks": {
+    "humaneval": {
+      "requested_tasks": 164,
+      "valid_tasks": 162,
+      "operational_failed_tasks": 1,
+      "canonical_invalid_tasks": 1,
+      "generated_candidates": 1171,
+      "completed_pairs": 1166,
+      "indeterminate_pairs": 5,
+      "timeout_pairs": 5,
+      "swapped_direction_pairs": 14,
+      "confirmed_coverage_gaps": 50,
+      "affected_tasks": 30,
+      "witness_yield": 0.04288164665523156,
+      "affected_task_rate": 0.18518518518518517
+    },
+    "mbpp": {
+      "requested_tasks": 378,
+      "valid_tasks": 376,
+      "operational_failed_tasks": 1,
+      "canonical_invalid_tasks": 1,
+      "generated_candidates": 1560,
+      "completed_pairs": 1554,
+      "indeterminate_pairs": 6,
+      "timeout_pairs": 6,
+      "swapped_direction_pairs": 10,
+      "confirmed_coverage_gaps": 124,
+      "affected_tasks": 63,
+      "witness_yield": 0.07979407979407979,
+      "affected_task_rate": 0.1675531914893617
+    }
+  },
+  "controls": {
+    "canonical_finding_count": 0,
+    "identical_outcome_confirmed_count": 0,
+    "timeout_as_rejection_count": 0,
+    "swapped_direction_confirmed_count": 0,
+    "unattested_confirmed_count": 0
+  },
+  "reproducibility": {
+    "stable_summary_sha256_run_1": "c343687e82ca5f1659f89752f954260c9ea2dc6444fbd70675d6be285c5d14f7",
+    "stable_summary_sha256_run_2": "c343687e82ca5f1659f89752f954260c9ea2dc6444fbd70675d6be285c5d14f7",
+    "finding_identity_and_transcript_set_sha256_run_1": "ccbbf9de807e7cfc17bc439f669478254188b5e30df3ee0dbda9452b313a487d",
+    "finding_identity_and_transcript_set_sha256_run_2": "ccbbf9de807e7cfc17bc439f669478254188b5e30df3ee0dbda9452b313a487d",
+    "raw_result_sha256_run_1": "5952d9291c8f8622d10e317e922278fe3a3df28e249fb1b52c964e62849a7072",
+    "raw_result_sha256_run_2": "cffe459c0b4e911c29aeffe1ea22dbeecdf1b8504a578ae0bb8219b6e7590470",
+    "raw_file_difference_note": "Raw files differ in fresh public attestation material and operational timing metadata; stable summaries and all finding transcript hashes are identical."
+  }
+}
