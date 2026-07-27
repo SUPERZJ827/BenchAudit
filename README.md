@@ -179,9 +179,16 @@ For example, `总结1.txt,2.txt,.....100.txt为123.txt` yields only the required
 deliverable filename `123.txt`; the input range is deliberately out of scope.
 The parser rejects invented evidence anchors and unsafe paths. Local code then
 compares the extracted name with explicit
-`output_files`/`deliverables`/`reference_files` inventories. Only a replayed
-filename mismatch produces a finding, and that finding remains `review`. This
-stage does not judge whether the output semantically covers the input files.
+`output_files`/`deliverables` inventories. `reference_files` is treated as an
+input-side attachment by default, not as proof of the published outputs. If an
+extracted filename is also present in an explicit input inventory but absent
+from the output inventory, the checker abstains on that role-ambiguous name
+instead of reporting it as a missing deliverable. Only a replayed,
+non-ambiguous filename mismatch produces a review-severity finding, and that
+finding remains in the `review` evidence tier. This conservative gate can miss
+an in-place output that deliberately reuses an input filename; such cases need
+an explicit output manifest. This stage does not judge whether the output
+semantically covers the input files.
 
 ### 5. Triage using archived model responses
 
