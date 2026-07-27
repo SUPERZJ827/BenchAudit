@@ -36,6 +36,7 @@ METAMORPHIC_PROOF_VERSION = "benchcore-metamorphic-proof-v1"
 SUPPORTED_SEMANTIC_PROFILES = frozenset({
     "numeric_value",
     "python_ast",
+    "sql_layout",
     "trim_insensitive_text",
 })
 
@@ -272,6 +273,55 @@ def _trim_variants(answer: str) -> list[MetamorphicVariant]:
     return variants
 
 
+def _sql_layout_variants(answer: str) -> list[MetamorphicVariant]:
+    """Apply SQL-token-external layout edits under an explicit SQL contract.
+
+    The original SQL bytes are never rewritten. The fixed block comment is
+    deliberately not an optimizer-hint comment (``/*+ ... */``). This profile
+    is opt-in because only an adapter can establish that the answer is SQL.
+    """
+    if not answer.strip():
+        return []
+    candidates = [
+        (
+            "sql_leading_whitespace",
+            "  \n" + answer,
+            "Leading whitespace precedes the first SQL token and leaves the SQL program unchanged.",
+        ),
+        (
+            "sql_trailing_whitespace",
+            answer + "\n  ",
+            "Trailing whitespace follows the final SQL token and leaves the SQL program unchanged.",
+        ),
+        (
+            "sql_leading_plain_comment",
+            "/* BenchAudit semantics-preserving layout probe */\n" + answer,
+            (
+                "A fixed non-hint block comment before the first SQL token is "
+                "lexically ignored and leaves the SQL program unchanged."
+            ),
+        ),
+    ]
+    return [
+        MetamorphicVariant(
+            relation_id="evaluator_format_invariance",
+            transformation_id=transformation_id,
+            original=answer,
+            transformed=transformed,
+            semantic_profile="sql_layout",
+            semantics_preserving_rationale=rationale,
+            semantics_proof={
+                "schema_version": METAMORPHIC_PROOF_VERSION,
+                "kind": "declared_sql_layout_equivalence",
+                "original_sha256": _sha256_text(answer),
+                "original_bytes_preserved": True,
+                "verified": True,
+            },
+        )
+        for transformation_id, transformed, rationale in candidates
+    ]
+
+
 def generate_semantics_preserving_variants(
     answer: str, contract: Mapping[str, Any],
 ) -> tuple[MetamorphicVariant, ...]:
@@ -284,6 +334,8 @@ def generate_semantics_preserving_variants(
         variants = _numeric_variants(answer)
     elif profile == "python_ast":
         variants = _python_variants(answer)
+    elif profile == "sql_layout":
+        variants = _sql_layout_variants(answer)
     elif profile == "trim_insensitive_text":
         variants = _trim_variants(answer)
     else:

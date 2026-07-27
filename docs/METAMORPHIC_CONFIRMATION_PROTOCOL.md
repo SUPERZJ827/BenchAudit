@@ -42,10 +42,12 @@ Only the following semantic profiles are supported:
 |---|---|---|
 | `numeric_value` | fractional trailing zero, optional leading zero, trailing token-external space | exact finite `Decimal` equality |
 | `python_ast` | terminal newline, trailing comment | equality of Python ASTs with attributes removed |
+| `sql_layout` | leading/trailing token-external whitespace, fixed non-hint leading comment | opt-in SQL contract plus byte-for-byte preservation of the original SQL |
 | `trim_insensitive_text` | leading/trailing ASCII space | explicit trim-insensitive contract plus equal stripped text |
 
 `free_text` has no confirmable transformation. Python indentation, arbitrary
-whitespace edits, paraphrases, and LLM-generated transformations are forbidden.
+whitespace edits, SQL token rewriting, paraphrases, and LLM-generated
+transformations are forbidden.
 
 Every contract must bind an exact `evaluator_identity`. Every emitted relation
 contains a non-empty `semantics_preserving_rationale`, but promotion does not
