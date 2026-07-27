@@ -161,6 +161,31 @@ benchcore audit benchmark.jsonl \
 LLM findings remain review evidence. A model vote, including a unanimous vote,
 does not automatically enter the `confirmed` tier.
 
+For file-oriented tasks whose contract is expressed in natural language, the
+optional `taskcontract` auditor asks the LLM only to extract an evidence-anchored
+file contract:
+
+```bash
+benchcore audit benchmark.jsonl \
+  --profile generic \
+  --llm-audit \
+  --llm-auditors taskcontract \
+  --llm-config configs/llm_deepseek.json \
+  --allow-remote-data-egress \
+  --out reports/task_contract_audit.json
+```
+
+For example, `总结1.txt,2.txt,.....100.txt为123.txt` becomes a bounded
+`1.txt`–`100.txt` input range, an `all_inputs` coverage requirement, and the
+output `123.txt`. The parser rejects invented evidence anchors, unsafe paths,
+and oversized ranges. Local code then compares the contract with explicit
+`input_files`/`attachments`/`source_files` and
+`output_files`/`deliverables`/`reference_files` inventories. Only replayed
+inventory mismatches produce findings, and those findings remain `review`.
+This stage verifies file presence and declared deliverables; it does not claim
+that the generated summary semantically covers every source file without an
+output or execution trace to inspect.
+
 ### 5. Triage using archived model responses
 
 If per-item correctness results already exist, candidate ranking can be
