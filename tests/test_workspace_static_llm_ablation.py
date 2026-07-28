@@ -18,6 +18,10 @@ from scripts.run_workspace_static_llm_ablation import (
     run_rules,
 )
 from scripts.analyze_workspace_grounding_dual_holdout import decision_sets
+from scripts.analyze_workspace_grounding_third_holdout import (
+    analyze as analyze_third_holdout,
+    routing_sets as third_holdout_routing_sets,
+)
 from benchcore.schema import BenchmarkItem, Violation
 
 
@@ -141,6 +145,106 @@ def test_dual_holdout_decision_sets_recover_each_router_and_union():
     }
     assert result["routed_union"] == {("item-1", 0), ("item-1", 1)}
     assert result["final_unsupported"] == {("item-1", 0)}
+
+
+def test_third_holdout_routing_sets_keep_exact_separate_from_llm():
+    rows = {
+        "item-1": {
+            "decisions": [
+                {
+                    "rubric_index": 0,
+                    "rubric": "Use the exact heading `Results`.",
+                    "scanner": {
+                        "triage_selected_views": [
+                            "hidden_constraint", "exact_constraint",
+                        ],
+                        "exact_constraint_route": {
+                            "selected": True,
+                            "reason_codes": ["quoted_literal"],
+                            "matched_literals": ["Results"],
+                        },
+                    },
+                },
+                {
+                    "rubric_index": 1,
+                    "rubric": "Use exactly 12 rows.",
+                    "scanner": {
+                        "triage_selected_views": ["exact_constraint"],
+                        "exact_constraint_route": {
+                            "selected": True,
+                            "reason_codes": ["exact_count"],
+                            "matched_literals": [],
+                        },
+                    },
+                },
+            ],
+        },
+    }
+
+    selected, details = third_holdout_routing_sets(rows)
+
+    assert selected["hidden_constraint"] == {("item-1", 0)}
+    assert selected["exact_constraint"] == {("item-1", 0), ("item-1", 1)}
+    assert selected["union"] == {("item-1", 0), ("item-1", 1)}
+    assert {row["rubric_index"] for row in details} == {0, 1}
+
+
+def test_third_holdout_analysis_scores_incremental_exact_and_gates():
+    rows = {
+        "item-1": {
+            "decisions": [
+                {
+                    "rubric_index": 0,
+                    "rubric": "General quality.",
+                    "scanner": {
+                        "triage_selected_views": ["hidden_constraint"],
+                    },
+                    "verifier": None,
+                },
+                {
+                    "rubric_index": 1,
+                    "rubric": "Use `Results`.",
+                    "scanner": {
+                        "triage_selected_views": ["exact_constraint"],
+                        "exact_constraint_route": {
+                            "selected": True,
+                            "reason_codes": ["quoted_literal"],
+                            "matched_literals": ["Results"],
+                        },
+                    },
+                    "verifier": None,
+                },
+            ],
+            "findings": [],
+        },
+    }
+    references = {
+        ("item-1", 0): POSITIVE_REVIEW_LABEL,
+        ("item-1", 1): POSITIVE_REVIEW_LABEL,
+    }
+    manifest = {"protocol": "test", "item_ids": ["item-1"]}
+    runtime = {
+        "grounding": {
+            "llm": {
+                "api_attempts": 1,
+                "total_tokens": 100,
+            },
+        },
+    }
+
+    result = analyze_third_holdout(
+        rows=rows,
+        references=references,
+        manifest=manifest,
+        runtime=runtime,
+    )
+
+    assert result["metrics"]["hidden_constraint"]["recall"] == 0.5
+    assert result["metrics"]["union"]["recall"] == 1.0
+    assert result["incremental_exact_over_a"]["reviewed_tp"] == 1
+    assert result["incremental_exact_over_a"]["llm_calls"] == 0
+    # One exact route out of two rubrics exceeds the real 15% gate.
+    assert not result["gates"]["exact_routed_rubric_rate_at_most_0_15"]
 
 
 def test_cost_structure_estimate_uses_shared_scan_and_candidate_only_verification():

@@ -88,6 +88,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--grounding-routing-only",
+        action="store_true",
+        help=(
+            "Run only the shared item-level routing stage and never call the "
+            "isolated verifier. Intended for frozen routing experiments; "
+            "routing decisions remain review-only and emit no findings."
+        ),
+    )
+    parser.add_argument(
         "--stages",
         default="rules,taskcontract,grounding,score",
         help="Comma-separated subset of rules,taskcontract,grounding,score",
@@ -483,6 +492,8 @@ def run_grounding(
     rows_path: Path,
     workers: int,
     strategy: str = "item-triage",
+    *,
+    verify_unsupported: bool = True,
 ) -> dict[str, Any]:
     config = load_llm_config(str(config_path))
     config.cache_path = str(cache_path)
@@ -490,7 +501,7 @@ def run_grounding(
     auditor = WorkspaceRubricGroundingAuditor(
         client,
         verifier_client=client,
-        verify_unsupported=True,
+        verify_unsupported=verify_unsupported,
         allowed_roots=allowed_roots,
     )
     completed = _read_completed_items(rows_path)
@@ -534,7 +545,11 @@ def run_grounding(
                         )
                         for row in decisions
                     )
-                    for view in ("hidden_constraint", "support_challenge")
+                    for view in (
+                        "hidden_constraint",
+                        "support_challenge",
+                        "exact_constraint",
+                    )
                 },
                 "isolated_verifier_calls": sum(
                     int(row.verifier is not None) for row in decisions
@@ -568,6 +583,7 @@ def run_grounding(
         "resumed_items": len(items) - len(pending),
         "new_items": len(pending),
         "strategy": strategy,
+        "verify_unsupported": verify_unsupported,
         "llm": client.run_stats(),
     }
 
@@ -1236,6 +1252,15 @@ def main() -> None:
         raise ValueError(f"unknown stages: {sorted(unknown)}")
     if args.workers < 1:
         raise ValueError("--workers must be positive")
+    if (
+        args.grounding_routing_only
+        and args.grounding_strategy not in {
+            "item-triage", "item-exact-triage", "dual-triage",
+        }
+    ):
+        raise ValueError(
+            "--grounding-routing-only requires an item-level triage strategy"
+        )
 
     dataset = args.dataset.expanduser().resolve()
     reviewed_reference = args.reviewed_reference.expanduser().resolve()
@@ -1292,6 +1317,7 @@ def main() -> None:
         "rubrics": sum(len(workspace_rubrics(item)) for item in items),
         "workers": args.workers,
         "grounding_strategy": args.grounding_strategy,
+        "grounding_routing_only": args.grounding_routing_only,
         "item_ids_manifest": (
             str(item_ids_manifest) if item_ids_manifest is not None else None
         ),
@@ -1365,6 +1391,7 @@ def main() -> None:
             grounding_rows_path,
             args.workers,
             args.grounding_strategy,
+            verify_unsupported=not args.grounding_routing_only,
         )
         runtime_path.write_text(
             json.dumps(runtime, ensure_ascii=False, indent=2, sort_keys=True),
