@@ -295,6 +295,7 @@ def review_task(
     candidate_rows: list[dict[str, Any]],
     raw_dir: Path,
     max_attempts: int,
+    system_prompt: str | None = None,
 ) -> dict[str, Any]:
     task_id = str(task_row["task_blind_id"])
     prior_error: str | None = None
@@ -303,7 +304,10 @@ def review_task(
         payload = {
             "model": MODEL,
             "messages": [
-                {"role": "system", "content": build_system_prompt()},
+                {
+                    "role": "system",
+                    "content": system_prompt or build_system_prompt(),
+                },
                 {
                     "role": "user",
                     "content": build_user_prompt(
