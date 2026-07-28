@@ -60,6 +60,7 @@ _OUTPUT_INVENTORY_KEYS = {
     "output_files",
     "outputs",
     "expected_files",
+    "required_files",
     "deliverables",
     "output_manifest",
 }
@@ -70,6 +71,7 @@ _INPUT_INVENTORY_KEYS = {
     "data_files",
     "source_files",
     "input_manifest",
+    "data_manifest",
     "reference_files",
 }
 # A manifest record can expose several aliases at once. Keep an explicit,
@@ -149,6 +151,14 @@ def parse_task_contract(task: str, response: dict[str, Any]) -> TaskContract:
 
 def _paths_from_inventory(value: Any) -> list[str]:
     if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith(("[", "{")):
+            try:
+                decoded = json.loads(stripped)
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, (list, dict)):
+                return _paths_from_inventory(decoded)
         try:
             return [_safe_relative_path(value, "inventory path")]
         except TaskContractValidationError:

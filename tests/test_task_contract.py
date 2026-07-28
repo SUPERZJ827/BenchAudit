@@ -164,6 +164,68 @@ class TaskContractAuditorTest(unittest.TestCase):
 
         self.assertEqual(violations, [])
 
+    def test_workspace_json_string_output_inventory_matches_extracted_path(self):
+        task = "Create and save `report.docx`."
+        item = BenchmarkItem(
+            item_id="workspace-json-output",
+            raw={
+                "task": task,
+                "output_files": '["report.docx"]',
+            },
+            task=task,
+            output_contract={
+                "type": "workspace_files",
+                "required_files": ["report.docx"],
+            },
+        )
+        response = {
+            "schema_version": "task-output-contract.v1",
+            "output_requirements": [
+                {"path": "report.docx", "evidence": "`report.docx`"}
+            ],
+        }
+
+        violations = list(LLMTaskContractAuditor(FakeClient(response)).check(item))
+
+        self.assertEqual(violations, [])
+        replay = item.metadata["_llm_observations"]["llm_task_contract"]["inventory_replay"]
+        self.assertEqual(replay["observed_output_count"], 1)
+        self.assertEqual(replay["missing_output_count"], 0)
+
+    def test_workspace_data_manifest_supports_input_role_suppression(self):
+        task = "Summarize `source.txt` into `report.txt`."
+        item = BenchmarkItem(
+            item_id="workspace-manifest-input",
+            raw={
+                "task": task,
+                "data_manifest": [{
+                    "filename": "source.txt",
+                    "stored_relpath": "data/0123456789abcdef_source.txt",
+                }],
+                "output_files": '["report.txt"]',
+            },
+            task=task,
+            output_contract={
+                "type": "workspace_files",
+                "required_files": ["report.txt"],
+            },
+        )
+        response = {
+            "schema_version": "task-output-contract.v1",
+            "output_requirements": [
+                {"path": "source.txt", "evidence": "`source.txt`"}
+            ],
+        }
+
+        violations = list(LLMTaskContractAuditor(FakeClient(response)).check(item))
+
+        self.assertEqual(violations, [])
+        replay = item.metadata["_llm_observations"]["llm_task_contract"]["inventory_replay"]
+        self.assertEqual(
+            replay["suppressed_input_output_overlap_paths"], ["source.txt"],
+        )
+        self.assertEqual(replay["missing_output_count"], 0)
+
     def test_absent_output_inventory_is_unknown_not_a_defect(self):
         task = "请总结1.txt,2.txt,.....100.txt为123.txt"
         item = BenchmarkItem(item_id="no-manifest", raw={"task": task}, task=task)
