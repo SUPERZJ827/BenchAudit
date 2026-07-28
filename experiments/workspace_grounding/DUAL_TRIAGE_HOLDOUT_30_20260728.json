@@ -1,0 +1,80 @@
+{
+  "protocol": "workspace-grounding-dual-triage-holdout-v1-20260728",
+  "selection_seed": "workspace-cost-dual-holdout-v1",
+  "development_manifest": {
+    "path": "experiments/workspace_grounding/COST_PILOT_30_20260728.json",
+    "sha256": "2f1fec5d916cb7f6de4796017118e062ebe048423c1bd50b566550557c3708f9"
+  },
+  "selection_policy": [
+    {
+      "count": 10,
+      "name": "reviewed_positive_with_legacy_candidate"
+    },
+    {
+      "count": 8,
+      "name": "verifier_refutation_stress"
+    },
+    {
+      "count": 6,
+      "name": "reviewed_negative"
+    },
+    {
+      "count": 6,
+      "name": "general_complete"
+    }
+  ],
+  "item_ids": [
+    "workspacebench-186",
+    "workspacebench-191",
+    "workspacebench-156",
+    "workspacebench-198",
+    "workspacebench-39",
+    "workspacebench-49",
+    "workspacebench-158",
+    "workspacebench-9",
+    "workspacebench-28",
+    "workspacebench-189",
+    "workspacebench-157",
+    "workspacebench-57",
+    "workspacebench-74",
+    "workspacebench-89",
+    "workspacebench-165",
+    "workspacebench-154",
+    "workspacebench-190",
+    "workspacebench-142",
+    "workspacebench-112",
+    "workspacebench-223",
+    "workspacebench-34",
+    "workspacebench-5",
+    "workspacebench-130",
+    "workspacebench-196",
+    "workspacebench-217",
+    "workspacebench-220",
+    "workspacebench-63",
+    "workspacebench-144",
+    "workspacebench-164",
+    "workspacebench-163"
+  ],
+  "frozen_legacy_counts": {
+    "final_unsupported": 92,
+    "reviewed_negative": 12,
+    "reviewed_positive": 30,
+    "rubrics": 609,
+    "scanner_unsupported": 411,
+    "verifier_refuted_or_downgraded": 319
+  },
+  "triage_views": {
+    "hidden_constraint": "Current compact router: select rubrics that plausibly impose unsupported hidden constraints.",
+    "support_challenge": "Independent high-recall router: omit a rubric only when the task or supplied artifacts directly and clearly support it; route unsupported or uncertain cases.",
+    "combination": "Take the set union of both routers, then run exactly one isolated verifier for each union candidate."
+  },
+  "go_no_go": {
+    "max_review_ceiling_escapes": 0,
+    "min_logical_call_reduction_vs_legacy": 0.5,
+    "min_union_router_recall_of_legacy_final_candidates": 0.9,
+    "min_union_router_recall_of_reviewed_positives": 0.95,
+    "min_reviewed_reference_f1_delta_vs_legacy": -0.05,
+    "max_union_precision_drop_vs_hidden_constraint": 0.1
+  },
+  "interpretation": "This holdout is disjoint from the 30-item development pilot and is frozen before dual-router implementation. It tests whether an independent support-challenge view recovers routing recall without erasing the cost reduction or review-only safety boundary. Results must not be used to retune and then reclaim performance on this same holdout."
+}
