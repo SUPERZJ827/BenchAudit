@@ -1,0 +1,8 @@
+{
+  "annotation_sha256": "cf88ac639d74d7b1bd98d350199b7de3335d8639086107b58aa9cd762c74e1c7",
+  "blind_review_completion_commit": "99c0554",
+  "blinding_compromised": false,
+  "mapping_sha256": "3b24d271400355409ce9d5a61c808ebb8f5e9992d7e18ef572a5d54c90fabd6e",
+  "protocol_version": "workspace-grounding-p1-family-reference-v1-20260728",
+  "sealed_mapping_revealed_after_review": true
+}
