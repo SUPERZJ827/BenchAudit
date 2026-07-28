@@ -282,12 +282,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     audit_parser.add_argument(
         "--workspace-grounding-strategy",
-        choices=("item-triage", "dual-triage", "isolated"),
+        choices=("item-triage", "item-exact-triage", "dual-triage", "isolated"),
         default="isolated",
         help=(
             "Use the validated isolated per-rubric scanner (default), or opt "
-            "into one- or two-view shared routing followed by isolated "
-            "verification"
+            "into shared routing followed by isolated verification. "
+            "item-exact-triage unions the one-view LLM router with a "
+            "deterministic exact-constraint router at zero additional LLM "
+            "routing calls"
         ),
     )
     audit_parser.add_argument(
