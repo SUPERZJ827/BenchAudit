@@ -1600,7 +1600,7 @@ class WorkspaceRubricGroundingAuditor:
 
 
 class WorkspaceRubricGroundingChecker(Checker):
-    """BenchCore checker wrapper; unsupported semantic verdicts remain review-only."""
+    """BenchAudit checker wrapper; unsupported semantic verdicts remain review-only."""
 
     name = "workspace_rubric_grounding"
 
