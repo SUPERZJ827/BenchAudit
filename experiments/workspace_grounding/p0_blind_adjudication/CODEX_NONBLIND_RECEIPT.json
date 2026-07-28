@@ -1,0 +1,27 @@
+{
+  "annotation_file_committed": false,
+  "annotation_sha256": "7b225bb51405a3c4665d7da2713c67aaffc2ed48e7e2f1873f30915293d1a3a9",
+  "annotation_type": "non_blind_evidence_review",
+  "blinding_compromised": true,
+  "blinding_note": "Codex inspected all 13 B-only unsupported cases and the four missed reviewed positives while designing the protocol. This review must not be represented as an independent blind annotation.",
+  "counts": {
+    "grounding_class": {
+      "general_quality": 4,
+      "hidden_exact_constraint": 6,
+      "insufficient_evidence": 3,
+      "intrinsic_validity": 6,
+      "task_contract_conflict": 1,
+      "task_or_input_derived": 17
+    },
+    "is_grounding_defect": {
+      "no": 28,
+      "uncertain": 3,
+      "yes": 6
+    },
+    "rows": 37
+  },
+  "protocol": "workspace-grounding-p0-adjudication-v1-20260728",
+  "reviewer": "codex",
+  "sealed_mapping_opened_during_annotation": false,
+  "template_sha256": "4298624970361c2575f93015e8deeec065b8ea2dfee777d6b3e199259e768398"
+}
