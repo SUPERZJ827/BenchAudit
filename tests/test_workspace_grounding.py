@@ -583,6 +583,27 @@ def test_dual_triage_routing_cannot_emit_without_isolated_verifier(
     ]
 
 
+def test_checker_routing_only_decision_never_emits_semantic_finding(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = declare_complete_inventory(make_item([source]), [source.name])
+    client = FakeClient([{"candidate_indices": [0]}])
+    checker = WorkspaceRubricGroundingChecker(
+        WorkspaceRubricGroundingAuditor(
+            client,
+            verify_unsupported=False,
+            allowed_roots=[tmp_path],
+        ),
+        strategy="item_triage",
+    )
+
+    assert list(checker.check(item)) == []
+    assert checker.last_decisions[0].scanner["routing_only"] is True
+    assert checker.last_decisions[0].verifier is None
+
+
 def test_checker_can_use_dual_triage_strategy(tmp_path: Path):
     source = tmp_path / "source.txt"
     source.write_text("ordinary source", encoding="utf-8")

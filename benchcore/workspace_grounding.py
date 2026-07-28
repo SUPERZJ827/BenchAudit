@@ -2049,6 +2049,14 @@ class WorkspaceRubricGroundingChecker(Checker):
                     scope="operational",
                 )
                 continue
+            # Item-level triage has no authority to emit a semantic finding.
+            # When verification is deliberately disabled for a routing-only
+            # experiment, preserve the decision for measurement but stop here.
+            if (
+                decision.scanner.get("routing_only") is True
+                and decision.verifier is None
+            ):
+                continue
             if decision.label != "unsupported":
                 continue
             yield _violation(
