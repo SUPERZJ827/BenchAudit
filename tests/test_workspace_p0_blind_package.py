@@ -17,6 +17,12 @@ from scripts.run_workspace_p0_openrouter_blind_review import (
     validate_task_annotations,
 )
 from scripts.analyze_workspace_p0_independent_review import summarize
+from scripts.generate_workspace_p1_family_blind_package import (
+    select_reference_positives,
+)
+from scripts.run_workspace_p1_openrouter_family_review import (
+    family_system_prompt,
+)
 
 
 def _decision(label, views):
@@ -249,3 +255,26 @@ def test_independent_review_analysis_keeps_conflicts_out_of_consensus():
     assert result["by_stratum"]["focus_b_only_unsupported"][
         "cross_review_consensus"
     ] == {"conflict": 1, "yes": 1}
+
+
+def test_p1_selects_all_thirty_reference_positives_without_sampling():
+    reviewed = {
+        (f"item-{index}", index): POSITIVE_REVIEW_LABEL
+        for index in range(30)
+    }
+    reviewed[("item-negative", 0)] = "较可信非问题"
+    selected = select_reference_positives(
+        reviewed,
+        expected_items={f"item-{index}" for index in range(30)},
+    )
+    assert len(selected) == 30
+    assert set(selected) == {
+        (f"item-{index}", index) for index in range(30)
+    }
+
+
+def test_p1_family_prompt_forbids_grounding_coverage_padding():
+    prompt = family_system_prompt()
+    assert "do not add" in prompt
+    assert "workspace_rubric_grounding" in prompt
+    assert "primary_family" in prompt
