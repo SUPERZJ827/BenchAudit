@@ -157,6 +157,21 @@ def parse_objective_output_reference(path: Path) -> set[str]:
     return positives
 
 
+def parse_objective_task_placeholder_reference(path: Path) -> set[str]:
+    """Read task-level placeholder leaks from the deterministic full scan."""
+
+    positives: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("| `workspacebench-"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 4:
+            continue
+        if cells[1] == "—" and cells[2].strip("`") == "placeholder_leak":
+            positives.add(cells[0].strip("`"))
+    return positives
+
+
 def input_roots(rows: list[dict[str, Any]]) -> list[Path]:
     roots = {
         Path(str(value)).expanduser().resolve(strict=False).parent
@@ -536,6 +551,7 @@ def score_experiment(
     grounding_rows: dict[str, dict[str, Any]],
     reviewed_labels: dict[tuple[str, int], str],
     output_positive_items: set[str],
+    task_placeholder_items: set[str],
 ) -> dict[str, Any]:
     item_ids = {item.item_id for item in items}
     output_universe = set(item_ids)
@@ -578,6 +594,34 @@ def score_experiment(
         and isinstance(row.get("evidence", {}).get("rubric_index"), int)
     }
     assisted_rubric = rules_rubric | llm_rubric
+
+    grounding_decisions: dict[tuple[str, int], dict[str, Any]] = {}
+    operational_failed_rubrics: set[tuple[str, int]] = set()
+    for item_id, row in grounding_rows.items():
+        for decision in row.get("decisions", []):
+            if not isinstance(decision, dict):
+                continue
+            index = decision.get("rubric_index")
+            if not isinstance(index, int):
+                continue
+            key = (str(item_id), index)
+            grounding_decisions[key] = decision
+            scanner = decision.get("scanner")
+            verifier = decision.get("verifier")
+            if (
+                isinstance(scanner, dict)
+                and scanner.get("operational_failure")
+            ) or (
+                isinstance(verifier, dict)
+                and verifier.get("operational_failure")
+            ):
+                operational_failed_rubrics.add(key)
+    evaluable_reviewed_universe = (
+        reviewed_universe - operational_failed_rubrics
+    )
+    evaluable_reviewed_positives = (
+        reviewed_positives & evaluable_reviewed_universe
+    )
 
     extracted_paths = 0
     output_mapped_paths = 0
@@ -629,6 +673,11 @@ def score_experiment(
         row for row in all_llm_findings
         if row.get("defect_scope") == "operational"
     ]
+    api_balance_exhausted_failures = 0
+    for row in operational_failures:
+        serialized = json.dumps(row.get("evidence", {}), ensure_ascii=False)
+        if "Insufficient Balance" in serialized or "Insufficient credits" in serialized:
+            api_balance_exhausted_failures += 1
     total_rubrics = sum(len(workspace_rubrics(item)) for item in items)
 
     return {
@@ -678,13 +727,55 @@ def score_experiment(
             "assisted_candidate_items": sorted(assisted_output),
             "assisted_added_over_rules": sorted(assisted_output - rules_output),
             "assisted_lost_vs_rules": sorted(rules_output - assisted_output),
+            "known_task_placeholder_items": len(task_placeholder_items),
+            "known_task_placeholder_items_hit": sorted(
+                assisted_output & task_placeholder_items
+            ),
         },
         "rubric_grounding_reviewed_reference": {
+            "metric_policy": {
+                "attempted_full388": (
+                    "Operational unknowns are treated as not detected. This is "
+                    "an intention-to-audit conservative convention, not a clean "
+                    "model-only estimate."
+                ),
+                "evaluable_subset": (
+                    "Exclude rubric rows whose scanner or verifier had an "
+                    "operational failure; report coverage beside P/R/F1."
+                ),
+            },
             "rules_only": binary_metrics(
                 rules_rubric, reviewed_positives, reviewed_universe,
             ),
             "deepseek_assisted": binary_metrics(
                 assisted_rubric, reviewed_positives, reviewed_universe,
+            ),
+            "rules_only_evaluable_subset": binary_metrics(
+                rules_rubric,
+                evaluable_reviewed_positives,
+                evaluable_reviewed_universe,
+            ),
+            "deepseek_assisted_evaluable_subset": binary_metrics(
+                assisted_rubric,
+                evaluable_reviewed_positives,
+                evaluable_reviewed_universe,
+            ),
+            "all_rubric_operational_coverage": (
+                (total_rubrics - len(operational_failed_rubrics)) / total_rubrics
+                if total_rubrics else 0.0
+            ),
+            "all_rubric_operational_failures": len(
+                operational_failed_rubrics
+            ),
+            "reviewed_reference_operational_coverage": (
+                len(evaluable_reviewed_universe) / len(reviewed_universe)
+                if reviewed_universe else 0.0
+            ),
+            "reviewed_reference_evaluable": len(
+                evaluable_reviewed_universe
+            ),
+            "reviewed_reference_failed": len(
+                reviewed_universe - evaluable_reviewed_universe
             ),
             "rules_total_candidates_all_rubrics": len(rules_rubric),
             "llm_total_candidates_all_rubrics": len(llm_rubric),
@@ -694,6 +785,12 @@ def score_experiment(
             }),
             "review_burden_all_rubrics": (
                 len(assisted_rubric) / total_rubrics if total_rubrics else 0.0
+            ),
+            "review_burden_evaluable_rubrics": (
+                len(assisted_rubric)
+                / (total_rubrics - len(operational_failed_rubrics))
+                if total_rubrics > len(operational_failed_rubrics)
+                else 0.0
             ),
             "assisted_added_over_rules": len(assisted_rubric - rules_rubric),
             "assisted_lost_vs_rules": len(rules_rubric - assisted_rubric),
@@ -714,6 +811,7 @@ def score_experiment(
             "escaped_review_ceiling": len(escaped),
             "confirmed_llm_findings": len(confirmed),
             "operational_failure_findings": len(operational_failures),
+            "api_balance_exhausted_failures": api_balance_exhausted_failures,
             "all_llm_findings_review_only": not escaped,
         },
         "sets": {
@@ -855,6 +953,10 @@ Rubric 指标只是在既有证据化复核子集上的条件指标，不是完�
 - LLM task-contract 候选 item：{len(output['llm_candidate_items'])}
 - Assisted 相对 rules 新增：{len(output['assisted_added_over_rules'])}
 - Assisted 相对 rules 丢失：{len(output['assisted_lost_vs_rules'])}
+- 另外命中旧确定性扫描中的 task-level placeholder leak：
+  {len(output['known_task_placeholder_items_hit'])}/
+  {output['known_task_placeholder_items']} items（不计入上表 12 个
+  `task_vs_contract_filename` 正类）
 
 ## 2. Rubric grounding：reviewed-reference 条件指标
 
@@ -863,10 +965,33 @@ Rubric 指标只是在既有证据化复核子集上的条件指标，不是完�
 {summary['reference']['reviewed_negative']} 个“较可信非问题”；
 {summary['reference']['reviewed_uncertain']} 个分歧项不参与 P/R/F1。
 
+### 2.1 Attempted-full388 保守口径
+
+本表将 operational unknown 计作“未检出”。它回答整次审计任务实际交付了
+多少命中，不是排除 API 故障后的纯模型能力估计。
+
 | 系统 | TP | FP | FN | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|
 {metric_row('Rules-only', rubric['rules_only'])}
 {metric_row('DeepSeek-assisted BenchAudit', rubric['deepseek_assisted'])}
+
+### 2.2 Evaluable-subset 条件口径
+
+仅保留 scanner/verifier 均完成的既有正/负标注：
+{rubric['reviewed_reference_evaluable']}/
+{summary['reference']['reviewed_positive'] + summary['reference']['reviewed_negative']}
+（覆盖率 {rubric['reviewed_reference_operational_coverage']:.2%}）。
+
+| 系统 | TP | FP | FN | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|---:|---:|
+{metric_row('Rules-only', rubric['rules_only_evaluable_subset'])}
+{metric_row('DeepSeek-assisted BenchAudit', rubric['deepseek_assisted_evaluable_subset'])}
+
+全 7,393 rubrics 的 operational coverage 为
+{rubric['all_rubric_operational_coverage']:.2%}；
+{rubric['all_rubric_operational_failures']} 条 rubric 因 API/响应问题保持
+unknown。该覆盖缺口主要由本轮 DeepSeek 余额耗尽造成，补充余额后应只重跑
+这些 unknown，不应重跑或改动已完成 verdict。
 
 全量候选与复核负担：
 
@@ -874,6 +999,8 @@ Rubric 指标只是在既有证据化复核子集上的条件指标，不是完�
 - DeepSeek-assisted rubric candidates：{rubric['assisted_total_candidates_all_rubrics']}
 - 涉及 item：{rubric['assisted_candidate_items_all_rubrics']}
 - review burden：{rubric['review_burden_all_rubrics']:.2%}
+- 在 operational-evaluable rubrics 中的 review burden：
+  {rubric['review_burden_evaluable_rubrics']:.2%}
 - Assisted 新增：{rubric['assisted_added_over_rules']}
 - 尚无明确 reviewed label 的新增候选：
   {rubric['unlabeled_assisted_candidates']}（不计作 FP）
@@ -900,10 +1027,15 @@ Rubric 指标只是在既有证据化复核子集上的条件指标，不是完�
 | 越过 review ceiling | {safety['escaped_review_ceiling']} |
 | LLM-derived confirmed | {safety['confirmed_llm_findings']} |
 | operational failures | {safety['operational_failure_findings']} |
+| 其中明确为 API balance exhausted | {safety['api_balance_exhausted_failures']} |
 
 验收要求是越权与 confirmed 均为 0。
 
 ## 5. API 与复现
+
+`taskcontract` 运行统计显示 0 次本轮 API request，是因为 388 个响应均从
+前一轮成功落盘的精确 prompt cache 重放；这不表示文件名 arm 从未调用
+LLM。其实际模型响应覆盖是 388/388。
 
 ```json
 {json.dumps(runtime, ensure_ascii=False, indent=2, sort_keys=True)}
@@ -926,6 +1058,9 @@ Provenance：
 3. 全量新增候选没有被自动记成 FP，也不能自动宣称为 TP。
 4. LLM 的作用是提高静态语义候选召回；confirmed 仍需要独立 replay、
    约束求解或真实执行。
+5. 本轮 rubric arm 不是 100% operational-complete：API 余额耗尽使
+   {rubric['all_rubric_operational_failures']} 条 rubric 保持 unknown。
+   因此必须同时报告 attempted-full388 与 evaluable-subset 两套口径。
 """
 
 
@@ -965,6 +1100,9 @@ def main() -> None:
     roots = input_roots(rows)
     reviewed_labels = parse_reviewed_reference(reviewed_reference)
     objective_output = parse_objective_output_reference(objective_reference)
+    objective_task_placeholders = parse_objective_task_placeholder_reference(
+        objective_reference
+    )
 
     provenance = {
         "protocol": "workspace-static-llm-paired-v1-20260728",
@@ -1062,6 +1200,7 @@ def main() -> None:
             grounding_rows=grounding_rows,
             reviewed_labels=reviewed_labels,
             output_positive_items=objective_output,
+            task_placeholder_items=objective_task_placeholders,
         )
         summary["provenance_sha256"] = stable_json_sha256(provenance)
         summary["runtime"] = runtime
