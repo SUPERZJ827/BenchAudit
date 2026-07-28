@@ -223,17 +223,10 @@ derivable. Do not select a rubric merely because it is difficult. Omit rubrics
 that are visibly supported or for which no concrete unsupported clause can be
 identified.
 
-Return ONLY an object with a candidates array. The array may be empty. Include
-each rubric_index at most once and never invent an index:
-{{"candidates":[{{
-  "rubric_index":0,
-  "confidence":0.0,
-  "requirement_type":"task|contract|intrinsic|input_fact|presentation|process|other",
-  "atomic_requirement":"the exact possibly unsupported clause",
-  "reason":"brief routing reason",
-  "evidence":[{{"source":"task|output_contract|input_inventory|input:<file>|none","quote":"exact short quote","relation":"supports|contradicts|insufficient"}}],
-  "missing_assumption":"what visible information would ground it"
-}}]}}
+Return ONLY an object containing the selected integer indices. The array may be
+empty. Include each rubric_index at most once and never invent an index. Do not
+return reasons, evidence, rewritten rubrics or decisions:
+{{"candidate_indices":[0,4,7]}}
 
 TASK:
 {task}
@@ -1440,10 +1433,10 @@ class WorkspaceRubricGroundingAuditor:
             targeted=targeted_workspace_search_many(bundle, unresolved),
         )
         response = _safe_chat(self.client, GROUNDING_SYSTEM, prompt)
-        candidates = _indexed_triage_candidates(
+        candidate_indices = _indexed_triage_candidates(
             response, {index for index, _ in unresolved},
         )
-        if candidates is None:
+        if candidate_indices is None:
             routed = {
                 index: self._decision_from_scanner(
                     item,
@@ -1457,8 +1450,22 @@ class WorkspaceRubricGroundingAuditor:
         else:
             routed = {}
             for index, rubric in unresolved:
-                scanner = candidates.get(index)
-                if scanner is None:
+                if index in candidate_indices:
+                    scanner = {
+                        "label": "unsupported",
+                        "confidence": 1.0,
+                        "requirement_type": "other",
+                        "atomic_requirement": rubric,
+                        "reason": (
+                            "Item-level routing selected this rubric for "
+                            "independent isolated verification."
+                        ),
+                        "evidence": [],
+                        "missing_assumption": "",
+                        "triage_selected": True,
+                        "routing_only": True,
+                    }
+                else:
                     scanner = {
                         "label": "uncertain",
                         "confidence": 0.0,
@@ -1479,10 +1486,8 @@ class WorkspaceRubricGroundingAuditor:
 
         if self.verify_unsupported:
             by_rubric = dict(entries)
-            for index in sorted(candidates or {}):
+            for index in sorted(candidate_indices or set()):
                 row = routed[index]
-                if row.label != "unsupported":
-                    continue
                 rubric = by_rubric[index]
                 targeted = targeted_workspace_search(bundle, rubric)
                 verifier_prompt = VERIFIER_PROMPT.format(
@@ -1516,6 +1521,7 @@ class WorkspaceRubricGroundingAuditor:
                     verifier_label == "unsupported"
                     and verifier_confidence >= self.min_confidence
                 ):
+                    row.label = "unsupported"
                     row.confidence = min(row.confidence, verifier_confidence)
                 else:
                     row.label = "uncertain"
@@ -1530,7 +1536,7 @@ class WorkspaceRubricGroundingAuditor:
                     verifier,
                 )
         else:
-            for index in sorted(candidates or {}):
+            for index in sorted(candidate_indices or set()):
                 row = routed[index]
                 if row.label == "unsupported":
                     row.label = "uncertain"
@@ -2081,36 +2087,23 @@ def _indexed_batch_rows(
 def _indexed_triage_candidates(
     response: dict[str, Any],
     requested: set[int],
-) -> dict[int, dict[str, Any]] | None:
+) -> set[int] | None:
     """Validate a routing response without treating omissions as clean labels."""
 
     if response.get("operational_failure"):
         return None
-    values = response.get("candidates")
+    values = response.get("candidate_indices")
     if not isinstance(values, list):
         return None
-    indexed: dict[int, dict[str, Any]] = {}
-    for row in values:
-        if not isinstance(row, dict):
-            return None
+    indexed: set[int] = set()
+    for value in values:
         try:
-            index = int(row.get("rubric_index"))
+            index = int(value)
         except (TypeError, ValueError):
             return None
         if index not in requested or index in indexed:
             return None
-        candidate = _validate_decision_response(
-            {
-                **row,
-                "label": "unsupported",
-                "triage_selected": True,
-                "routing_only": True,
-            },
-            "item_triage",
-        )
-        if candidate.get("operational_failure"):
-            return None
-        indexed[index] = candidate
+        indexed.add(index)
     return indexed
 
 
