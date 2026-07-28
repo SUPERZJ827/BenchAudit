@@ -42,6 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--protocol-file", type=Path, required=True)
     parser.add_argument("--artifact-view-dir", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--receipt-out", type=Path, required=True)
     parser.add_argument("--sealed-mapping", type=Path, required=True)
     return parser.parse_args()
 
@@ -57,6 +58,16 @@ def sha256_file(path: Path) -> str:
 def stable_id(kind: str, *parts: object) -> str:
     payload = ":".join((PROTOCOL, kind, *(str(value) for value in parts)))
     return f"{kind}-{hashlib.sha256(payload.encode()).hexdigest()[:12]}"
+
+
+def ensure_private_output_dir(path: Path) -> Path:
+    resolved = path.expanduser().resolve()
+    if resolved == REPO or REPO in resolved.parents:
+        raise ValueError(
+            "blind evidence packages may contain sensitive source text and "
+            "must be written outside the git worktree"
+        )
+    return resolved
 
 
 def selected_views(decision: dict[str, Any]) -> set[str]:
@@ -183,8 +194,11 @@ def main() -> None:
         "holdout_manifest": args.holdout_manifest.expanduser().resolve(),
         "protocol_file": args.protocol_file.expanduser().resolve(),
     }
-    out_dir = args.out_dir.expanduser().resolve()
+    out_dir = ensure_private_output_dir(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.chmod(0o700)
+    receipt_path = args.receipt_out.expanduser().resolve()
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
     sealed_mapping_path = args.sealed_mapping.expanduser().resolve()
     sealed_mapping_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -287,6 +301,8 @@ def main() -> None:
     write_jsonl(tasks_path, task_rows)
     write_jsonl(candidates_path, candidate_package)
     write_jsonl(template_path, annotation_template)
+    for path in (tasks_path, candidates_path, template_path):
+        path.chmod(0o600)
     sealed_mapping_path.write_text(
         json.dumps(
             {
@@ -345,7 +361,6 @@ def main() -> None:
             "sealed_mapping_committed": False,
         },
     }
-    receipt_path = out_dir / "SELECTION_RECEIPT.json"
     receipt_path.write_text(
         json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8",
