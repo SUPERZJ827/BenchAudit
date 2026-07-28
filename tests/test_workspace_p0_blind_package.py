@@ -8,6 +8,7 @@ from scripts.generate_workspace_p0_blind_package import (
     select_cases,
 )
 from scripts.run_workspace_static_llm_ablation import POSITIVE_REVIEW_LABEL
+from scripts.validate_workspace_p0_annotations import validate_annotations
 
 
 def _decision(label, views):
@@ -70,3 +71,28 @@ def test_blind_evidence_package_cannot_be_written_inside_repo():
 
     outside = Path("/tmp/benchaudit-private-blind-package")
     assert ensure_private_output_dir(outside) == outside.resolve()
+
+
+def test_annotation_validator_requires_exact_ids_and_typed_evidence():
+    template = [{"blind_id": "case-a"}]
+    valid = [{
+        "blind_id": "case-a",
+        "acceptable_families": ["workspace_rubric_grounding"],
+        "confidence": 0.8,
+        "evaluation_objectivity": "objective",
+        "evidence": [{
+            "source": "task",
+            "quote": "exact title",
+            "relation": "supports",
+        }],
+        "grounding_class": "task_or_input_derived",
+        "is_grounding_defect": "no",
+        "primary_family": "workspace_rubric_grounding",
+        "root_cause_summary": "The requirement is explicit.",
+        "satisfaction_checkability": "static",
+    }]
+
+    assert validate_annotations(template, valid)["rows"] == 1
+    invalid = [{**valid[0], "blind_id": "case-b"}]
+    with pytest.raises(ValueError, match="blind-id coverage"):
+        validate_annotations(template, invalid)
