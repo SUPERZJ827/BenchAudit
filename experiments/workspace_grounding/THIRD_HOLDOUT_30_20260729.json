@@ -1,0 +1,78 @@
+{
+  "api_budget": {
+    "exact_router_calls": 0,
+    "logical_calls": 30,
+    "max_attempts": 40,
+    "total_tokens_soft_stop": 600000
+  },
+  "counts": {
+    "negative_only_tasks": 10,
+    "positive_tasks": 20,
+    "reviewed_negative_rubrics": 16,
+    "reviewed_positive_rubrics": 32,
+    "tasks": 30
+  },
+  "frozen_system": {
+    "contract_version": "workspace-grounding-decision-contract-v1-20260729",
+    "deterministic_router": "exact_constraint",
+    "llm_router": "hidden_constraint",
+    "model": "deepseek-v4-flash",
+    "strategy": "item-exact-triage",
+    "temperature": 0.0,
+    "verifier_enabled": false
+  },
+  "git_head": "124af086273d2e095ec58ab380e613d275938dfc",
+  "input_sha256": {
+    "development_manifests": {
+      "/tmp/benchaudit-workspace-static-llm-20260728/experiments/workspace_grounding/COST_PILOT_30_20260728.json": "2f1fec5d916cb7f6de4796017118e062ebe048423c1bd50b566550557c3708f9",
+      "/tmp/benchaudit-workspace-static-llm-20260728/experiments/workspace_grounding/DUAL_TRIAGE_HOLDOUT_30_20260728.json": "9687a63c4dc1670c71e2563289dc2d02f0081b44e61a7b016c6f94b0f6eece4b"
+    },
+    "protocol_file": "f4702c093513f9f8c922090a00f4fc17dc0da779922089eebf00de235ecb0ae0",
+    "reviewed_reference": "fa8fbef8497ac2f8f39b21975e28dd88005a5d2541db07cbe162fb04558978cf"
+  },
+  "item_ids": [
+    "workspacebench-7",
+    "workspacebench-247",
+    "workspacebench-88",
+    "workspacebench-359",
+    "workspacebench-122",
+    "workspacebench-75",
+    "workspacebench-201",
+    "workspacebench-27",
+    "workspacebench-293",
+    "workspacebench-213",
+    "workspacebench-208",
+    "workspacebench-148",
+    "workspacebench-238",
+    "workspacebench-41",
+    "workspacebench-374",
+    "workspacebench-118",
+    "workspacebench-387",
+    "workspacebench-12",
+    "workspacebench-140",
+    "workspacebench-215",
+    "workspacebench-348",
+    "workspacebench-119",
+    "workspacebench-237",
+    "workspacebench-204",
+    "workspacebench-147",
+    "workspacebench-281",
+    "workspacebench-310",
+    "workspacebench-252",
+    "workspacebench-232",
+    "workspacebench-323"
+  ],
+  "protocol": "workspace-grounding-third-holdout-v1-20260729",
+  "selection_policy": [
+    {
+      "count": 20,
+      "name": "reviewed_positive_task"
+    },
+    {
+      "count": 10,
+      "name": "reviewed_negative_without_positive_task"
+    }
+  ],
+  "selection_seed": "workspace-grounding-third-holdout-v1-20260729",
+  "selection_sha256": "f4783030cb6c929669521ccd9653a0334d0f8ebc550fd51dc17d75e90807c3b8"
+}
