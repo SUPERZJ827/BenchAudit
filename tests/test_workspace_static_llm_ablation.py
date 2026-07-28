@@ -11,8 +11,9 @@ from scripts.run_workspace_static_llm_ablation import (
     materialize_input_view,
     parse_objective_output_reference,
     parse_reviewed_reference,
+    run_rules,
 )
-from benchcore.schema import Violation
+from benchcore.schema import BenchmarkItem, Violation
 
 
 def test_parse_reviewed_reference_keeps_only_rubric_labels(tmp_path: Path):
@@ -147,3 +148,40 @@ def test_materialized_input_view_rejects_distinct_same_basename(tmp_path: Path):
 
     with pytest.raises(ValueError, match="share staged basename"):
         materialize_input_view(rows, tmp_path / "view")
+
+
+def test_rules_arm_includes_same_objective_grounding_resolver_as_assisted_arm(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    rubric = (
+        'Does the primary requested artifact use the exact title "Wrong Title"?'
+    )
+    item = BenchmarkItem(
+        item_id="workspacebench-1",
+        raw={"input_files": [str(source)], "rubrics": [rubric]},
+        task=(
+            'Use the exact title "Required Title" for the primary requested '
+            "artifact."
+        ),
+        context={},
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["report.md"],
+        },
+        evaluator={"type": "workspacebench_rubric", "rubrics": [rubric]},
+    )
+
+    result = run_rules([item], [tmp_path])
+
+    candidates = [
+        row for row in result["workspace_invariant_findings"]
+        if row.get("source") == "deterministic_objective_grounding_resolver"
+    ]
+    assert len(candidates) == 1
+    assert candidates[0]["item_id"] == item.item_id
+    assert candidates[0]["evidence"]["rubric_index"] == 0
+    assert candidates[0]["evidence"]["objective_certificate"]["label"] == (
+        "unsupported"
+    )

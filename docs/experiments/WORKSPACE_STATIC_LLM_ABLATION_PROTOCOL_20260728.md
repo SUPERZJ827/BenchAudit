@@ -17,6 +17,8 @@
   文件名检查；
 - `collect_workspace_invariant_issues`：manifest、输入文件身份和 Workspace
   元数据的确定性检查；
+- `resolve_objective_grounding_certificate`：对已进入形式语法的精确
+  文件名、标题和清单关系做确定性 rubric replay；
 - 不调用 LLM。
 
 ### B：DeepSeek-assisted BenchAudit
@@ -55,12 +57,20 @@ symlink，导致 rubric arm 测到的是“附件不可读”而非模型能力�
 该修正属于输入物化/安全适配，不是根据实验标签调参。symlink-blocked
 试运行产物单独保留作诊断，不参与最终 P/R/F1。
 
+同时修正一个共享底座口径：assisted auditor 本来就会调用
+`resolve_objective_grounding_certificate`。正式计分前把同一 resolver
+加入 rules-only，防止把确定性 certificate 的收益误记为 DeepSeek 收益。
+该调整同样不读取任何标签，且两臂使用同一实现。
+
 ## 评价口径
 
 ### 1. 输出文件名
 
 使用全库确定性复核中 `task_vs_contract_filename` 的 item-level 集合作为
-客观参考。在全部 388 个 item 上计算 Precision、Recall、F1。
+已知正类参考。在全部 388 个 item 上计算严格 reference-convention 的
+Precision、Recall、F1，但不得把未进入旧规则扫描参考集的新候选直接称为
+人工证伪的 FP。已知正类 Recall 可直接解释；Precision/F1 只表示与该窄
+参考集的 alignment，新增候选另列待复核差异。
 
 ### 2. Rubric grounding
 
