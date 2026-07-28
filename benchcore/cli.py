@@ -282,11 +282,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     audit_parser.add_argument(
         "--workspace-grounding-strategy",
-        choices=("item-triage", "isolated"),
+        choices=("item-triage", "dual-triage", "isolated"),
         default="isolated",
         help=(
             "Use the validated isolated per-rubric scanner (default), or opt "
-            "into item-triage shared routing followed by isolated verification"
+            "into one- or two-view shared routing followed by isolated "
+            "verification"
         ),
     )
     audit_parser.add_argument(

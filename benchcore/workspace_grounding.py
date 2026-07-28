@@ -244,6 +244,36 @@ SHARED TARGETED SEARCH:
 {targeted}
 """
 
+ITEM_SUPPORT_CHALLENGE_PROMPT = """Perform an independent support-challenge
+routing pass over the rubrics. This is a high-recall router, not a final
+verdict. Route every rubric that is unsupported OR uncertain from the visible
+task, output contract and allowed input evidence. Omit a rubric only when its
+exact mandatory clause is directly supported, intrinsic to producing the
+requested artifact, or mechanically derivable from visible evidence. A false
+negative is more costly than a false positive because every routed rubric will
+be independently verified.
+
+Return ONLY an object containing the selected integer indices. The array may be
+empty. Include each rubric_index at most once and never invent an index. Do not
+return reasons, evidence, rewritten rubrics or decisions:
+{{"candidate_indices":[0,4,7]}}
+
+TASK:
+{task}
+
+OUTPUT CONTRACT:
+{output_contract}
+
+RUBRICS:
+{rubrics}
+
+SHARED ALLOWED INPUT EVIDENCE:
+{evidence}
+
+SHARED TARGETED SEARCH:
+{targeted}
+"""
+
 
 OBJECTIVE_CITATION_RESOLVER_VERSION = (
     "workspace-objective-grounding-certificates-v2-20260714"
@@ -1368,14 +1398,15 @@ class WorkspaceRubricGroundingAuditor:
         self,
         item: BenchmarkItem,
         root: Path | None = None,
+        *,
+        dual_triage: bool = False,
     ) -> list[RubricGroundingDecision]:
-        """Scan one item once, then verify only routed rubrics in isolation.
+        """Route one item, then verify the candidate union in isolation.
 
-        The shared pass has no authority to emit a finding.  It only selects
-        rubric indices.  Every substantive ``unsupported`` result therefore
-        includes a second call whose prompt contains exactly one hidden rubric.
-        This preserves the adversarial review boundary while amortizing the
-        task, contract and attachment context across all rubrics in an item.
+        Routing has no authority to emit a finding. With ``dual_triage``, two
+        independently instructed views are unioned, but each union candidate
+        is still verified exactly once. Every substantive ``unsupported``
+        result therefore includes an isolated second-stage call.
         """
 
         bundle = build_workspace_evidence_bundle(
@@ -1416,12 +1447,12 @@ class WorkspaceRubricGroundingAuditor:
         if not unresolved:
             return [objective[index] for index, _ in entries]
 
-        prompt = ITEM_TRIAGE_PROMPT.format(
-            task=(item.task or "(missing task)")[:_TASK_PROMPT_CHARS],
-            output_contract=json.dumps(
+        prompt_values = {
+            "task": (item.task or "(missing task)")[:_TASK_PROMPT_CHARS],
+            "output_contract": json.dumps(
                 contract, ensure_ascii=False, default=str,
             )[:_CONTRACT_PROMPT_CHARS],
-            rubrics=json.dumps(
+            "rubrics": json.dumps(
                 [
                     {"rubric_index": index, "rubric": rubric[:1800]}
                     for index, rubric in unresolved
@@ -1429,60 +1460,82 @@ class WorkspaceRubricGroundingAuditor:
                 ensure_ascii=False,
                 default=str,
             ),
-            evidence=bundle.text,
-            targeted=targeted_workspace_search_many(bundle, unresolved),
-        )
-        response = _safe_chat(self.client, GROUNDING_SYSTEM, prompt)
-        candidate_indices = _indexed_triage_candidates(
-            response, {index for index, _ in unresolved},
-        )
-        if candidate_indices is None:
-            routed = {
-                index: self._decision_from_scanner(
-                    item,
-                    index,
-                    rubric,
-                    bundle,
-                    _triage_operational_failure(response, index),
+            "evidence": bundle.text,
+            "targeted": targeted_workspace_search_many(bundle, unresolved),
+        }
+        views = [("hidden_constraint", ITEM_TRIAGE_PROMPT)]
+        if dual_triage:
+            views.append(("support_challenge", ITEM_SUPPORT_CHALLENGE_PROMPT))
+        requested = {index for index, _ in unresolved}
+        view_candidates: dict[str, set[int]] = {}
+        failed_views: dict[str, dict[str, Any]] = {}
+        for view_name, template in views:
+            response = _safe_chat(
+                self.client,
+                GROUNDING_SYSTEM,
+                template.format(**prompt_values),
+            )
+            selected = _indexed_triage_candidates(response, requested)
+            if selected is None:
+                failed_views[view_name] = response
+            else:
+                view_candidates[view_name] = selected
+        candidate_indices = set().union(*view_candidates.values())
+        routed: dict[int, RubricGroundingDecision] = {}
+        for index, rubric in unresolved:
+            selected_views = [
+                view_name
+                for view_name, _ in views
+                if index in view_candidates.get(view_name, set())
+            ]
+            if not selected_views and failed_views:
+                scanner = _triage_operational_failure(
+                    next(iter(failed_views.values())), index,
                 )
-                for index, rubric in unresolved
-            }
-        else:
-            routed = {}
-            for index, rubric in unresolved:
-                if index in candidate_indices:
-                    scanner = {
-                        "label": "unsupported",
-                        "confidence": 1.0,
-                        "requirement_type": "other",
-                        "atomic_requirement": rubric,
-                        "reason": (
-                            "Item-level routing selected this rubric for "
-                            "independent isolated verification."
-                        ),
-                        "evidence": [],
-                        "missing_assumption": "",
-                        "triage_selected": True,
-                        "routing_only": True,
-                    }
-                else:
-                    scanner = {
-                        "label": "uncertain",
-                        "confidence": 0.0,
-                        "requirement_type": "other",
-                        "atomic_requirement": rubric,
-                        "reason": (
-                            "Item-level routing did not select this rubric for "
-                            "isolated semantic verification."
-                        ),
-                        "evidence": [],
-                        "missing_assumption": "",
-                        "triage_selected": False,
-                        "routing_only": True,
-                    }
-                routed[index] = self._decision_from_scanner(
-                    item, index, rubric, bundle, scanner,
-                )
+                scanner.update({
+                    "triage_selected_views": [],
+                    "triage_view_count": len(views),
+                    "failed_triage_views": list(failed_views),
+                })
+            elif selected_views:
+                scanner = {
+                    "label": "unsupported",
+                    "confidence": 1.0,
+                    "requirement_type": "other",
+                    "atomic_requirement": rubric,
+                    "reason": (
+                        "Item-level routing selected this rubric for "
+                        "independent isolated verification."
+                    ),
+                    "evidence": [],
+                    "missing_assumption": "",
+                    "triage_selected": True,
+                    "triage_selected_views": selected_views,
+                    "triage_view_count": len(views),
+                    "failed_triage_views": list(failed_views),
+                    "routing_only": True,
+                }
+            else:
+                scanner = {
+                    "label": "uncertain",
+                    "confidence": 0.0,
+                    "requirement_type": "other",
+                    "atomic_requirement": rubric,
+                    "reason": (
+                        "Item-level routing did not select this rubric for "
+                        "isolated semantic verification."
+                    ),
+                    "evidence": [],
+                    "missing_assumption": "",
+                    "triage_selected": False,
+                    "triage_selected_views": [],
+                    "triage_view_count": len(views),
+                    "failed_triage_views": [],
+                    "routing_only": True,
+                }
+            routed[index] = self._decision_from_scanner(
+                item, index, rubric, bundle, scanner,
+            )
 
         if self.verify_unsupported:
             by_rubric = dict(entries)
@@ -1874,8 +1927,10 @@ class WorkspaceRubricGroundingChecker(Checker):
         *,
         strategy: str = "isolated",
     ) -> None:
-        if strategy not in {"isolated", "item_triage"}:
-            raise ValueError("strategy must be 'isolated' or 'item_triage'")
+        if strategy not in {"isolated", "item_triage", "dual_triage"}:
+            raise ValueError(
+                "strategy must be 'isolated', 'item_triage', or 'dual_triage'"
+            )
         self.auditor = auditor
         self.strategy = strategy
         self.last_decisions: list[RubricGroundingDecision] = []
@@ -1898,11 +1953,14 @@ class WorkspaceRubricGroundingChecker(Checker):
         # local snapshot is the authoritative result for this item; assigning
         # ``last_decisions`` is diagnostics-only and must not influence which
         # rows are emitted if another worker updates it concurrently.
-        decisions = (
-            self.auditor.audit_item_two_stage(item, root)
-            if self.strategy == "item_triage"
-            else self.auditor.audit_item(item, root)
-        )
+        if self.strategy == "dual_triage":
+            decisions = self.auditor.audit_item_two_stage(
+                item, root, dual_triage=True,
+            )
+        elif self.strategy == "item_triage":
+            decisions = self.auditor.audit_item_two_stage(item, root)
+        else:
+            decisions = self.auditor.audit_item(item, root)
         self.last_decisions = decisions
         for decision in decisions:
             scanner_failed = bool(decision.scanner.get("operational_failure"))
