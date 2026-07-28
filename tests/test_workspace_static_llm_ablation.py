@@ -10,6 +10,7 @@ from scripts.run_workspace_static_llm_ablation import (
     binary_metrics,
     materialize_input_view,
     parse_objective_output_reference,
+    parse_objective_task_placeholder_reference,
     parse_reviewed_reference,
     render_output_candidate_appendix,
     run_rules,
@@ -41,10 +42,15 @@ def test_parse_objective_output_reference_uses_exact_family(tmp_path: Path):
         "\n".join([
             "| `workspacebench-1` | — | `task_vs_contract_filename` | mismatch |",
             "| `workspacebench-2` | 3 | `rubric_vs_contract_filename` | mismatch |",
+            "| `workspacebench-3` | — | `placeholder_leak` | task leak |",
+            "| `workspacebench-4` | 1 | `placeholder_leak` | rubric leak |",
         ]),
         encoding="utf-8",
     )
     assert parse_objective_output_reference(path) == {"workspacebench-1"}
+    assert parse_objective_task_placeholder_reference(path) == {
+        "workspacebench-3"
+    }
 
 
 def test_binary_metrics_do_not_count_predictions_outside_reference_universe():
