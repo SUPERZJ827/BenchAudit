@@ -23,6 +23,9 @@ from scripts.generate_workspace_p1_family_blind_package import (
 from scripts.run_workspace_p1_openrouter_family_review import (
     family_system_prompt,
 )
+from scripts.analyze_workspace_p1_family_reference import (
+    summarize as summarize_p1,
+)
 
 
 def _decision(label, views):
@@ -282,3 +285,51 @@ def test_p1_family_prompt_forbids_grounding_coverage_padding():
     assert "workspace_rubric_grounding" in prompt
     assert "primary_family" in prompt
     assert "input:" in prompt
+
+
+def test_p1_family_metrics_use_positive_and_family_conditioned_denominator():
+    mapping = [
+        {
+            "blind_id": "a",
+            "item_id": "item-a",
+            "rubric_index": 0,
+            "routed_hidden_constraint": True,
+            "routed_support_challenge": False,
+            "routed_union": True,
+        },
+        {
+            "blind_id": "b",
+            "item_id": "item-b",
+            "rubric_index": 1,
+            "routed_hidden_constraint": False,
+            "routed_support_challenge": False,
+            "routed_union": False,
+        },
+        {
+            "blind_id": "c",
+            "item_id": "item-c",
+            "rubric_index": 2,
+            "routed_hidden_constraint": False,
+            "routed_support_challenge": True,
+            "routed_union": True,
+        },
+    ]
+
+    def annotation(blind_id, verdict, family, acceptable=()):
+        return {
+            "blind_id": blind_id,
+            "is_grounding_defect": verdict,
+            "grounding_class": "hidden_exact_constraint",
+            "primary_family": family,
+            "acceptable_families": list(acceptable),
+        }
+
+    result = summarize_p1(mapping, [
+        annotation("a", "yes", "workspace_rubric_grounding"),
+        annotation("b", "yes", "task_contract"),
+        annotation("c", "no", "workspace_rubric_grounding"),
+    ])
+    primary = result["routing"]["primary_grounding"]
+    assert primary["denominator"] == 1
+    assert primary["union"]["recall"] == 1.0
+    assert result["routing"]["old_mixed_reference"]["denominator"] == 3
