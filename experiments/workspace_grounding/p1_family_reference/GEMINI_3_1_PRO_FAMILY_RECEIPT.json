@@ -1,0 +1,42 @@
+{
+  "annotation_sha256": "cf88ac639d74d7b1bd98d350199b7de3335d8639086107b58aa9cd762c74e1c7",
+  "api_requests_including_retries": 29,
+  "blinding_compromised": false,
+  "candidates": 30,
+  "exact_evidence_quotes_validated": true,
+  "fresh_context_per_task": true,
+  "grounding_class_counts": {
+    "general_quality": 0,
+    "hidden_exact_constraint": 26,
+    "insufficient_evidence": 1,
+    "intrinsic_validity": 0,
+    "task_contract_conflict": 2,
+    "task_or_input_derived": 1
+  },
+  "grounding_defect_counts": {
+    "no": 1,
+    "uncertain": 1,
+    "yes": 28
+  },
+  "logical_task_requests": 18,
+  "observed_models": [
+    "google/gemini-3.1-pro-preview"
+  ],
+  "package_sha256": {
+    "ANNOTATION_TEMPLATE.jsonl": "b365c47c2a935fad087dfda7e03ecd049384a47228ad2057ff4883c76e06d7d0",
+    "BLIND_CANDIDATES.jsonl": "f5d7928ba586d25857bbdda40b7de5430254d92474da39d8109108d1c0ee536b",
+    "BLIND_TASKS.jsonl": "4f5f4fcf62c18b2f6e68f3726155ee05c6fe022869e8d8887087ef16c482f348"
+  },
+  "prior_route_status_read": false,
+  "private_receipt_sha256": "b14650b2ceed874af27046d9ac0934d30b8cde0344e2889f27a1d86b6484b779",
+  "protocol_version": "workspace-grounding-p1-family-reference-v1-20260728",
+  "requested_model": "google/gemini-3.1-pro-preview",
+  "resumed_valid_task_results": 16,
+  "sealed_mapping_read": false,
+  "usage": {
+    "completion_tokens": 47320,
+    "cost_usd": 0.859438,
+    "prompt_tokens": 145799,
+    "total_tokens": 193119
+  }
+}
