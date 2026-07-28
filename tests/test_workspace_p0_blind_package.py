@@ -16,6 +16,7 @@ from scripts.run_workspace_p0_openrouter_blind_review import (
     ensure_private_dir,
     validate_task_annotations,
 )
+from scripts.analyze_workspace_p0_independent_review import summarize
 
 
 def _decision(label, views):
@@ -201,3 +202,50 @@ def test_independent_review_requires_exact_source_quotes():
 def test_independent_review_output_must_remain_outside_worktree():
     with pytest.raises(ValueError, match="outside the git worktree"):
         ensure_private_dir(REPO / "unsafe-independent-review")
+
+
+def test_independent_review_analysis_keeps_conflicts_out_of_consensus():
+    mapping = [
+        {
+            "blind_id": "a",
+            "source_stratum": "focus_b_only_unsupported",
+            "item_id": "item-a",
+            "rubric_index": 0,
+        },
+        {
+            "blind_id": "b",
+            "source_stratum": "focus_b_only_unsupported",
+            "item_id": "item-b",
+            "rubric_index": 1,
+        },
+    ]
+
+    def row(blind_id, verdict, family="workspace_rubric_grounding"):
+        return {
+            "blind_id": blind_id,
+            "is_grounding_defect": verdict,
+            "grounding_class": (
+                "hidden_exact_constraint" if verdict == "yes"
+                else "task_or_input_derived"
+            ),
+            "evaluation_objectivity": "objective",
+            "satisfaction_checkability": "static",
+            "primary_family": family,
+            "acceptable_families": [family],
+            "confidence": 0.9,
+        }
+
+    result = summarize(
+        mapping,
+        [row("a", "yes"), row("b", "no")],
+        [row("a", "yes"), row("b", "yes")],
+        incremental_dual_calls=10,
+    )
+
+    focus = result["b_only_final_unsupported"]
+    assert focus["independent_yes"] == 1
+    assert focus["cross_review_agreed_positive"] == 1
+    assert focus["calls_per_independent_positive"] == 10
+    assert result["by_stratum"]["focus_b_only_unsupported"][
+        "cross_review_consensus"
+    ] == {"conflict": 1, "yes": 1}

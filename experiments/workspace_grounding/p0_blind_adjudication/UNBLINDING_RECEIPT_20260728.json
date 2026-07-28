@@ -1,0 +1,8 @@
+{
+  "annotation_sha256": "b091fae11b9ecbd2bffc826c4cf60615e15c39357b700abdf3c9510daa3b8e62",
+  "blind_review_completion_commit": "786ef5a",
+  "blinding_compromised": false,
+  "mapping_sha256": "18232ed0e0e65e9215dd51c857c34b560512d59be51d74b89b1c3efad4619ee9",
+  "protocol_version": "workspace-grounding-p0-adjudication-v1.1-20260728",
+  "sealed_mapping_revealed_after_review": true
+}
