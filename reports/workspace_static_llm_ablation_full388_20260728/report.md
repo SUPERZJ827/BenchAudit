@@ -201,7 +201,7 @@ Provenance：
   "dataset": "/home/zhoujun/llmdata/after623/datasets/workspacebench/full.jsonl",
   "dataset_sha256": "2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe",
   "full388": true,
-  "git_head": "3139943b2b2d9ccd4a35c621c787b6bb92710658",
+  "git_head": "05a09a1a62ab7a5a1b4471b7dfbca10600522687",
   "items": 388,
   "objective_reference": "/home/zhoujun/llmdata/after623/WorkspaceBench_full388_Claude证据化逐条标注_20260720.md",
   "objective_reference_sha256": "ffd43eb84ad714766bfd8af7d63871f1aee2266a031be471a89a4475604ca684",
