@@ -10,6 +10,12 @@ from scripts.generate_workspace_p0_blind_package import (
 from scripts.compare_workspace_p0_annotations import compare_annotations
 from scripts.run_workspace_static_llm_ablation import POSITIVE_REVIEW_LABEL
 from scripts.validate_workspace_p0_annotations import validate_annotations
+from scripts.run_workspace_p0_openrouter_blind_review import (
+    MODEL as INDEPENDENT_REVIEW_MODEL,
+    annotation_schema,
+    ensure_private_dir,
+    validate_task_annotations,
+)
 
 
 def _decision(label, views):
@@ -136,3 +142,62 @@ def test_annotation_comparison_reports_confusion_and_kappa():
     assert result["field_agreement"]["is_grounding_defect"]["count"] == 2
     assert result["grounding_defect_confusion"]["no"]["uncertain"] == 1
     assert len(result["disagreements"]) == 1
+
+
+def test_independent_review_model_and_schema_are_protocol_frozen():
+    assert INDEPENDENT_REVIEW_MODEL == "google/gemini-3.1-pro-preview"
+    schema = annotation_schema()
+    row_schema = schema["properties"]["annotations"]["items"]
+    assert row_schema["additionalProperties"] is False
+    assert set(row_schema["required"]) == set(row_schema["properties"])
+
+
+def test_independent_review_requires_exact_source_quotes():
+    task = {
+        "task_blind_id": "task-a",
+        "task": "Create report.txt.",
+        "output_contract": {
+            "type": "workspace_files",
+            "required_files": ["report.txt"],
+        },
+        "allowed_input_evidence": (
+            "[INPUT FILE: facts.txt]\nThe required total is 12.\n"
+        ),
+    }
+    candidates = [{
+        "blind_id": "case-a",
+        "task_blind_id": "task-a",
+        "rubric": "The report gives a total of 12.",
+    }]
+    row = {
+        "blind_id": "case-a",
+        "acceptable_families": ["workspace_rubric_grounding"],
+        "confidence": 0.9,
+        "evaluation_objectivity": "objective",
+        "evidence": [{
+            "source": "input:facts.txt",
+            "quote": "The required total is 12.",
+            "relation": "supports",
+        }],
+        "grounding_class": "task_or_input_derived",
+        "is_grounding_defect": "no",
+        "primary_family": "workspace_rubric_grounding",
+        "root_cause_summary": "The input supplies the exact total.",
+        "satisfaction_checkability": "static",
+    }
+    validate_task_annotations(task, candidates, [row])
+    invalid = {
+        **row,
+        "evidence": [{
+            "source": "input:facts.txt",
+            "quote": "The required total is twelve.",
+            "relation": "supports",
+        }],
+    }
+    with pytest.raises(ValueError, match="not an exact substring"):
+        validate_task_annotations(task, candidates, [invalid])
+
+
+def test_independent_review_output_must_remain_outside_worktree():
+    with pytest.raises(ValueError, match="outside the git worktree"):
+        ensure_private_dir(REPO / "unsafe-independent-review")
