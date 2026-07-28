@@ -26,6 +26,7 @@ from scripts.run_workspace_p1_openrouter_family_review import (
 from scripts.analyze_workspace_p1_family_reference import (
     summarize as summarize_p1,
 )
+from scripts.generate_workspace_grounding_third_holdout import select_tasks
 
 
 def _decision(label, views):
@@ -333,3 +334,20 @@ def test_p1_family_metrics_use_positive_and_family_conditioned_denominator():
     assert primary["denominator"] == 1
     assert primary["union"]["recall"] == 1.0
     assert result["routing"]["old_mixed_reference"]["denominator"] == 3
+
+
+def test_third_holdout_selection_is_deterministic_and_task_disjoint():
+    reviewed = {}
+    for index in range(25):
+        reviewed[(f"positive-{index}", 0)] = POSITIVE_REVIEW_LABEL
+    for index in range(15):
+        reviewed[(f"negative-{index}", 0)] = "较可信非问题"
+    reviewed[("excluded", 0)] = POSITIVE_REVIEW_LABEL
+
+    first, counts = select_tasks(reviewed, excluded={"excluded"})
+    second, _ = select_tasks(reviewed, excluded={"excluded"})
+
+    assert first == second
+    assert len(first) == len(set(first)) == 30
+    assert "excluded" not in first
+    assert sum(counts[item][POSITIVE_REVIEW_LABEL] > 0 for item in first) == 20
