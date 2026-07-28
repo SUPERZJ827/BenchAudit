@@ -1,4 +1,12 @@
-from scripts.generate_workspace_p0_blind_package import select_cases
+from pathlib import Path
+
+import pytest
+
+from scripts.generate_workspace_p0_blind_package import (
+    REPO,
+    ensure_private_output_dir,
+    select_cases,
+)
 from scripts.run_workspace_static_llm_ablation import POSITIVE_REVIEW_LABEL
 
 
@@ -54,3 +62,11 @@ def test_select_cases_freezes_17_focus_and_task_distinct_controls():
     }
     assert len(supported_tasks) == 10
     assert len(uncertain_tasks) == 10
+
+
+def test_blind_evidence_package_cannot_be_written_inside_repo():
+    with pytest.raises(ValueError, match="outside the git worktree"):
+        ensure_private_output_dir(REPO / "experiments" / "unsafe")
+
+    outside = Path("/tmp/benchaudit-private-blind-package")
+    assert ensure_private_output_dir(outside) == outside.resolve()
