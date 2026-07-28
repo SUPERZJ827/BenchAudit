@@ -255,17 +255,7 @@ def test_item_triage_uses_one_shared_scan_then_isolates_candidate_verification(
     item.evaluator["rubrics"] = rubrics
     item = declare_complete_inventory(item, [source.name])
     client = FakeClient([
-        {
-            "candidates": [{
-                "rubric_index": 1,
-                "confidence": 0.91,
-                "requirement_type": "presentation",
-                "atomic_requirement": "exact hidden title Beta",
-                "reason": "The title is not visible to the agent.",
-                "evidence": [],
-                "missing_assumption": "A visible title requirement.",
-            }],
-        },
+        {"candidate_indices": [1]},
         {
             "label": "unsupported",
             "confidence": 0.88,
@@ -317,7 +307,7 @@ def test_checker_can_use_item_triage_strategy(tmp_path: Path):
     source = tmp_path / "source.txt"
     source.write_text("ordinary source", encoding="utf-8")
     item = declare_complete_inventory(make_item([source]), [source.name])
-    client = FakeClient([{"candidates": []}])
+    client = FakeClient([{"candidate_indices": []}])
     checker = WorkspaceRubricGroundingChecker(
         WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path]),
         strategy="item_triage",
@@ -332,17 +322,7 @@ def test_item_triage_candidate_cannot_emit_without_isolated_verifier(tmp_path: P
     source = tmp_path / "source.txt"
     source.write_text("ordinary source", encoding="utf-8")
     item = declare_complete_inventory(make_item([source]), [source.name])
-    client = FakeClient([{
-        "candidates": [{
-            "rubric_index": 0,
-            "confidence": 0.99,
-            "requirement_type": "presentation",
-            "atomic_requirement": "hidden title",
-            "reason": "No visible title requirement.",
-            "evidence": [],
-            "missing_assumption": "A visible requirement.",
-        }],
-    }])
+    client = FakeClient([{"candidate_indices": [0]}])
     auditor = WorkspaceRubricGroundingAuditor(
         client,
         verify_unsupported=False,
@@ -354,6 +334,36 @@ def test_item_triage_candidate_cannot_emit_without_isolated_verifier(tmp_path: P
     assert decision.label == "uncertain"
     assert decision.scanner["triage_selected"] is True
     assert decision.verifier is None
+
+
+def test_item_triage_verifies_routed_candidate_before_final_citation_gate(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = make_item([source])
+    client = FakeClient([
+        {"candidate_indices": [0]},
+        {
+            "label": "unsupported",
+            "confidence": 0.9,
+            "reason": "No visible source requires the hidden title.",
+            "decisive_evidence": {"source": "none", "quote": ""},
+        },
+    ])
+    auditor = WorkspaceRubricGroundingAuditor(
+        client,
+        allowed_roots=[tmp_path],
+    )
+
+    decision = auditor.audit_item_two_stage(item)[0]
+
+    assert len(client.prompts) == 2
+    assert decision.verifier is not None
+    assert decision.label == "uncertain"
+    assert decision.citation_validation["gate_reason"] == (
+        "incomplete_actor_view_cannot_confirm_uncited_absence"
+    )
 
 
 def test_evidence_bundle_never_reads_path_outside_allowed_root(tmp_path: Path):
