@@ -111,6 +111,10 @@ def analyze(
     incremental_labeled = incremental & reviewed_universe
     incremental_tp = incremental & reviewed_positive
     incremental_fp = incremental_labeled - reviewed_positive
+    exact_detail_by_key = {
+        (row["item_id"], row["rubric_index"]): row
+        for row in exact_details
+    }
     all_decisions = [
         decision
         for row in rows.values()
@@ -173,6 +177,19 @@ def analyze(
             "reviewed_negative": len(reviewed_universe - reviewed_positive),
         },
         "metrics": metrics,
+        "candidate_counts_all_rubrics": {
+            "hidden_constraint": len(selected["hidden_constraint"]),
+            "exact_constraint": len(selected["exact_constraint"]),
+            "intersection": len(
+                selected["hidden_constraint"] & selected["exact_constraint"]
+            ),
+            "union": len(selected["union"]),
+            "exact_incremental_over_a": len(incremental),
+        },
+        "reviewed_positive_misses": {
+            name: sorted(reviewed_positive - values)
+            for name, values in selected.items()
+        },
         "incremental_exact_over_a": {
             "candidates": len(incremental),
             "reviewed_labeled": len(incremental_labeled),
@@ -185,6 +202,11 @@ def analyze(
             if incremental_tp else None,
             "reviewed_tp_keys": sorted(incremental_tp),
             "reviewed_fp_keys": sorted(incremental_fp),
+            "details": [
+                exact_detail_by_key[key]
+                for key in sorted(incremental)
+                if key in exact_detail_by_key
+            ],
         },
         "exact_router": {
             "routed_rubrics": len(selected["exact_constraint"]),
@@ -215,6 +237,7 @@ def analyze(
 
 def render_markdown(result: dict[str, Any]) -> str:
     metrics = result["metrics"]
+    candidates = result["candidate_counts_all_rubrics"]
     inc = result["incremental_exact_over_a"]
     cost = result["cost_and_safety"]
     gates = result["gates"]
@@ -242,6 +265,12 @@ def render_markdown(result: dict[str, Any]) -> str:
         "",
         "## Exact 相对 A 的增量",
         "",
+        (
+            "- 全部 rubric 候选数（A / Exact / 交集 / 并集）："
+            f"{candidates['hidden_constraint']} / "
+            f"{candidates['exact_constraint']} / "
+            f"{candidates['intersection']} / {candidates['union']}"
+        ),
         f"- 新增候选：{inc['candidates']}",
         f"- reviewed TP / FP：{inc['reviewed_tp']} / {inc['reviewed_fp']}",
         f"- 未标注候选：{inc['unlabeled']}",
