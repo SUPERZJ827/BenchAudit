@@ -291,6 +291,11 @@ def analyze(
                 baseline_family_hits / len(family_positives)
                 if family_positives else 1.0
             ),
+            "reviewed": binary_metrics(
+                baseline_candidates,
+                reviewed_positives,
+                reviewed_universe,
+            ),
         },
         "decomposition": {
             "reason_counts_all": dict(sorted(reason_counts_all.items())),
