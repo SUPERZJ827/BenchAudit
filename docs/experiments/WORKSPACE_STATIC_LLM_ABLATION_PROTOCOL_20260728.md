@@ -32,8 +32,28 @@
 所有模型衍生 finding 必须满足：
 
 - `review_only=true`；
-- `evidence_tier=review`；
+- substantive candidate 的 `evidence_tier=review`；
+- API/解析等 operational failure 只能是 `unknown` 或 `review`；
 - `confirmed=0`。
+
+## 运行前输入完整性修正（不改变指标或阈值）
+
+首轮运行中发现，公开 Hugging Face snapshot 的 3,854 个附件均以 symlink
+指向 content-addressed blob；安全身份层按设计拒绝 final-component
+symlink，导致 rubric arm 测到的是“附件不可读”而非模型能力。该轮结果
+废弃，不进入指标。
+
+正式 full388 运行先建立 task-scoped 普通文件视图：
+
+- 只解析数据集已经声明的 `input_files`；
+- symlink 只在 staging 阶段解析一次，目标必须是 regular file；
+- 同文件系统使用 hard link，跨文件系统才复制；
+- auditor 仍执行原有 bounded hash、解析、citation gate 和 review-only
+  ceiling；
+- 原始数据、标签集合、prompt、阈值和评分代码均不改变。
+
+该修正属于输入物化/安全适配，不是根据实验标签调参。symlink-blocked
+试运行产物单独保留作诊断，不参与最终 P/R/F1。
 
 ## 评价口径
 
