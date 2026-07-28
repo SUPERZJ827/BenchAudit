@@ -212,6 +212,45 @@ SHARED ALLOWED INPUT EVIDENCE:
 {evidence}
 """
 
+ITEM_TRIAGE_PROMPT = """Route only rubrics that plausibly contain an unsupported
+hidden requirement. This is a high-recall routing pass, not a final verdict:
+every selected rubric will be independently checked in isolation.
+
+A rubric is a candidate when a correct agent could fail it because it requires
+an exact title, wording, ordering, placement, count, implementation route,
+recommendation/classification, or target that is not visibly requested or
+derivable. Do not select a rubric merely because it is difficult. Omit rubrics
+that are visibly supported or for which no concrete unsupported clause can be
+identified.
+
+Return ONLY an object with a candidates array. The array may be empty. Include
+each rubric_index at most once and never invent an index:
+{{"candidates":[{{
+  "rubric_index":0,
+  "confidence":0.0,
+  "requirement_type":"task|contract|intrinsic|input_fact|presentation|process|other",
+  "atomic_requirement":"the exact possibly unsupported clause",
+  "reason":"brief routing reason",
+  "evidence":[{{"source":"task|output_contract|input_inventory|input:<file>|none","quote":"exact short quote","relation":"supports|contradicts|insufficient"}}],
+  "missing_assumption":"what visible information would ground it"
+}}]}}
+
+TASK:
+{task}
+
+OUTPUT CONTRACT:
+{output_contract}
+
+RUBRICS:
+{rubrics}
+
+SHARED ALLOWED INPUT EVIDENCE:
+{evidence}
+
+SHARED TARGETED SEARCH:
+{targeted}
+"""
+
 
 OBJECTIVE_CITATION_RESOLVER_VERSION = (
     "workspace-objective-grounding-certificates-v2-20260714"
@@ -1252,6 +1291,54 @@ def targeted_workspace_search(
     return text[:max_chars]
 
 
+def targeted_workspace_search_many(
+    bundle: WorkspaceEvidenceBundle,
+    entries: list[tuple[int, str]],
+    *,
+    max_chars: int = 12_000,
+) -> str:
+    """Search every visible file once for the union of rubric anchors.
+
+    The item-level routing pass must not reparse and resend the same attachment
+    once per rubric.  Rubric indices remain attached to each term so a hit
+    cannot silently become evidence for an unrelated rubric.
+    """
+
+    owners: dict[str, set[int]] = {}
+    display: dict[str, str] = {}
+    for index, rubric in entries:
+        for term in rubric_search_terms(rubric):
+            key = term.casefold()
+            owners.setdefault(key, set()).add(index)
+            display.setdefault(key, term)
+    if not owners:
+        return "(no stable lexical targets extracted)"
+    terms = [display[key] for key in owners]
+    chunks: list[str] = []
+    for path in bundle.paths:
+        result = search_file(path, terms)
+        if result.get("_error"):
+            chunks.append(f"FILE {path.name}\n- parse_error: {result['_error']}")
+            continue
+        lines = [f"FILE {path.name}"]
+        for key, term in ((term.casefold(), term) for term in terms):
+            snippet = result.get(term)
+            if not snippet:
+                continue
+            indices = ",".join(map(str, sorted(owners[key])))
+            lines.append(f"- rubrics={indices} `{term}`: {snippet}")
+            if len(lines) >= 25:
+                break
+        if len(lines) > 1:
+            chunks.append("\n".join(lines))
+        if sum(len(chunk) for chunk in chunks) >= max_chars:
+            break
+    text = "\n\n".join(chunks)
+    return (text or "(no extracted term was found in searchable input text)")[
+        :max_chars
+    ]
+
+
 class WorkspaceRubricGroundingAuditor:
     def __init__(
         self,
@@ -1283,6 +1370,177 @@ class WorkspaceRubricGroundingAuditor:
             self.audit_rubric(item, index, rubric, bundle)
             for index, rubric in enumerate(workspace_rubrics(item))
         ]
+
+    def audit_item_two_stage(
+        self,
+        item: BenchmarkItem,
+        root: Path | None = None,
+    ) -> list[RubricGroundingDecision]:
+        """Scan one item once, then verify only routed rubrics in isolation.
+
+        The shared pass has no authority to emit a finding.  It only selects
+        rubric indices.  Every substantive ``unsupported`` result therefore
+        includes a second call whose prompt contains exactly one hidden rubric.
+        This preserves the adversarial review boundary while amortizing the
+        task, contract and attachment context across all rubrics in an item.
+        """
+
+        bundle = build_workspace_evidence_bundle(
+            item, root, max_chars=self.evidence_chars,
+            allowed_roots=self.allowed_roots,
+        )
+        entries = list(enumerate(workspace_rubrics(item)))
+        if not entries:
+            return []
+        contract = {
+            "required_files": workspace_outputs(item),
+            "declared": item.output_contract,
+        }
+        objective: dict[int, RubricGroundingDecision] = {}
+        unresolved: list[tuple[int, str]] = []
+        for index, rubric in entries:
+            certificate = resolve_objective_grounding_certificate(
+                item, bundle, rubric,
+            )
+            if certificate.get("eligible"):
+                scanner = {
+                    "label": certificate.get("label") or "uncertain",
+                    "confidence": 1.0,
+                    "requirement_type": "contract",
+                    "atomic_requirement": certificate.get("target") or rubric,
+                    "reason": certificate.get("reason") or "",
+                    "evidence": [],
+                    "missing_assumption": "",
+                    "triage_selected": False,
+                    "routing_only": False,
+                    "objective_resolver_short_circuit": True,
+                }
+                objective[index] = self._decision_from_scanner(
+                    item, index, rubric, bundle, scanner,
+                )
+            else:
+                unresolved.append((index, rubric))
+        if not unresolved:
+            return [objective[index] for index, _ in entries]
+
+        prompt = ITEM_TRIAGE_PROMPT.format(
+            task=(item.task or "(missing task)")[:_TASK_PROMPT_CHARS],
+            output_contract=json.dumps(
+                contract, ensure_ascii=False, default=str,
+            )[:_CONTRACT_PROMPT_CHARS],
+            rubrics=json.dumps(
+                [
+                    {"rubric_index": index, "rubric": rubric[:1800]}
+                    for index, rubric in unresolved
+                ],
+                ensure_ascii=False,
+                default=str,
+            ),
+            evidence=bundle.text,
+            targeted=targeted_workspace_search_many(bundle, unresolved),
+        )
+        response = _safe_chat(self.client, GROUNDING_SYSTEM, prompt)
+        candidates = _indexed_triage_candidates(
+            response, {index for index, _ in unresolved},
+        )
+        if candidates is None:
+            routed = {
+                index: self._decision_from_scanner(
+                    item,
+                    index,
+                    rubric,
+                    bundle,
+                    _triage_operational_failure(response, index),
+                )
+                for index, rubric in unresolved
+            }
+        else:
+            routed = {}
+            for index, rubric in unresolved:
+                scanner = candidates.get(index)
+                if scanner is None:
+                    scanner = {
+                        "label": "uncertain",
+                        "confidence": 0.0,
+                        "requirement_type": "other",
+                        "atomic_requirement": rubric,
+                        "reason": (
+                            "Item-level routing did not select this rubric for "
+                            "isolated semantic verification."
+                        ),
+                        "evidence": [],
+                        "missing_assumption": "",
+                        "triage_selected": False,
+                        "routing_only": True,
+                    }
+                routed[index] = self._decision_from_scanner(
+                    item, index, rubric, bundle, scanner,
+                )
+
+        if self.verify_unsupported:
+            by_rubric = dict(entries)
+            for index in sorted(candidates or {}):
+                row = routed[index]
+                if row.label != "unsupported":
+                    continue
+                rubric = by_rubric[index]
+                targeted = targeted_workspace_search(bundle, rubric)
+                verifier_prompt = VERIFIER_PROMPT.format(
+                    task=(item.task or "(missing task)")[:_TASK_PROMPT_CHARS],
+                    output_contract=json.dumps(
+                        contract, ensure_ascii=False, default=str,
+                    )[:_CONTRACT_PROMPT_CHARS],
+                    rubric=rubric[:1800],
+                    scanner=json.dumps(
+                        row.scanner, ensure_ascii=False, default=str,
+                    )[:3000],
+                    evidence=bundle.text,
+                    targeted=targeted,
+                )
+                verifier = _validate_decision_response(
+                    _safe_chat(
+                        self.verifier_client, VERIFIER_SYSTEM, verifier_prompt,
+                    ),
+                    "verifier",
+                )
+                row.verifier = verifier
+                verifier_label = _label(verifier.get("label"))
+                verifier_confidence = _confidence(verifier.get("confidence"))
+                if (
+                    verifier_label == "supported"
+                    and verifier_confidence >= self.min_confidence
+                ):
+                    row.label = "supported"
+                    row.confidence = verifier_confidence
+                elif (
+                    verifier_label == "unsupported"
+                    and verifier_confidence >= self.min_confidence
+                ):
+                    row.confidence = min(row.confidence, verifier_confidence)
+                else:
+                    row.label = "uncertain"
+                    row.confidence = max(row.confidence, verifier_confidence)
+                row.label, row.citation_validation = apply_citation_gate(
+                    item,
+                    bundle,
+                    rubric,
+                    row.label,
+                    row.requirement_type,
+                    row.evidence,
+                    verifier,
+                )
+        else:
+            for index in sorted(candidates or {}):
+                row = routed[index]
+                if row.label == "unsupported":
+                    row.label = "uncertain"
+                    row.reason = (
+                        "Item-level routing selected this rubric, but isolated "
+                        "verification was disabled; routing alone cannot emit a "
+                        "substantive finding."
+                    )
+        decisions = {**objective, **routed}
+        return [decisions[index] for index, _ in entries]
 
     def audit_item_batched(
         self,
@@ -1604,8 +1862,16 @@ class WorkspaceRubricGroundingChecker(Checker):
 
     name = "workspace_rubric_grounding"
 
-    def __init__(self, auditor: WorkspaceRubricGroundingAuditor) -> None:
+    def __init__(
+        self,
+        auditor: WorkspaceRubricGroundingAuditor,
+        *,
+        strategy: str = "isolated",
+    ) -> None:
+        if strategy not in {"isolated", "item_triage"}:
+            raise ValueError("strategy must be 'isolated' or 'item_triage'")
         self.auditor = auditor
+        self.strategy = strategy
         self.last_decisions: list[RubricGroundingDecision] = []
 
     def audit_eligibility(self, item, root=None) -> AuditEligibility:
@@ -1626,7 +1892,11 @@ class WorkspaceRubricGroundingChecker(Checker):
         # local snapshot is the authoritative result for this item; assigning
         # ``last_decisions`` is diagnostics-only and must not influence which
         # rows are emitted if another worker updates it concurrently.
-        decisions = self.auditor.audit_item(item, root)
+        decisions = (
+            self.auditor.audit_item_two_stage(item, root)
+            if self.strategy == "item_triage"
+            else self.auditor.audit_item(item, root)
+        )
         self.last_decisions = decisions
         for decision in decisions:
             scanner_failed = bool(decision.scanner.get("operational_failure"))
@@ -1806,6 +2076,61 @@ def _indexed_batch_rows(
     for index in duplicate:
         indexed.pop(index, None)
     return indexed
+
+
+def _indexed_triage_candidates(
+    response: dict[str, Any],
+    requested: set[int],
+) -> dict[int, dict[str, Any]] | None:
+    """Validate a routing response without treating omissions as clean labels."""
+
+    if response.get("operational_failure"):
+        return None
+    values = response.get("candidates")
+    if not isinstance(values, list):
+        return None
+    indexed: dict[int, dict[str, Any]] = {}
+    for row in values:
+        if not isinstance(row, dict):
+            return None
+        try:
+            index = int(row.get("rubric_index"))
+        except (TypeError, ValueError):
+            return None
+        if index not in requested or index in indexed:
+            return None
+        candidate = _validate_decision_response(
+            {
+                **row,
+                "label": "unsupported",
+                "triage_selected": True,
+                "routing_only": True,
+            },
+            "item_triage",
+        )
+        if candidate.get("operational_failure"):
+            return None
+        indexed[index] = candidate
+    return indexed
+
+
+def _triage_operational_failure(
+    response: dict[str, Any],
+    index: int,
+) -> dict[str, Any]:
+    return {
+        "rubric_index": index,
+        "label": "uncertain",
+        "confidence": 0.0,
+        "reason": (
+            "Item-level routing response failed schema validation; no semantic "
+            "conclusion was drawn."
+        ),
+        "operational_failure": True,
+        "triage_selected": False,
+        "routing_only": True,
+        "response_diagnostic": str(response.get("reason") or "")[:300],
+    }
 
 
 def _missing_batch_row(
