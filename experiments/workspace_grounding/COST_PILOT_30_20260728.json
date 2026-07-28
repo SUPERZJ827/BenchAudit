@@ -1,0 +1,69 @@
+{
+  "protocol": "workspace-grounding-cost-pilot-v1-20260728",
+  "selection_seed": "workspace-cost-pilot-v1",
+  "selection_policy": [
+    {
+      "count": 10,
+      "name": "reviewed_positive_with_legacy_candidate"
+    },
+    {
+      "count": 8,
+      "name": "verifier_refutation_stress"
+    },
+    {
+      "count": 6,
+      "name": "reviewed_negative"
+    },
+    {
+      "count": 6,
+      "name": "general_complete"
+    }
+  ],
+  "item_ids": [
+    "workspacebench-93",
+    "workspacebench-84",
+    "workspacebench-54",
+    "workspacebench-82",
+    "workspacebench-179",
+    "workspacebench-162",
+    "workspacebench-203",
+    "workspacebench-151",
+    "workspacebench-184",
+    "workspacebench-33",
+    "workspacebench-19",
+    "workspacebench-90",
+    "workspacebench-120",
+    "workspacebench-128",
+    "workspacebench-166",
+    "workspacebench-86",
+    "workspacebench-168",
+    "workspacebench-25",
+    "workspacebench-105",
+    "workspacebench-22",
+    "workspacebench-26",
+    "workspacebench-107",
+    "workspacebench-37",
+    "workspacebench-117",
+    "workspacebench-92",
+    "workspacebench-110",
+    "workspacebench-199",
+    "workspacebench-30",
+    "workspacebench-72",
+    "workspacebench-126"
+  ],
+  "frozen_legacy_counts": {
+    "final_unsupported": 78,
+    "reviewed_negative": 9,
+    "reviewed_positive": 25,
+    "rubrics": 573,
+    "scanner_unsupported": 358,
+    "verifier_refuted_or_downgraded": 280
+  },
+  "go_no_go": {
+    "max_review_ceiling_escapes": 0,
+    "min_logical_call_reduction_vs_legacy": 0.5,
+    "min_router_recall_of_legacy_final_candidates": 0.9,
+    "min_reviewed_reference_f1_delta_vs_legacy": -0.05
+  },
+  "interpretation": "The pilot is deliberately enriched for hard routing and verifier-refutation cases. It estimates architecture quality and cost, not population prevalence."
+}
