@@ -81,3 +81,23 @@ def test_review_only_safety_assertion_rejects_confirmed():
     review.evidence_tier = "confirmed"
     with pytest.raises(AssertionError):
         _assert_review_only([review])
+
+
+def test_review_only_safety_allows_operational_unknown_but_not_substantive_unknown():
+    operational = Violation(
+        item_id="x",
+        artifact="auditor",
+        mechanism="operational",
+        defect_type="llm_audit_failure",
+        severity="review",
+        confidence=0.0,
+        review_only=True,
+        evidence_tier="unknown",
+        proof_kind="unclassified",
+        defect_scope="operational",
+        message="API response failed validation",
+    )
+    _assert_review_only([operational])
+    operational.defect_scope = "substantive"
+    with pytest.raises(AssertionError):
+        _assert_review_only([operational])
