@@ -1,0 +1,46 @@
+{
+  "annotation_sha256": "b091fae11b9ecbd2bffc826c4cf60615e15c39357b700abdf3c9510daa3b8e62",
+  "api_requests_including_retries": 26,
+  "blinding_compromised": false,
+  "candidates": 37,
+  "exact_evidence_quotes_validated": true,
+  "fresh_context_per_task": true,
+  "grounding_class_counts": {
+    "general_quality": 4,
+    "hidden_exact_constraint": 12,
+    "insufficient_evidence": 1,
+    "intrinsic_validity": 7,
+    "task_contract_conflict": 2,
+    "task_or_input_derived": 11
+  },
+  "grounding_defect_counts": {
+    "no": 22,
+    "uncertain": 1,
+    "yes": 14
+  },
+  "input_sha256": {
+    "amendment": "cecde7955664c355409d1715c1ccccdcda237c5f463f39a137619bb127c0408b",
+    "annotation_template": "4298624970361c2575f93015e8deeec065b8ea2dfee777d6b3e199259e768398",
+    "blind_candidates": "d6c2bc8279044da30f9577dbfbe5ac3be485bd02658c7fd0193510882d086984",
+    "blind_tasks": "cc314dfdf65ccc05d36c716bcdaf33c45f51addf321bcf4ec9f42dd9f7254a6f",
+    "protocol": "881eaac60c3197e3bf73ec3283facac9ad0415746a3637e65063e731e00dd38a"
+  },
+  "logical_task_requests": 26,
+  "observed_models": [
+    "google/gemini-3.1-pro-preview"
+  ],
+  "prior_case_verdicts_read": false,
+  "private_receipt_sha256": "d13049157ff9e09eb4f3d10752547dc50cd06271adb884eeb01f6752cf564975",
+  "prohibited_files_read": [],
+  "protocol_version": "workspace-grounding-p0-adjudication-v1.1-20260728",
+  "requested_model": "google/gemini-3.1-pro-preview",
+  "review_role": "independent_cross_model_blind_review",
+  "sealed_mapping_read": false,
+  "tasks": 26,
+  "usage": {
+    "completion_tokens": 38504,
+    "cost_usd": 0.7418,
+    "prompt_tokens": 139876,
+    "total_tokens": 178380
+  }
+}
