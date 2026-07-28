@@ -10,9 +10,11 @@ from unittest import mock
 from benchcore.llm_client import (
     LLMClient,
     LLMConfig,
+    _connection_for_url,
     _extract_json_result,
     _perform_http_request_with_deadline,
 )
+from urllib.parse import urlparse
 
 
 class StubLLMClient(LLMClient):
@@ -124,6 +126,70 @@ def _wait_for_singleflight_followers(
 
 
 class LLMClientTest(unittest.TestCase):
+    def test_https_proxy_uses_connect_tunnel_without_changing_target_path(self):
+        created = []
+
+        class FakeHTTPSConnection:
+            def __init__(self, host, port, **kwargs):
+                self.host = host
+                self.port = port
+                self.kwargs = kwargs
+                self.tunnel = None
+                created.append(self)
+
+            def set_tunnel(self, host, port):
+                self.tunnel = (host, port)
+
+        with (
+            mock.patch(
+                "benchcore.llm_client.http.client.HTTPSConnection",
+                FakeHTTPSConnection,
+            ),
+            mock.patch(
+                "benchcore.llm_client.getproxies",
+                return_value={"https": "http://127.0.0.1:17890"},
+            ),
+            mock.patch("benchcore.llm_client.proxy_bypass", return_value=False),
+        ):
+            connection, path = _connection_for_url(
+                urlparse("https://api.example.test/chat/completions"),
+                timeout=12,
+                context=mock.sentinel.context,
+            )
+        self.assertIs(connection, created[0])
+        self.assertEqual((connection.host, connection.port), ("127.0.0.1", 17890))
+        self.assertEqual(connection.tunnel, ("api.example.test", 443))
+        self.assertEqual(path, "/chat/completions")
+
+    def test_direct_https_connection_respects_no_proxy(self):
+        created = []
+
+        class FakeHTTPSConnection:
+            def __init__(self, host, port, **kwargs):
+                self.host = host
+                self.port = port
+                created.append(self)
+
+        with (
+            mock.patch(
+                "benchcore.llm_client.http.client.HTTPSConnection",
+                FakeHTTPSConnection,
+            ),
+            mock.patch(
+                "benchcore.llm_client.getproxies",
+                return_value={"https": "http://127.0.0.1:17890"},
+            ),
+            mock.patch("benchcore.llm_client.proxy_bypass", return_value=True),
+        ):
+            connection, path = _connection_for_url(
+                urlparse("https://api.example.test/chat/completions"),
+                timeout=12,
+                context=mock.sentinel.context,
+            )
+        self.assertIs(connection, created[0])
+        self.assertEqual((connection.host, connection.port), ("api.example.test", 443))
+        self.assertEqual(path, "/chat/completions")
+
     def test_cache_only_refuses_miss_before_network_and_uses_exact_hit(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache_path = Path(tmp) / "cache.jsonl"

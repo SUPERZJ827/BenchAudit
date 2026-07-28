@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlparse
+from urllib.request import getproxies, proxy_bypass
 
 
 @dataclass
@@ -106,6 +107,73 @@ def _perform_http_request_with_deadline(
     if not isinstance(status, int) or not isinstance(body, bytes):
         raise http.client.HTTPException("LLM HTTP transaction returned invalid data")
     return status, body
+
+
+def _connection_for_url(
+    parsed: Any,
+    *,
+    timeout: float,
+    context: ssl.SSLContext | None,
+) -> tuple[http.client.HTTPConnection, str]:
+    """Create a direct or environment-proxied connection.
+
+    ``curl`` and most SDKs honor HTTPS_PROXY automatically; ``http.client``
+    does not.  Ignoring it can turn a healthy provider into repeated first-byte
+    timeouts on hosts whose direct egress is blocked.  For an HTTPS target over
+    an HTTP proxy, ``set_tunnel`` performs CONNECT before TLS is established,
+    so the provider certificate is still verified against the target host.
+    """
+
+    target_host = parsed.hostname
+    if not target_host:
+        raise ValueError("LLM base URL has no hostname")
+    target_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    proxies = getproxies()
+    proxy_value = None
+    if not proxy_bypass(target_host):
+        proxy_value = proxies.get(parsed.scheme)
+
+    if proxy_value:
+        proxy = urlparse(
+            proxy_value if "://" in proxy_value else f"http://{proxy_value}"
+        )
+        if proxy.username or proxy.password:
+            raise ValueError(
+                "authenticated proxy URLs are not supported; configure a "
+                "credential-free local proxy endpoint"
+            )
+        if not proxy.hostname:
+            raise ValueError("proxy URL has no hostname")
+        proxy_port = proxy.port or (443 if proxy.scheme == "https" else 80)
+        if parsed.scheme == "https":
+            connection = http.client.HTTPSConnection(
+                proxy.hostname,
+                proxy_port,
+                timeout=timeout,
+                context=context,
+            )
+            connection.set_tunnel(target_host, target_port)
+            return connection, parsed.path or "/"
+        connection = http.client.HTTPConnection(
+            proxy.hostname, proxy_port, timeout=timeout,
+        )
+        absolute_path = parsed.geturl()
+        return connection, absolute_path
+
+    if parsed.scheme == "https":
+        return (
+            http.client.HTTPSConnection(
+                target_host,
+                target_port,
+                timeout=timeout,
+                context=context,
+            ),
+            parsed.path or "/",
+        )
+    return (
+        http.client.HTTPConnection(target_host, target_port, timeout=timeout),
+        parsed.path or "/",
+    )
 
 
 def load_llm_config(path: str | None = None) -> LLMConfig:
@@ -247,7 +315,6 @@ class LLMClient:
 
     def _post_chat_completions(self, body: dict[str, Any], api_key: str) -> dict[str, Any]:
         parsed = urlparse(self.config.base_url.rstrip("/") + "/chat/completions")
-        conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
         context = ssl.create_default_context() if parsed.scheme == "https" else None
         payload = json.dumps(body).encode("utf-8")
         headers = {
@@ -255,13 +322,12 @@ class LLMClient:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        path = parsed.path or "/chat/completions"
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
-            conn = (
-                conn_cls(parsed.netloc, timeout=self.config.timeout, context=context)
-                if context
-                else conn_cls(parsed.netloc, timeout=self.config.timeout)
+            conn, path = _connection_for_url(
+                parsed,
+                timeout=float(self.config.timeout),
+                context=context,
             )
             try:
                 self._begin_api_attempt()
