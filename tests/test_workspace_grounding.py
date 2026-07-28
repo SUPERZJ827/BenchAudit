@@ -6,6 +6,8 @@ from benchcore.auditor import audit_items_with_ledger
 from benchcore.file_reader import DEFAULT_LIMITS
 from benchcore.schema import BenchmarkItem
 from benchcore.workspace_grounding import (
+    GROUNDING_SYSTEM,
+    VERIFIER_SYSTEM,
     WorkspaceRubricGroundingAuditor,
     WorkspaceRubricGroundingChecker,
     build_workspace_evidence_bundle,
@@ -13,6 +15,8 @@ from benchcore.workspace_grounding import (
     rubric_search_terms,
     validate_grounding_citations,
 )
+from benchcore.exact_constraint_router import route_exact_constraint
+from benchcore.grounding_contract import GROUNDING_DECISION_CONTRACT_V1
 
 
 class FakeClient:
@@ -66,6 +70,105 @@ def test_search_terms_keep_numbers_filenames_and_quoted_literals():
     assert "43" in terms
     assert any("report.md" in term for term in terms)
     assert "Annual Review" in terms
+
+
+def test_grounding_contract_is_shared_by_scanner_and_verifier():
+    version = GROUNDING_DECISION_CONTRACT_V1.version
+    assert version in GROUNDING_SYSTEM
+    assert version in VERIFIER_SYSTEM
+    assert "requirement legitimacy" in GROUNDING_SYSTEM
+    assert "candidate output is unavailable" in VERIFIER_SYSTEM
+
+
+def test_exact_constraint_router_selects_absent_exact_column_header():
+    route = route_exact_constraint(
+        rubric_index=2,
+        rubric=(
+            "Does the output add a column named exactly "
+            "`分类级别(一类 / 二类 / 三类)` as required?"
+        ),
+        task=(
+            "Add the columns Classification Level "
+            "(Class I / Class II / Class III)."
+        ),
+        output_contract={"required_files": ["summary.xlsx"]},
+        allowed_input_evidence="",
+    )
+
+    assert route.selected
+    assert "column_header" in route.reason_codes
+    assert "literal_mismatch" in route.reason_codes
+    assert "filename" not in route.reason_codes
+    assert route.unmatched_literals == ("分类级别(一类 / 二类 / 三类)",)
+
+
+def test_exact_constraint_router_omits_visible_or_general_requirements():
+    visible = route_exact_constraint(
+        rubric_index=0,
+        rubric="Use the exact title `Annual Review`.",
+        task="Create a report titled Annual Review.",
+        output_contract={},
+        allowed_input_evidence="",
+    )
+    general = route_exact_constraint(
+        rubric_index=1,
+        rubric="Is the report clear and professional?",
+        task="Create a report.",
+        output_contract={},
+        allowed_input_evidence="",
+    )
+    nfkc = route_exact_constraint(
+        rubric_index=2,
+        rubric="Use the exact code `ＡＢＣ`.",
+        task="The required code is ABC.",
+        output_contract={},
+        allowed_input_evidence="",
+    )
+
+    assert not visible.selected
+    assert not general.selected
+    assert not nfkc.selected
+
+
+def test_item_exact_triage_adds_no_llm_router_call_and_keeps_verifier():
+    rubric = "Add a column named exactly `监管要求`."
+    item = BenchmarkItem(
+        item_id="workspacebench-exact",
+        raw={"rubrics": [rubric]},
+        task="Add the column Regulatory Requirements.",
+        context={},
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["summary.xlsx"],
+        },
+        evaluator={"type": "workspacebench_rubric", "rubrics": [rubric]},
+    )
+    client = FakeClient([
+        {"candidate_indices": []},
+        {
+            "label": "unsupported",
+            "confidence": 0.9,
+            "reason": "The exact Chinese header lacks visible provenance.",
+            "decisive_evidence": {
+                "source": "task",
+                "quote": "Regulatory Requirements",
+            },
+        },
+    ])
+    checker = WorkspaceRubricGroundingChecker(
+        WorkspaceRubricGroundingAuditor(client),
+        strategy="item_exact_triage",
+    )
+
+    findings = list(checker.check(item))
+    decision = checker.last_decisions[0]
+
+    assert len(client.prompts) == 2
+    assert decision.scanner["triage_view_count"] == 1
+    assert decision.scanner["triage_selected_views"] == ["exact_constraint"]
+    assert decision.scanner["exact_constraint_route"]["selected"] is True
+    assert len(findings) == 1
+    assert findings[0].review_only
 
 
 def test_adversarial_verifier_can_confirm_unsupported(tmp_path: Path):

@@ -78,11 +78,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument(
         "--grounding-strategy",
-        choices=("item-triage", "dual-triage", "isolated"),
+        choices=("item-triage", "item-exact-triage", "dual-triage", "isolated"),
         default="item-triage",
         help=(
             "item-triage sends shared item context once and isolates only "
-            "routed candidates; dual-triage unions two independent routers; "
+            "routed candidates; item-exact-triage adds a zero-API "
+            "exact-constraint router; dual-triage unions two LLM routers; "
             "isolated preserves the legacy per-rubric path"
         ),
     )
