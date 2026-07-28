@@ -243,6 +243,13 @@ def test_third_holdout_analysis_scores_incremental_exact_and_gates():
     assert result["metrics"]["union"]["recall"] == 1.0
     assert result["incremental_exact_over_a"]["reviewed_tp"] == 1
     assert result["incremental_exact_over_a"]["llm_calls"] == 0
+    assert result["candidate_counts_all_rubrics"] == {
+        "hidden_constraint": 1,
+        "exact_constraint": 1,
+        "intersection": 0,
+        "union": 2,
+        "exact_incremental_over_a": 1,
+    }
     # One exact route out of two rubrics exceeds the real 15% gate.
     assert not result["gates"]["exact_routed_rubric_rate_at_most_0_15"]
 
