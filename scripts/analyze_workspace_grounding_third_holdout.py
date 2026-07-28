@@ -246,7 +246,7 @@ def render_markdown(result: dict[str, Any]) -> str:
         "",
         f"协议：`{result['protocol']}`",
         "",
-        "## 路由指标（既有 reviewed-reference 条件口径）",
+        "## 路由指标（仅限已有标签的 reviewed-reference 条件口径）",
         "",
         "| 路由 | P | R | F1 | TP | FP | FN |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -274,8 +274,15 @@ def render_markdown(result: dict[str, Any]) -> str:
         f"- 新增候选：{inc['candidates']}",
         f"- reviewed TP / FP：{inc['reviewed_tp']} / {inc['reviewed_fp']}",
         f"- 未标注候选：{inc['unlabeled']}",
-        f"- 已标注增量 precision：{inc['labeled_precision']:.3f}",
+        (
+            "- 已标注增量 reviewed precision："
+            f"{inc['labeled_precision']:.3f}"
+        ),
         "- 额外 LLM 调用：0",
+        (
+            "- candidate rate 仅是 verifier 成本代理，不等同于已经实现的"
+            "端到端调用削减"
+        ),
         "",
         "## 成本与安全",
         "",

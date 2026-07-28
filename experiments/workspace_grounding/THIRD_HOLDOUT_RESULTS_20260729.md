@@ -22,7 +22,8 @@ selection bias，因此 P/R/F1 只能解释为条件指标，不能代表 Worksp
 Exact 在全部 575 条 rubric 中路由 20 条，其中 18 条已被 A 路由。剩余
 2 条增量候选均不在已有 reviewed-reference 中，因此不能算 TP 或 FP。
 Exact 命中的 3 条已复核 TP 全部已被 A 覆盖，A + Exact 对已知正例没有
-新增召回。
+新增召回。表中 Exact 的 `1.000` 只能称为**在已有标签上的 reviewed
+precision**，不能外推为全量 precision。
 
 全部 rubric 的候选量：
 
@@ -30,9 +31,11 @@ Exact 命中的 3 条已复核 TP 全部已被 A 覆盖，A + Exact 对已知正
 |---:|---:|---:|---:|---:|
 | 424 | 20 | 18 | 426 | 2 |
 
-A 的候选率为 424/575 = 73.7%。如果后接逐候选 verifier，它仍会带来
-很高成本，因此本轮不仅没有证明 Exact 的增量价值，也暴露出 A 本身
-缺少足够分诊能力。
+A 的候选率为 424/575 = 73.7%。它是逐候选 verifier 成本的代理指标，
+不等同于已经实现的端到端调用削减。只有在统一定义 router、scanner、
+verifier 的逻辑调用后，才能计算真实调用量和为 A 预注册候选率硬上限。
+在当前“每个候选各调用一次 verifier”的反事实成本模型下，它预示着很高
+成本，也暴露出 A 本身缺少足够分诊能力。
 
 ## 2. API 与安全
 
@@ -62,20 +65,26 @@ A 的候选率为 424/575 = 73.7%。如果后接逐候选 verifier，它仍会�
 - Exact 相对 A 没有新增 reviewed TP；
 - 2 条增量候选均未标注，无法满足已标注增量 precision ≥ 0.50。
 
-最终裁决：**FAIL，Exact router 不进入默认路径。**
+最终裁决：**FAIL，Exact router 不作为独立默认路由臂。**
 
 这是保留的负结果。不得在本 holdout 上调整规则后重新宣称泛化提升。
 两个未标注增量候选可以作为探索性人工复核对象，但任何后验判断都不改变
-本次预注册裁决。
+本次预注册裁决。该结论不是“Exact 完全无价值”，而是它的三个已知命中
+都被 A 覆盖，当前边际已知召回为零；它仍可保留为诊断特征和回归探针。
 
 ## 4. 下一步含义
 
 不建议继续增加第二个 LLM 视角，也不建议立即重调 Exact。优先问题变成：
 
-1. 将 A 从“几乎全选”的高召回提示词，改造成真正有拒绝能力的分诊器；
-2. 在开发集上同时优化 routing recall 和 candidate rate，而非只追 recall；
-3. 继续保持 router review-only，最终缺陷仍需独立 verifier；
-4. 新版本冻结后，必须换第四份 task-disjoint holdout 评价。
+1. 分解 A 的路由原因，量化 intrinsic validity、general quality、
+   input-derived 等本应拒绝类别；
+2. 让 A 输出结构化 reason code、证据来源、置信度和 `do_not_route`；
+3. 优先增加确定性拒绝规则，而非继续扩张正向触发词；
+4. 在开发集上绘制 family-conditioned recall 与 candidate rate 的 Pareto
+   曲线并冻结一个工作点；
+5. 继续保持 router review-only，最终缺陷仍需独立 verifier；
+6. 仅在 A′、contract、阈值和统一成本公式全部冻结后，生成第四份
+   task-disjoint holdout。
 
 ## 5. 复现锚
 
