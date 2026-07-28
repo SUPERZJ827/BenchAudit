@@ -1,0 +1,49 @@
+{
+  "protocol": "workspace-grounding-a-prime-dev-v1-20260729",
+  "selection_seed": "workspace-grounding-a-prime-dev-v1-20260729",
+  "source_manifest": "experiments/workspace_grounding/DUAL_TRIAGE_HOLDOUT_30_20260728.json",
+  "calibration": {
+    "positive_bearing_tasks": 10,
+    "other_tasks": 10,
+    "grounding_positive_rubrics": 19,
+    "item_ids": [
+      "workspacebench-28",
+      "workspacebench-9",
+      "workspacebench-223",
+      "workspacebench-5",
+      "workspacebench-112",
+      "workspacebench-130",
+      "workspacebench-39",
+      "workspacebench-49",
+      "workspacebench-196",
+      "workspacebench-157",
+      "workspacebench-74",
+      "workspacebench-165",
+      "workspacebench-142",
+      "workspacebench-164",
+      "workspacebench-89",
+      "workspacebench-163",
+      "workspacebench-154",
+      "workspacebench-217",
+      "workspacebench-57",
+      "workspacebench-198"
+    ]
+  },
+  "internal_validation": {
+    "positive_bearing_tasks": 5,
+    "other_tasks": 5,
+    "grounding_positive_rubrics": 7,
+    "item_ids": [
+      "workspacebench-34",
+      "workspacebench-156",
+      "workspacebench-189",
+      "workspacebench-191",
+      "workspacebench-158",
+      "workspacebench-220",
+      "workspacebench-190",
+      "workspacebench-186",
+      "workspacebench-144",
+      "workspacebench-63"
+    ]
+  }
+}
