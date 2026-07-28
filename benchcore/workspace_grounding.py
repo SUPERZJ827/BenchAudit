@@ -250,6 +250,129 @@ SHARED TARGETED SEARCH:
 {targeted}
 """
 
+STRUCTURED_ROUTE_REASON_CODES = frozenset({
+    "unsupported_exact_constraint",
+    "task_rubric_contradiction",
+    "unsupported_prescriptive_content",
+    "input_evidence_contradiction",
+    "underdetermined_requirement",
+})
+STRUCTURED_REJECT_REASON_CODES = frozenset({
+    "task_supported",
+    "output_contract_supported",
+    "input_supported",
+    "mechanically_derivable",
+    "intrinsic_validity",
+    "general_quality",
+    "artifact_satisfaction_only",
+    "uncertain_no_specific_gap",
+})
+STRUCTURED_REASON_CODES = (
+    STRUCTURED_ROUTE_REASON_CODES | STRUCTURED_REJECT_REASON_CODES
+)
+STRUCTURED_EVIDENCE_SOURCES = frozenset({
+    "task",
+    "output_contract",
+    "input_inventory",
+    "input",
+    "intrinsic",
+    "none",
+})
+
+_EXACT_OR_CONTENT_MARKER_RE = re.compile(
+    r"[`\"“”‘’]|\b(?:exact(?:ly)?|specific|named?|title|section|column|row|"
+    r"sheet|slide|page|order|before|after|include|contain|describe|explain|"
+    r"recommend|compare|calculate|at least|at most)\b|\d",
+    re.IGNORECASE,
+)
+_GENERAL_QUALITY_RE = re.compile(
+    r"\b(?:clear|clearly written|concise|coherent|professional|readable|"
+    r"well[- ]organized|visually appealing|polished|free of (?:spelling|"
+    r"grammar|grammatical) errors|consistent formatting)\b",
+    re.IGNORECASE,
+)
+_INTRINSIC_VALIDITY_RE = re.compile(
+    r"\b(?:opens? (?:normally|successfully)|can be opened|not corrupted|"
+    r"valid (?:json|pdf|pptx|docx|xlsx|file)|machine[- ]readable)\b",
+    re.IGNORECASE,
+)
+
+
+def deterministic_structured_rejection(rubric: str) -> str | None:
+    """Return a narrow, high-precision A-prime rejection reason.
+
+    These rules intentionally reject only atomic general-quality or artifact
+    validity checks. Any exact/content marker disables the shortcut so a mixed
+    rubric cannot hide an unsupported mandatory clause behind a safe phrase.
+    """
+
+    text = " ".join(str(rubric).split())
+    if not text or _EXACT_OR_CONTENT_MARKER_RE.search(text):
+        return None
+    if _INTRINSIC_VALIDITY_RE.search(text):
+        return "intrinsic_validity"
+    if _GENERAL_QUALITY_RE.search(text):
+        return "general_quality"
+    return None
+
+
+ITEM_STRUCTURED_TRIAGE_PROMPT = """Classify every rubric for ROUTING only.
+The router must reject legal or visibly supported requirements instead of
+forwarding every difficult rubric. A routed rubric will be checked later by an
+independent verifier; routing itself never establishes a defect.
+
+Use exactly one reason_code:
+
+ROUTE:
+- unsupported_exact_constraint: a mandatory exact title, literal, ordering,
+  placement, count or format has no visible basis.
+- task_rubric_contradiction: the rubric conflicts with the task or output
+  contract.
+- unsupported_prescriptive_content: it mandates a particular recommendation,
+  classification or content choice where the task leaves alternatives open.
+- input_evidence_contradiction: visible input evidence contradicts the target.
+- underdetermined_requirement: a concrete mandatory requirement needs a
+  missing convention or provenance.
+
+DO_NOT_ROUTE:
+- task_supported
+- output_contract_supported
+- input_supported
+- mechanically_derivable
+- intrinsic_validity
+- general_quality
+- artifact_satisfaction_only: checking whether the submitted artifact actually
+  satisfies an otherwise legitimate rubric belongs to artifact evaluation,
+  not rubric-grounding defect detection.
+- uncertain_no_specific_gap: no concrete unsupported clause can be named.
+
+Return exactly one row for every supplied rubric_index:
+{{"decisions":[{{
+  "rubric_index":0,
+  "action":"route|do_not_route",
+  "reason_code":"one code listed above",
+  "evidence_source":"task|output_contract|input_inventory|input|intrinsic|none",
+  "confidence":0.0,
+  "brief_reason":"one short reason",
+  "evidence_quote":"short exact visible quote, or empty"
+}}]}}
+
+TASK:
+{task}
+
+OUTPUT CONTRACT:
+{output_contract}
+
+RUBRICS:
+{rubrics}
+
+SHARED ALLOWED INPUT EVIDENCE:
+{evidence}
+
+SHARED TARGETED SEARCH:
+{targeted}
+"""
+
 ITEM_SUPPORT_CHALLENGE_PROMPT = """Perform an independent support-challenge
 routing pass over the rubrics. This is a high-recall router, not a final
 verdict. Route every rubric that is unsupported OR uncertain from the visible
@@ -1407,6 +1530,8 @@ class WorkspaceRubricGroundingAuditor:
         *,
         dual_triage: bool = False,
         exact_constraint_router: bool = False,
+        structured_triage: bool = False,
+        structured_min_confidence: float = 0.5,
     ) -> list[RubricGroundingDecision]:
         """Route one item, then verify the candidate union in isolation.
 
@@ -1416,6 +1541,16 @@ class WorkspaceRubricGroundingAuditor:
         result therefore includes an isolated second-stage call.
         """
 
+        if dual_triage and structured_triage:
+            raise ValueError(
+                "structured_triage and dual_triage are separate experimental arms"
+            )
+        if (
+            not math.isfinite(structured_min_confidence)
+            or structured_min_confidence < 0.0
+            or structured_min_confidence > 1.0
+        ):
+            raise ValueError("structured_min_confidence must be within [0, 1]")
         bundle = build_workspace_evidence_bundle(
             item, root, max_chars=self.evidence_chars,
             allowed_roots=self.allowed_roots,
@@ -1470,7 +1605,10 @@ class WorkspaceRubricGroundingAuditor:
             "evidence": bundle.text,
             "targeted": targeted_workspace_search_many(bundle, unresolved),
         }
-        views = [("hidden_constraint", ITEM_TRIAGE_PROMPT)]
+        if structured_triage:
+            views = [("structured_a_prime", ITEM_STRUCTURED_TRIAGE_PROMPT)]
+        else:
+            views = [("hidden_constraint", ITEM_TRIAGE_PROMPT)]
         if dual_triage:
             views.append(("support_challenge", ITEM_SUPPORT_CHALLENGE_PROMPT))
         requested = {index for index, _ in unresolved}
@@ -1489,17 +1627,54 @@ class WorkspaceRubricGroundingAuditor:
                 if route.selected
             }
         failed_views: dict[str, dict[str, Any]] = {}
+        structured_routes: dict[int, dict[str, Any]] = {}
         for view_name, template in views:
             response = _safe_chat(
                 self.client,
                 GROUNDING_SYSTEM,
                 template.format(**prompt_values),
             )
-            selected = _indexed_triage_candidates(response, requested)
-            if selected is None:
-                failed_views[view_name] = response
+            if view_name == "structured_a_prime":
+                structured = _indexed_structured_triage_decisions(
+                    response, requested,
+                )
+                if structured is None:
+                    failed_views[view_name] = response
+                else:
+                    rubric_by_index = dict(unresolved)
+                    for index, route in structured.items():
+                        rejection_code = deterministic_structured_rejection(
+                            rubric_by_index[index],
+                        )
+                        if rejection_code is None:
+                            continue
+                        route.update({
+                            "model_action": route["action"],
+                            "model_reason_code": route["reason_code"],
+                            "action": "do_not_route",
+                            "reason_code": rejection_code,
+                            "policy_reason_allowed": False,
+                            "policy_selected_before_threshold": False,
+                            "policy_override": (
+                                "deterministic_rejection:"
+                                f"{rejection_code}"
+                            ),
+                        })
+                    structured_routes = structured
+                    view_candidates[view_name] = {
+                        index
+                        for index, route in structured.items()
+                        if (
+                            route["policy_selected_before_threshold"]
+                            and route["confidence"] >= structured_min_confidence
+                        )
+                    }
             else:
-                view_candidates[view_name] = selected
+                selected = _indexed_triage_candidates(response, requested)
+                if selected is None:
+                    failed_views[view_name] = response
+                else:
+                    view_candidates[view_name] = selected
         candidate_indices = set().union(*view_candidates.values())
         all_view_names = [
             *(["exact_constraint"] if exact_constraint_router else []),
@@ -1549,6 +1724,11 @@ class WorkspaceRubricGroundingAuditor:
                     scanner["exact_constraint_route"] = (
                         deterministic_routes[index].to_dict()
                     )
+                if index in structured_routes:
+                    scanner["structured_route"] = structured_routes[index]
+                    scanner["structured_min_confidence"] = (
+                        structured_min_confidence
+                    )
             else:
                 scanner = {
                     "label": "uncertain",
@@ -1573,6 +1753,11 @@ class WorkspaceRubricGroundingAuditor:
                 if index in deterministic_routes:
                     scanner["exact_constraint_route"] = (
                         deterministic_routes[index].to_dict()
+                    )
+                if index in structured_routes:
+                    scanner["structured_route"] = structured_routes[index]
+                    scanner["structured_min_confidence"] = (
+                        structured_min_confidence
                     )
             routed[index] = self._decision_from_scanner(
                 item, index, rubric, bundle, scanner,
@@ -1967,16 +2152,29 @@ class WorkspaceRubricGroundingChecker(Checker):
         auditor: WorkspaceRubricGroundingAuditor,
         *,
         strategy: str = "isolated",
+        structured_min_confidence: float = 0.5,
     ) -> None:
         if strategy not in {
-            "isolated", "item_triage", "item_exact_triage", "dual_triage",
+            "isolated",
+            "item_triage",
+            "item_exact_triage",
+            "item_structured_triage",
+            "dual_triage",
         }:
             raise ValueError(
                 "strategy must be 'isolated', 'item_triage', "
-                "'item_exact_triage', or 'dual_triage'"
+                "'item_exact_triage', 'item_structured_triage', or "
+                "'dual_triage'"
             )
+        if (
+            not math.isfinite(structured_min_confidence)
+            or structured_min_confidence < 0.0
+            or structured_min_confidence > 1.0
+        ):
+            raise ValueError("structured_min_confidence must be within [0, 1]")
         self.auditor = auditor
         self.strategy = strategy
+        self.structured_min_confidence = structured_min_confidence
         self.last_decisions: list[RubricGroundingDecision] = []
 
     def audit_eligibility(self, item, root=None) -> AuditEligibility:
@@ -2004,6 +2202,13 @@ class WorkspaceRubricGroundingChecker(Checker):
         elif self.strategy == "item_exact_triage":
             decisions = self.auditor.audit_item_two_stage(
                 item, root, exact_constraint_router=True,
+            )
+        elif self.strategy == "item_structured_triage":
+            decisions = self.auditor.audit_item_two_stage(
+                item,
+                root,
+                structured_triage=True,
+                structured_min_confidence=self.structured_min_confidence,
             )
         elif self.strategy == "item_triage":
             decisions = self.auditor.audit_item_two_stage(item, root)
@@ -2218,6 +2423,76 @@ def _indexed_triage_candidates(
         if index not in requested or index in indexed:
             return None
         indexed.add(index)
+    return indexed
+
+
+def _indexed_structured_triage_decisions(
+    response: dict[str, Any],
+    requested: set[int],
+) -> dict[int, dict[str, Any]] | None:
+    """Validate a complete A-prime routing response.
+
+    Missing rows are operational unknown, never implicit ``do_not_route``.
+    The local policy separately enforces the reason-code allowlist, so changing
+    only the model-provided ``action`` cannot bypass a deterministic rejection.
+    """
+
+    if response.get("operational_failure"):
+        return None
+    values = response.get("decisions")
+    if not isinstance(values, list):
+        return None
+    indexed: dict[int, dict[str, Any]] = {}
+    for value in values:
+        if not isinstance(value, dict):
+            return None
+        try:
+            index = int(value.get("rubric_index"))
+        except (TypeError, ValueError):
+            return None
+        if index not in requested or index in indexed:
+            return None
+        action = str(value.get("action") or "").strip().casefold()
+        reason_code = str(value.get("reason_code") or "").strip().casefold()
+        evidence_source = (
+            str(value.get("evidence_source") or "").strip().casefold()
+        )
+        confidence_value = value.get("confidence")
+        if isinstance(confidence_value, bool):
+            return None
+        try:
+            confidence = float(confidence_value)
+        except (TypeError, ValueError):
+            return None
+        if (
+            action not in {"route", "do_not_route"}
+            or reason_code not in STRUCTURED_REASON_CODES
+            or evidence_source not in STRUCTURED_EVIDENCE_SOURCES
+            or not math.isfinite(confidence)
+            or confidence < 0.0
+            or confidence > 1.0
+        ):
+            return None
+        policy_reason_allowed = reason_code in STRUCTURED_ROUTE_REASON_CODES
+        policy_selected = action == "route" and policy_reason_allowed
+        indexed[index] = {
+            "rubric_index": index,
+            "action": action,
+            "reason_code": reason_code,
+            "evidence_source": evidence_source,
+            "confidence": confidence,
+            "brief_reason": str(value.get("brief_reason") or "")[:500],
+            "evidence_quote": str(value.get("evidence_quote") or "")[:500],
+            "policy_reason_allowed": policy_reason_allowed,
+            "policy_selected_before_threshold": policy_selected,
+            "policy_override": (
+                "route_action_rejected_by_reason_code"
+                if action == "route" and not policy_reason_allowed
+                else ""
+            ),
+        }
+    if set(indexed) != requested:
+        return None
     return indexed
 
 

@@ -10,7 +10,9 @@ from benchcore.workspace_grounding import (
     VERIFIER_SYSTEM,
     WorkspaceRubricGroundingAuditor,
     WorkspaceRubricGroundingChecker,
+    _indexed_structured_triage_decisions,
     build_workspace_evidence_bundle,
+    deterministic_structured_rejection,
     resolve_objective_grounding_certificate,
     rubric_search_terms,
     validate_grounding_citations,
@@ -169,6 +171,118 @@ def test_item_exact_triage_adds_no_llm_router_call_and_keeps_verifier():
     assert decision.scanner["exact_constraint_route"]["selected"] is True
     assert len(findings) == 1
     assert findings[0].review_only
+
+
+def test_structured_triage_schema_is_complete_and_reason_gated():
+    parsed = _indexed_structured_triage_decisions(
+        {
+            "decisions": [
+                {
+                    "rubric_index": 0,
+                    "action": "route",
+                    "reason_code": "unsupported_exact_constraint",
+                    "evidence_source": "none",
+                    "confidence": 0.8,
+                    "brief_reason": "No visible title basis.",
+                    "evidence_quote": "",
+                },
+                {
+                    "rubric_index": 1,
+                    "action": "route",
+                    "reason_code": "general_quality",
+                    "evidence_source": "intrinsic",
+                    "confidence": 0.9,
+                    "brief_reason": "The report should be clear.",
+                    "evidence_quote": "",
+                },
+            ],
+        },
+        {0, 1},
+    )
+
+    assert parsed is not None
+    assert parsed[0]["policy_selected_before_threshold"] is True
+    assert parsed[1]["policy_selected_before_threshold"] is False
+    assert parsed[1]["policy_override"] == (
+        "route_action_rejected_by_reason_code"
+    )
+    assert _indexed_structured_triage_decisions(
+        {"decisions": [dict(parsed[0])]},
+        {0, 1},
+    ) is None
+
+
+def test_deterministic_structured_rejection_is_narrow():
+    assert deterministic_structured_rejection(
+        "Is the report clear, concise, professional, and readable?"
+    ) == "general_quality"
+    assert deterministic_structured_rejection(
+        "Can the output file be opened normally and is it not corrupted?"
+    ) == "intrinsic_validity"
+    assert deterministic_structured_rejection(
+        "Does the report use the exact title `Annual Review`?"
+    ) is None
+    assert deterministic_structured_rejection(
+        "Does the report clearly explain the three required risks?"
+    ) is None
+
+
+def test_structured_triage_preserves_all_reasons_and_emits_no_routing_finding():
+    rubrics = [
+        "Does the report use the exact title `Secret Heading`?",
+        "Is the report clear, concise, professional, and readable?",
+    ]
+    item = BenchmarkItem(
+        item_id="workspacebench-structured",
+        raw={"rubrics": rubrics},
+        task="Read the source and create report.md.",
+        context={},
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["report.md"],
+        },
+        evaluator={"type": "workspacebench_rubric", "rubrics": rubrics},
+    )
+    client = FakeClient([{
+        "decisions": [
+            {
+                "rubric_index": 0,
+                "action": "route",
+                "reason_code": "unsupported_exact_constraint",
+                "evidence_source": "none",
+                "confidence": 0.8,
+                "brief_reason": "No visible title basis.",
+                "evidence_quote": "",
+            },
+            {
+                "rubric_index": 1,
+                "action": "route",
+                "reason_code": "unsupported_exact_constraint",
+                "evidence_source": "none",
+                "confidence": 0.95,
+                "brief_reason": "Model over-routed a general requirement.",
+                "evidence_quote": "",
+            },
+        ],
+    }])
+    checker = WorkspaceRubricGroundingChecker(
+        WorkspaceRubricGroundingAuditor(
+            client,
+            verify_unsupported=False,
+        ),
+        strategy="item_structured_triage",
+        structured_min_confidence=0.7,
+    )
+
+    assert list(checker.check(item)) == []
+    first, second = checker.last_decisions
+    assert first.scanner["triage_selected_views"] == ["structured_a_prime"]
+    assert first.scanner["structured_route"]["confidence"] == 0.8
+    assert second.scanner["triage_selected_views"] == []
+    assert second.scanner["structured_route"]["policy_override"] == (
+        "deterministic_rejection:general_quality"
+    )
+    assert second.scanner["structured_route"]["model_action"] == "route"
 
 
 def test_adversarial_verifier_can_confirm_unsupported(tmp_path: Path):
