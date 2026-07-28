@@ -209,7 +209,16 @@ def _append_jsonl(path: Path, row: dict[str, Any], lock: threading.Lock) -> None
 
 def _assert_review_only(findings: Iterable[Violation]) -> None:
     for finding in findings:
-        if not finding.review_only or finding.evidence_tier != "review":
+        allowed_tier = (
+            finding.evidence_tier in {"unknown", "review"}
+            if finding.defect_scope == "operational"
+            else finding.evidence_tier == "review"
+        )
+        if (
+            not finding.review_only
+            or not allowed_tier
+            or finding.evidence_tier == "confirmed"
+        ):
             raise AssertionError(
                 "LLM-derived finding escaped review-only ceiling: "
                 f"{finding.item_id}/{finding.defect_type}/"
@@ -444,7 +453,18 @@ def score_experiment(
     all_llm_findings = task_findings + grounding_findings
     escaped = [
         row for row in all_llm_findings
-        if row.get("evidence_tier") != "review" or not row.get("review_only")
+        if (
+            not row.get("review_only")
+            or row.get("evidence_tier") == "confirmed"
+            or (
+                row.get("defect_scope") != "operational"
+                and row.get("evidence_tier") != "review"
+            )
+            or (
+                row.get("defect_scope") == "operational"
+                and row.get("evidence_tier") not in {"unknown", "review"}
+            )
+        )
     ]
     confirmed = [
         row for row in all_llm_findings
