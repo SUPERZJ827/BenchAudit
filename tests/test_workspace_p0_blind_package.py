@@ -7,6 +7,7 @@ from scripts.generate_workspace_p0_blind_package import (
     ensure_private_output_dir,
     select_cases,
 )
+from scripts.compare_workspace_p0_annotations import compare_annotations
 from scripts.run_workspace_static_llm_ablation import POSITIVE_REVIEW_LABEL
 from scripts.validate_workspace_p0_annotations import validate_annotations
 
@@ -96,3 +97,42 @@ def test_annotation_validator_requires_exact_ids_and_typed_evidence():
     invalid = [{**valid[0], "blind_id": "case-b"}]
     with pytest.raises(ValueError, match="blind-id coverage"):
         validate_annotations(template, invalid)
+
+
+def test_annotation_comparison_reports_confusion_and_kappa():
+    first = [
+        {"blind_id": "a", "is_grounding_defect": "yes", "grounding_class": "x"},
+        {"blind_id": "b", "is_grounding_defect": "no", "grounding_class": "y"},
+        {
+            "blind_id": "c",
+            "is_grounding_defect": "uncertain",
+            "grounding_class": "z",
+        },
+    ]
+    second = [
+        {"blind_id": "a", "is_grounding_defect": "yes", "grounding_class": "x"},
+        {
+            "blind_id": "b",
+            "is_grounding_defect": "uncertain",
+            "grounding_class": "y",
+        },
+        {
+            "blind_id": "c",
+            "is_grounding_defect": "uncertain",
+            "grounding_class": "z",
+        },
+    ]
+    for rows in (first, second):
+        for row in rows:
+            row.update({
+                "evaluation_objectivity": "objective",
+                "satisfaction_checkability": "static",
+                "primary_family": "workspace_rubric_grounding",
+            })
+
+    result = compare_annotations(first, second)
+
+    assert result["rows"] == 3
+    assert result["field_agreement"]["is_grounding_defect"]["count"] == 2
+    assert result["grounding_defect_confusion"]["no"]["uncertain"] == 1
+    assert len(result["disagreements"]) == 1

@@ -1,0 +1,40 @@
+{
+  "comparison_file_committed": false,
+  "comparison_sha256": "5fb8faeb44fb3fa0923a157253112a71561b332dadb3554410820f99d47df5a3",
+  "first_annotation": {
+    "role": "codex_non_blind_evidence_review",
+    "sha256": "7b225bb51405a3c4665d7da2713c67aaffc2ed48e7e2f1873f30915293d1a3a9"
+  },
+  "independent_blind_claim_allowed": false,
+  "metrics": {
+    "evaluation_objectivity_agreement": {
+      "count": 32,
+      "rate": 0.8648648648648649
+    },
+    "grounding_class_agreement": {
+      "count": 31,
+      "rate": 0.8378378378378378
+    },
+    "grounding_defect_cohens_kappa": 0.8109028960817719,
+    "grounding_defect_verdict_agreement": {
+      "count": 34,
+      "rate": 0.918918918918919
+    },
+    "primary_family_agreement": {
+      "count": 22,
+      "rate": 0.5945945945945946
+    },
+    "rows": 37,
+    "satisfaction_checkability_agreement": {
+      "count": 28,
+      "rate": 0.7567567567567568
+    }
+  },
+  "note": "Both reviews are diagnostically useful, but neither pairing satisfies the pre-registered independent-Claude requirement. No source-stratum precision or recall is computed and the sealed mapping remains unopened.",
+  "protocol": "workspace-grounding-p0-adjudication-v1-20260728",
+  "second_annotation": {
+    "role": "codex_substitute_blind_to_mapping_but_context_exposed",
+    "sha256": "51aa69c7aeea42142b0a05cb125f84c8539b80d23aea3695c9a71444c861db1a"
+  },
+  "sealed_mapping_opened": false
+}
