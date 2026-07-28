@@ -16,9 +16,13 @@ metrics on the previously reviewed rubric subset.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
+import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
 import threading
@@ -58,6 +62,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--objective-reference", type=Path, required=True)
     parser.add_argument("--llm-config", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument(
+        "--artifact-view-dir",
+        type=Path,
+        help=(
+            "Optional private directory in which declared input symlinks are "
+            "materialized as regular files before rubric grounding. "
+            "Use a directory on the same filesystem as the source cache to "
+            "permit zero-copy hard links."
+        ),
+    )
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument(
         "--stages",
@@ -147,6 +161,111 @@ def input_roots(rows: list[dict[str, Any]]) -> list[Path]:
         for value in (row.get("input_files") or [])
     }
     return sorted(roots, key=str)
+
+
+def materialize_input_view(
+    rows: list[dict[str, Any]],
+    destination: Path,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Build a task-scoped regular-file view of declared Workspace inputs.
+
+    Hugging Face snapshots commonly expose immutable blobs through symlinks.
+    BenchAudit's evidence identity layer correctly rejects those links to avoid
+    containment/open races.  The experiment therefore resolves each declared
+    source once, verifies that it is a regular file, and creates a task-scoped
+    regular-file view.  A hard link is preferred; a byte copy is used only
+    across filesystems.  The original dataset rows remain untouched.
+
+    This is input staging, not a relaxation of the reader: the grounding
+    auditor still receives only non-symlink paths and applies its normal
+    bounded hashing, parsing, citation, and review-only gates.
+    """
+
+    destination = destination.expanduser().resolve(strict=False)
+    destination.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink() or not destination.is_dir():
+        raise ValueError("artifact view root must be a real directory")
+
+    staged_rows: list[dict[str, Any]] = []
+    hardlinked = 0
+    copied = 0
+    total_bytes = 0
+    source_symlinks = 0
+    for row_index, row in enumerate(rows):
+        cloned = dict(row)
+        values = row.get("input_files") or []
+        if not isinstance(values, list):
+            staged_rows.append(cloned)
+            continue
+        item_id = str(row.get("item_id") or row.get("id") or row_index)
+        safe_item_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", item_id).strip("._")
+        if not safe_item_id:
+            raise ValueError(f"unsafe empty item id at row {row_index}")
+        item_dir = destination / safe_item_id
+        item_dir.mkdir(parents=True, exist_ok=True)
+        if item_dir.is_symlink() or not item_dir.is_dir():
+            raise ValueError(f"artifact item view is not a real directory: {item_dir}")
+
+        staged: list[str] = []
+        seen_names: dict[str, Path] = {}
+        for value in values:
+            declared = Path(str(value)).expanduser()
+            try:
+                declared_meta = declared.lstat()
+                resolved = declared.resolve(strict=True)
+                resolved_meta = resolved.stat()
+            except OSError as exc:
+                raise ValueError(
+                    f"cannot materialize declared input {declared}: {exc}"
+                ) from exc
+            if stat.S_ISLNK(declared_meta.st_mode):
+                source_symlinks += 1
+            if not stat.S_ISREG(resolved_meta.st_mode):
+                raise ValueError(f"declared input is not a regular file: {declared}")
+            if not declared.name or declared.name in {".", ".."}:
+                raise ValueError(f"declared input has no safe basename: {declared}")
+            previous = seen_names.get(declared.name)
+            if previous is not None and previous != resolved:
+                raise ValueError(
+                    f"two distinct inputs share staged basename {declared.name!r} "
+                    f"for {item_id}"
+                )
+            seen_names[declared.name] = resolved
+
+            target = item_dir / declared.name
+            if target.exists() or target.is_symlink():
+                target_meta = target.lstat()
+                if not stat.S_ISREG(target_meta.st_mode):
+                    raise ValueError(f"refusing to replace non-regular staged path {target}")
+                target.unlink()
+            try:
+                os.link(resolved, target, follow_symlinks=False)
+                hardlinked += 1
+            except OSError as exc:
+                if exc.errno != errno.EXDEV:
+                    raise
+                shutil.copyfile(resolved, target, follow_symlinks=False)
+                copied += 1
+            target_meta = target.lstat()
+            if stat.S_ISLNK(target_meta.st_mode) or not stat.S_ISREG(target_meta.st_mode):
+                raise ValueError(f"materialized input is not a regular file: {target}")
+            total_bytes += int(target_meta.st_size)
+            staged.append(str(target))
+        cloned["input_files"] = staged
+        staged_rows.append(cloned)
+
+    receipt = {
+        "schema_version": "workspace-artifact-view-v1",
+        "root": str(destination),
+        "rows": len(staged_rows),
+        "files": hardlinked + copied,
+        "source_symlinks": source_symlinks,
+        "hardlinked": hardlinked,
+        "copied": copied,
+        "total_bytes": total_bytes,
+        "source_values_changed": False,
+    }
+    return staged_rows, receipt
 
 
 def violation_dict(value: Violation) -> dict[str, Any]:
@@ -717,6 +836,12 @@ def main() -> None:
     rows = load_rows(dataset)
     if args.limit is not None:
         rows = rows[: args.limit]
+    artifact_view_receipt: dict[str, Any] | None = None
+    if args.artifact_view_dir is not None:
+        rows, artifact_view_receipt = materialize_input_view(
+            rows,
+            args.artifact_view_dir,
+        )
     mapping = load_mapping(None, rows)
     items = build_items(rows, mapping)
     roots = input_roots(rows)
@@ -736,6 +861,7 @@ def main() -> None:
         "rubrics": sum(len(workspace_rubrics(item)) for item in items),
         "workers": args.workers,
         "full388": len(items) == 388 and args.limit is None,
+        "artifact_view": artifact_view_receipt,
     }
     (out_dir / "provenance.json").write_text(
         json.dumps(provenance, ensure_ascii=False, indent=2, sort_keys=True),

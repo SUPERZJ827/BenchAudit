@@ -8,6 +8,7 @@ from scripts.run_workspace_static_llm_ablation import (
     UNCERTAIN_REVIEW_LABEL,
     _assert_review_only,
     binary_metrics,
+    materialize_input_view,
     parse_objective_output_reference,
     parse_reviewed_reference,
 )
@@ -101,3 +102,48 @@ def test_review_only_safety_allows_operational_unknown_but_not_substantive_unkno
     operational.defect_scope = "substantive"
     with pytest.raises(AssertionError):
         _assert_review_only([operational])
+
+
+def test_materialized_input_view_turns_symlink_into_regular_file(tmp_path: Path):
+    source = tmp_path / "blob"
+    source.write_bytes(b"frozen workspace input")
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    declared = snapshot / "0123456789abcdef_input.txt"
+    declared.symlink_to(source)
+    rows = [{
+        "item_id": "workspacebench-1",
+        "input_files": [str(declared)],
+        "task": "Summarize input.txt",
+    }]
+
+    staged, receipt = materialize_input_view(rows, tmp_path / "view")
+
+    staged_path = Path(staged[0]["input_files"][0])
+    assert staged_path.name == declared.name
+    assert staged_path.is_file()
+    assert not staged_path.is_symlink()
+    assert staged_path.read_bytes() == source.read_bytes()
+    assert rows[0]["input_files"] == [str(declared)]
+    assert receipt["files"] == 1
+    assert receipt["source_symlinks"] == 1
+    assert receipt["hardlinked"] + receipt["copied"] == 1
+
+
+def test_materialized_input_view_rejects_distinct_same_basename(tmp_path: Path):
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    left.mkdir()
+    right.mkdir()
+    (left / "input.txt").write_text("left", encoding="utf-8")
+    (right / "input.txt").write_text("right", encoding="utf-8")
+    rows = [{
+        "item_id": "workspacebench-1",
+        "input_files": [
+            str(left / "input.txt"),
+            str(right / "input.txt"),
+        ],
+    }]
+
+    with pytest.raises(ValueError, match="share staged basename"):
+        materialize_input_view(rows, tmp_path / "view")
