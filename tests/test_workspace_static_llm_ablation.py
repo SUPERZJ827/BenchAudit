@@ -17,6 +17,7 @@ from scripts.run_workspace_static_llm_ablation import (
     render_output_candidate_appendix,
     run_rules,
 )
+from scripts.analyze_workspace_grounding_dual_holdout import decision_sets
 from benchcore.schema import BenchmarkItem, Violation
 
 
@@ -93,6 +94,53 @@ def test_binary_metrics_do_not_count_predictions_outside_reference_universe():
         "positives": 2,
         "universe": 4,
     }
+
+
+def test_dual_holdout_decision_sets_recover_each_router_and_union():
+    rows = {
+        "item-1": {
+            "decisions": [
+                {
+                    "rubric_index": 0,
+                    "label": "unsupported",
+                    "scanner": {
+                        "label": "unsupported",
+                        "triage_selected": True,
+                        "triage_selected_views": [
+                            "hidden_constraint", "support_challenge",
+                        ],
+                    },
+                },
+                {
+                    "rubric_index": 1,
+                    "label": "supported",
+                    "scanner": {
+                        "label": "unsupported",
+                        "triage_selected": True,
+                        "triage_selected_views": ["support_challenge"],
+                    },
+                },
+                {
+                    "rubric_index": 2,
+                    "label": "uncertain",
+                    "scanner": {
+                        "label": "uncertain",
+                        "triage_selected": False,
+                        "triage_selected_views": [],
+                    },
+                },
+            ],
+        },
+    }
+
+    result = decision_sets(rows)
+
+    assert result["routed_hidden_constraint"] == {("item-1", 0)}
+    assert result["routed_support_challenge"] == {
+        ("item-1", 0), ("item-1", 1),
+    }
+    assert result["routed_union"] == {("item-1", 0), ("item-1", 1)}
+    assert result["final_unsupported"] == {("item-1", 0)}
 
 
 def test_cost_structure_estimate_uses_shared_scan_and_candidate_only_verification():
