@@ -157,6 +157,9 @@ def test_independent_review_model_and_schema_are_protocol_frozen():
     row_schema = schema["properties"]["annotations"]["items"]
     assert row_schema["additionalProperties"] is False
     assert set(row_schema["required"]) == set(row_schema["properties"])
+    assert row_schema["properties"]["evidence"]["items"]["properties"][
+        "source"
+    ]["pattern"] == "^(task|output_contract|input:.+)$"
 
 
 def test_independent_review_requires_exact_source_quotes():
@@ -278,3 +281,4 @@ def test_p1_family_prompt_forbids_grounding_coverage_padding():
     assert "do not add" in prompt
     assert "workspace_rubric_grounding" in prompt
     assert "primary_family" in prompt
+    assert "input:" in prompt

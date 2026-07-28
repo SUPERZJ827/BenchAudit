@@ -82,7 +82,10 @@ def annotation_schema() -> dict[str, Any]:
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "source": {"type": "string"},
+            "source": {
+                "type": "string",
+                "pattern": "^(task|output_contract|input:.+)$",
+            },
             "quote": {"type": "string"},
             "relation": {
                 "type": "string",
@@ -296,6 +299,7 @@ def review_task(
     raw_dir: Path,
     max_attempts: int,
     system_prompt: str | None = None,
+    attempt_offset: int = 0,
 ) -> dict[str, Any]:
     task_id = str(task_row["task_blind_id"])
     prior_error: str | None = None
@@ -329,7 +333,10 @@ def review_task(
         started = time.monotonic()
         try:
             response = api_request(api_key, payload)
-            raw_path = raw_dir / f"{task_id}.attempt-{attempt}.json"
+            raw_path = (
+                raw_dir
+                / f"{task_id}.attempt-{attempt_offset + attempt}.json"
+            )
             raw_path.write_text(
                 json.dumps(response, ensure_ascii=False, indent=2),
                 encoding="utf-8",

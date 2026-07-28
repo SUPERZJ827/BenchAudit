@@ -15,6 +15,7 @@ from typing import Any
 from scripts.run_workspace_p0_openrouter_blind_review import (
     MODEL,
     ensure_private_dir,
+    parse_content,
     review_task,
     sha256,
     validate_task_annotations,
@@ -71,7 +72,57 @@ workspace_rubric_grounding merely to increase coverage.
 
 Every evidence quote must be copied EXACTLY from task, output contract, or
 allowed input evidence. For absence, quote the closest relevant source and use
-relation=insufficient. Return only schema-compliant JSON."""
+relation=insufficient. Evidence source must be exactly task, output_contract, or
+input:<filename>; never emit a bare filename. Return only schema-compliant
+JSON."""
+
+
+def load_valid_cached_result(
+    *,
+    raw_dir: Path,
+    task_row: dict[str, Any],
+    candidate_rows: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    task_id = str(task_row["task_blind_id"])
+    paths = sorted(
+        raw_dir.glob(f"{task_id}.attempt-*.json"),
+        key=lambda path: int(path.stem.rsplit("-", 1)[-1]),
+        reverse=True,
+    )
+    for path in paths:
+        try:
+            response = json.loads(path.read_text(encoding="utf-8"))
+            parsed = parse_content(response)
+            annotations = parsed.get("annotations")
+            if not isinstance(annotations, list):
+                continue
+            validate_task_annotations(task_row, candidate_rows, annotations)
+            observed_model = str(response.get("model") or "")
+            if MODEL not in observed_model and observed_model != MODEL:
+                continue
+            return {
+                "task_blind_id": task_id,
+                "annotations": annotations,
+                "attempts": 0,
+                "observed_model": observed_model,
+                "usage": {},
+                "response_id": response.get("id"),
+                "latency_seconds": 0.0,
+                "resumed_from_raw": True,
+            }
+        except (ValueError, TypeError, json.JSONDecodeError):
+            continue
+    return None
+
+
+def raw_attempt_count(raw_dir: Path, task_id: str) -> int:
+    attempts = []
+    for path in raw_dir.glob(f"{task_id}.attempt-*.json"):
+        try:
+            attempts.append(int(path.stem.rsplit("-", 1)[-1]))
+        except ValueError:
+            continue
+    return max(attempts, default=0)
 
 
 def main() -> None:
@@ -102,6 +153,18 @@ def main() -> None:
         raise ValueError("task and candidate coverage differs")
 
     results = []
+    pending = {}
+    for task_id, rows in sorted(by_task.items()):
+        cached = load_valid_cached_result(
+            raw_dir=raw_dir,
+            task_row=task_by_id[task_id],
+            candidate_rows=rows,
+        )
+        if cached is not None:
+            results.append(cached)
+            print(f"resumed {task_id} from validated raw response", flush=True)
+        else:
+            pending[task_id] = rows
     with concurrent.futures.ThreadPoolExecutor(
         max_workers=args.workers,
     ) as executor:
@@ -114,8 +177,9 @@ def main() -> None:
                 raw_dir=raw_dir,
                 max_attempts=args.max_attempts,
                 system_prompt=family_system_prompt(),
+                attempt_offset=raw_attempt_count(raw_dir, task_id),
             ): task_id
-            for task_id, rows in sorted(by_task.items())
+            for task_id, rows in sorted(pending.items())
         }
         for future in concurrent.futures.as_completed(futures):
             result = future.result()
@@ -157,9 +221,11 @@ def main() -> None:
 
     usage: Counter[str] = Counter()
     models = set()
-    for result in results:
-        models.add(result["observed_model"])
-        for key, value in result["usage"].items():
+    raw_paths = sorted(raw_dir.glob("task-*.attempt-*.json"))
+    for path in raw_paths:
+        response = json.loads(path.read_text(encoding="utf-8"))
+        models.add(str(response.get("model") or ""))
+        for key, value in (response.get("usage") or {}).items():
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 usage[key] += value
     receipt = {
@@ -168,8 +234,9 @@ def main() -> None:
         "observed_models": sorted(models),
         "fresh_context_per_task": True,
         "logical_task_requests": len(tasks),
-        "api_requests_including_retries": sum(
-            int(result["attempts"]) for result in results
+        "api_requests_including_retries": len(raw_paths),
+        "resumed_valid_task_results": sum(
+            bool(result.get("resumed_from_raw")) for result in results
         ),
         "candidates": len(annotations),
         "sealed_mapping_read": False,
