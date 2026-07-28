@@ -95,6 +95,14 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Debug-only prefix limit. Omit for the registered full388 experiment.",
     )
+    parser.add_argument(
+        "--item-ids-file",
+        type=Path,
+        help=(
+            "Optional frozen JSON manifest containing an item_ids array. "
+            "Selection is exact and fails if any requested id is absent."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -115,6 +123,19 @@ def stable_json_sha256(value: Any) -> str:
 
 def normalize_label(text: str) -> str:
     return re.sub(r"[*`]", "", text).strip()
+
+
+def parse_item_ids_file(path: Path) -> list[str]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    values = value.get("item_ids") if isinstance(value, dict) else value
+    if not isinstance(values, list) or not values:
+        raise ValueError("item id manifest must contain a non-empty item_ids array")
+    item_ids = [str(item_id).strip() for item_id in values]
+    if any(not item_id for item_id in item_ids):
+        raise ValueError("item id manifest contains an empty item id")
+    if len(set(item_ids)) != len(item_ids):
+        raise ValueError("item id manifest contains a duplicate item id")
+    return item_ids
 
 
 def parse_reviewed_reference(path: Path) -> dict[tuple[str, int], str]:
@@ -1210,6 +1231,23 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = load_rows(dataset)
+    item_ids_manifest: Path | None = None
+    selected_item_ids: list[str] | None = None
+    if args.item_ids_file is not None:
+        item_ids_manifest = args.item_ids_file.expanduser().resolve()
+        selected_item_ids = parse_item_ids_file(item_ids_manifest)
+        requested = set(selected_item_ids)
+        by_id: dict[str, dict[str, Any]] = {}
+        for index, row in enumerate(rows):
+            item_id = str(row.get("item_id") or row.get("id") or index)
+            if item_id in requested:
+                if item_id in by_id:
+                    raise ValueError(f"dataset contains duplicate requested id {item_id}")
+                by_id[item_id] = row
+        missing = requested - set(by_id)
+        if missing:
+            raise ValueError(f"dataset is missing requested item ids: {sorted(missing)}")
+        rows = [by_id[item_id] for item_id in selected_item_ids]
     if args.limit is not None:
         rows = rows[: args.limit]
     artifact_view_receipt: dict[str, Any] | None = None
@@ -1240,6 +1278,14 @@ def main() -> None:
         "rubrics": sum(len(workspace_rubrics(item)) for item in items),
         "workers": args.workers,
         "grounding_strategy": args.grounding_strategy,
+        "item_ids_manifest": (
+            str(item_ids_manifest) if item_ids_manifest is not None else None
+        ),
+        "item_ids_manifest_sha256": (
+            sha256_file(item_ids_manifest)
+            if item_ids_manifest is not None
+            else None
+        ),
         "full388": len(items) == 388 and args.limit is None,
         "artifact_view": artifact_view_receipt,
     }

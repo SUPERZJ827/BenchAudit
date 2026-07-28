@@ -10,6 +10,7 @@ from scripts.run_workspace_static_llm_ablation import (
     binary_metrics,
     estimate_grounding_call_structure,
     materialize_input_view,
+    parse_item_ids_file,
     parse_objective_output_reference,
     parse_objective_task_placeholder_reference,
     parse_reviewed_reference,
@@ -52,6 +53,26 @@ def test_parse_objective_output_reference_uses_exact_family(tmp_path: Path):
     assert parse_objective_task_placeholder_reference(path) == {
         "workspacebench-3"
     }
+
+
+def test_parse_item_ids_file_accepts_frozen_manifest_and_rejects_duplicates(
+    tmp_path: Path,
+):
+    path = tmp_path / "manifest.json"
+    path.write_text(
+        '{"item_ids":["workspacebench-2","workspacebench-1"]}',
+        encoding="utf-8",
+    )
+    assert parse_item_ids_file(path) == [
+        "workspacebench-2", "workspacebench-1",
+    ]
+
+    path.write_text(
+        '{"item_ids":["workspacebench-1","workspacebench-1"]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate item id"):
+        parse_item_ids_file(path)
 
 
 def test_binary_metrics_do_not_count_predictions_outside_reference_universe():
