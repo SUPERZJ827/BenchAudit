@@ -58,9 +58,27 @@
 - `subjective_quality_review`
 - `unknown`
 
-输出到：
+本任务必须在一个不包含 BenchAudit 实验对话历史的全新 Claude/Opus 会话中
+执行。开始前请在回执中记录实际模型名称；如果执行者不是 Claude，或者会话
+已经看到聚合结果、case verdict、来源分层等上下文，必须停止并标记
+`blinding_compromised`，不能再次充当替代 reviewer。
 
-`/home/zhoujun/llmdata/after623/reports/workspace_p0_blind_adjudication_20260728/CLAUDE_BLIND_ANNOTATIONS.jsonl`
+标注输出到：
+
+`/home/zhoujun/llmdata/after623/reports/workspace_p0_blind_adjudication_20260728/CLAUDE_OPUS_INDEPENDENT_ANNOTATIONS.jsonl`
+
+另写回执：
+
+`/home/zhoujun/llmdata/after623/reports/workspace_p0_blind_adjudication_20260728/CLAUDE_OPUS_INDEPENDENT_RECEIPT.json`
+
+回执至少包含：
+
+- 实际模型名称；
+- 是否为全新无历史会话；
+- 是否看到任何禁止文件或逐 case 先验；
+- `blinding_compromised`；
+- 标注文件 SHA256；
+- 37 行 verdict 分布。
 
 要求：
 
