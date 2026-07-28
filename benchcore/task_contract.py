@@ -113,6 +113,31 @@ def _safe_relative_path(value: Any, location: str) -> str:
     return posixpath.normpath(normalized)
 
 
+def _safe_output_filename(value: Any, location: str) -> str:
+    """Project a task-declared save path onto the published filename contract.
+
+    Workspace records publish output basenames rather than their desktop/save
+    directories.  Preserve traversal rejection, but compare only the final path
+    component so ``/desktop/report.docx`` and ``report.docx`` use the same
+    contract namespace.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        raise TaskContractValidationError(f"{location} must be a non-empty string")
+    normalized = unicodedata.normalize("NFKC", value.strip()).replace("\\", "/")
+    path = PurePosixPath(normalized)
+    if (
+        normalized in {".", ".."}
+        or any(part == ".." for part in path.parts)
+        or any(ord(character) < 32 for character in normalized)
+    ):
+        raise TaskContractValidationError(f"{location} contains an unsafe path")
+    filename = path.name
+    if not filename or filename in {".", ".."}:
+        raise TaskContractValidationError(f"{location} contains an unsafe path")
+    return filename
+
+
 def parse_task_contract(task: str, response: dict[str, Any]) -> TaskContract:
     if not isinstance(task, str) or not task:
         raise TaskContractValidationError("task must be a non-empty string")
@@ -134,7 +159,7 @@ def parse_task_contract(task: str, response: dict[str, Any]) -> TaskContract:
             raise TaskContractValidationError(f"{location} must be an object")
         _expect_exact_keys(raw, {"path", "evidence"}, location)
         evidence = _evidence_anchor(task, raw["evidence"], f"{location}.evidence")
-        path = _safe_relative_path(raw["path"], f"{location}.path")
+        path = _safe_output_filename(raw["path"], f"{location}.path")
         if path not in unicodedata.normalize("NFKC", evidence):
             raise TaskContractValidationError(
                 f"{location}.path is not grounded by its evidence"

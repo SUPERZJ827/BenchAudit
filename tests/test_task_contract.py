@@ -57,6 +57,20 @@ class TaskContractParsingTest(unittest.TestCase):
         with self.assertRaisesRegex(TaskContractValidationError, "unsafe path"):
             parse_task_contract("请总结1.txt,2.txt,.....100.txt为123.txt", response)
 
+    def test_projects_absolute_save_path_to_published_output_filename(self):
+        response = {
+            "schema_version": "task-output-contract.v1",
+            "output_requirements": [{
+                "path": "/desktop/reports/123.txt",
+                "evidence": "save /desktop/reports/123.txt",
+            }],
+        }
+        contract = parse_task_contract(
+            "Please save /desktop/reports/123.txt",
+            response,
+        )
+        self.assertEqual(contract.expected_output_paths, ("123.txt",))
+
     def test_inventory_path_precedence_is_stable_across_hash_seeds(self):
         program = (
             "import json; "
