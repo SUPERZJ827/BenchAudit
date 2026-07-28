@@ -11,6 +11,7 @@ from scripts.run_workspace_static_llm_ablation import (
     materialize_input_view,
     parse_objective_output_reference,
     parse_reviewed_reference,
+    render_output_candidate_appendix,
     run_rules,
 )
 from benchcore.schema import BenchmarkItem, Violation
@@ -185,3 +186,31 @@ def test_rules_arm_includes_same_objective_grounding_resolver_as_assisted_arm(
     assert candidates[0]["evidence"]["objective_certificate"]["label"] == (
         "unsupported"
     )
+
+
+def test_output_candidate_appendix_does_not_call_unlabeled_difference_false_positive():
+    item = BenchmarkItem(
+        item_id="workspacebench-1",
+        raw={},
+        task="Save the result as expected.md.",
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["published.md"],
+        },
+    )
+    report = render_output_candidate_appendix(
+        items=[item],
+        rules={
+            "output_filename_findings": [{
+                "item_id": item.item_id,
+                "type": "file_name_conflict",
+                "detail": "expected.md vs published.md",
+            }],
+        },
+        task_rows={item.item_id: {"findings": [], "observation": {}}},
+        output_positive_items=set(),
+    )
+
+    assert "否（待复核差异）" in report
+    assert "假阳性" not in report
+    assert "published.md" in report

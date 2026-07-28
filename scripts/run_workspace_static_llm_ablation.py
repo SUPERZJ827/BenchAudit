@@ -49,6 +49,7 @@ from benchcore.workspace_grounding import (
     workspace_rubrics,
 )
 from benchcore.workspace_invariants import collect_workspace_invariant_issues
+from benchcore.workspace_invariants import workspace_outputs
 
 
 POSITIVE_REVIEW_LABEL = "较可信真问题"
@@ -730,6 +731,79 @@ def _fmt_metric(value: float) -> str:
     return f"{value:.3f}"
 
 
+def _md_cell(value: Any, limit: int = 260) -> str:
+    text = " ".join(str(value or "").split())
+    return text.replace("|", "\\|")[:limit]
+
+
+def render_output_candidate_appendix(
+    *,
+    items: list[BenchmarkItem],
+    rules: dict[str, Any],
+    task_rows: dict[str, dict[str, Any]],
+    output_positive_items: set[str],
+) -> str:
+    """Render every output-filename difference without inventing clean labels."""
+
+    by_id = {item.item_id: item for item in items}
+    rule_by_id: dict[str, list[dict[str, Any]]] = {}
+    for row in rules.get("output_filename_findings", []):
+        rule_by_id.setdefault(str(row["item_id"]), []).append(row)
+    llm_by_id: dict[str, dict[str, Any]] = {}
+    for item_id, row in task_rows.items():
+        findings = [
+            finding for finding in row.get("findings", [])
+            if finding.get("defect_type") == "task_artifact_contract_mismatch"
+        ]
+        if findings:
+            llm_by_id[item_id] = row
+    candidate_ids = sorted(set(rule_by_id) | set(llm_by_id))
+    lines = [
+        "# WorkspaceBench full388 输出文件名差异清单",
+        "",
+        "> 项目：BenchAudit。`旧参考命中=否` 只表示未进入旧的确定性扫描",
+        "> 正类集合，不表示该候选已被人工证伪。所有 DeepSeek 候选均为 review-only。",
+        "",
+        "| item | 来源 | 旧参考命中 | LLM 抽取路径 | 本地 replay 缺失 | 发布 output inventory | task 摘要 |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for item_id in candidate_ids:
+        sources = []
+        if item_id in rule_by_id:
+            sources.append("rules")
+        if item_id in llm_by_id:
+            sources.append("DeepSeek")
+        observation = llm_by_id.get(item_id, {}).get("observation", {})
+        extracted = observation.get("contract", {}).get(
+            "expected_output_paths", [],
+        )
+        missing = observation.get("inventory_replay", {}).get(
+            "missing_output_paths", [],
+        )
+        item = by_id[item_id]
+        lines.append(
+            "| "
+            + " | ".join([
+                f"`{_md_cell(item_id)}`",
+                " + ".join(sources),
+                "是" if item_id in output_positive_items else "否（待复核差异）",
+                _md_cell(", ".join(map(str, extracted)) or "—"),
+                _md_cell(", ".join(map(str, missing)) or "—"),
+                _md_cell(", ".join(workspace_outputs(item)) or "—"),
+                _md_cell(item.task, 220),
+            ])
+            + " |"
+        )
+    lines.extend([
+        "",
+        f"- 候选 item：{len(candidate_ids)}",
+        f"- 旧参考命中：{len(set(candidate_ids) & output_positive_items)}",
+        f"- 新增待复核差异：{len(set(candidate_ids) - output_positive_items)}",
+        "",
+    ])
+    return "\n".join(lines)
+
+
 def render_report(
     summary: dict[str, Any],
     provenance: dict[str, Any],
@@ -1001,8 +1075,19 @@ def main() -> None:
             render_report(summary, provenance, runtime),
             encoding="utf-8",
         )
+        candidate_path = out_dir / "output_filename_candidates.md"
+        candidate_path.write_text(
+            render_output_candidate_appendix(
+                items=items,
+                rules=rules,
+                task_rows=task_rows,
+                output_positive_items=objective_output,
+            ),
+            encoding="utf-8",
+        )
         print(f"summary: {summary_path}", flush=True)
         print(f"report: {report_path}", flush=True)
+        print(f"output candidates: {candidate_path}", flush=True)
 
 
 if __name__ == "__main__":
