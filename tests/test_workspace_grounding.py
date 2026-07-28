@@ -366,6 +366,138 @@ def test_item_triage_verifies_routed_candidate_before_final_citation_gate(
     )
 
 
+def test_dual_triage_unions_views_and_verifies_each_candidate_once(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    rubrics = [
+        "Use the exact hidden title Alpha.",
+        "Use the exact hidden title Beta.",
+        "Use the exact hidden title Gamma.",
+    ]
+    item = make_item([source], rubrics[0])
+    item.raw["rubrics"] = rubrics
+    item.evaluator["rubrics"] = rubrics
+    item = declare_complete_inventory(item, [source.name])
+    client = FakeClient([
+        {"candidate_indices": [0]},
+        {"candidate_indices": [0, 1]},
+        {
+            "label": "unsupported",
+            "confidence": 0.9,
+            "reason": "Alpha is not visibly required.",
+            "decisive_evidence": {"source": "none", "quote": ""},
+        },
+        {
+            "label": "unsupported",
+            "confidence": 0.9,
+            "reason": "Beta is not visibly required.",
+            "decisive_evidence": {"source": "none", "quote": ""},
+        },
+    ])
+    auditor = WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path])
+
+    decisions = auditor.audit_item_two_stage(item, dual_triage=True)
+
+    assert len(client.prompts) == 4
+    assert "hidden requirement" in client.prompts[0][1]
+    assert "support-challenge" in client.prompts[1][1]
+    assert sum(rubrics[0] in prompt for _, prompt in client.prompts[2:]) == 1
+    assert sum(rubrics[1] in prompt for _, prompt in client.prompts[2:]) == 1
+    assert [row.label for row in decisions] == [
+        "unsupported", "unsupported", "uncertain",
+    ]
+    assert decisions[0].scanner["triage_selected_views"] == [
+        "hidden_constraint", "support_challenge",
+    ]
+    assert decisions[1].scanner["triage_selected_views"] == [
+        "support_challenge",
+    ]
+    assert decisions[2].scanner["triage_selected_views"] == []
+    assert all(row.scanner["triage_view_count"] == 2 for row in decisions)
+
+
+def test_dual_triage_invalid_view_keeps_valid_candidates_but_marks_rest_unknown(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    rubrics = ["Hidden Alpha", "Hidden Beta"]
+    item = make_item([source], rubrics[0])
+    item.raw["rubrics"] = rubrics
+    item.evaluator["rubrics"] = rubrics
+    item = declare_complete_inventory(item, [source.name])
+    client = FakeClient([
+        {"candidate_indices": [0]},
+        {"decisions": []},
+        {
+            "label": "unsupported",
+            "confidence": 0.9,
+            "reason": "Alpha is not visibly required.",
+            "decisive_evidence": {"source": "none", "quote": ""},
+        },
+    ])
+    auditor = WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path])
+
+    decisions = auditor.audit_item_two_stage(item, dual_triage=True)
+
+    assert len(client.prompts) == 3
+    assert decisions[0].label == "unsupported"
+    assert decisions[0].scanner["triage_selected_views"] == [
+        "hidden_constraint",
+    ]
+    assert decisions[1].label == "uncertain"
+    assert decisions[1].scanner["operational_failure"] is True
+    assert decisions[1].scanner["failed_triage_views"] == [
+        "support_challenge",
+    ]
+
+
+def test_dual_triage_routing_cannot_emit_without_isolated_verifier(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = declare_complete_inventory(make_item([source]), [source.name])
+    client = FakeClient([
+        {"candidate_indices": [0]},
+        {"candidate_indices": [0]},
+    ])
+    auditor = WorkspaceRubricGroundingAuditor(
+        client,
+        verify_unsupported=False,
+        allowed_roots=[tmp_path],
+    )
+
+    decision = auditor.audit_item_two_stage(item, dual_triage=True)[0]
+
+    assert len(client.prompts) == 2
+    assert decision.label == "uncertain"
+    assert decision.verifier is None
+    assert decision.scanner["triage_selected_views"] == [
+        "hidden_constraint", "support_challenge",
+    ]
+
+
+def test_checker_can_use_dual_triage_strategy(tmp_path: Path):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = declare_complete_inventory(make_item([source]), [source.name])
+    client = FakeClient([
+        {"candidate_indices": []},
+        {"candidate_indices": []},
+    ])
+    checker = WorkspaceRubricGroundingChecker(
+        WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path]),
+        strategy="dual_triage",
+    )
+
+    assert list(checker.check(item)) == []
+    assert len(client.prompts) == 2
+    assert checker.last_decisions[0].scanner["triage_view_count"] == 2
+
+
 def test_evidence_bundle_never_reads_path_outside_allowed_root(tmp_path: Path):
     package = tmp_path / "package"
     package.mkdir()

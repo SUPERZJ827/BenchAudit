@@ -78,11 +78,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument(
         "--grounding-strategy",
-        choices=("item-triage", "isolated"),
+        choices=("item-triage", "dual-triage", "isolated"),
         default="item-triage",
         help=(
             "item-triage sends shared item context once and isolates only "
-            "routed candidates; isolated preserves the legacy per-rubric path"
+            "routed candidates; dual-triage unions two independent routers; "
+            "isolated preserves the legacy per-rubric path"
         ),
     )
     parser.add_argument(
@@ -511,17 +512,29 @@ def run_grounding(
             "strategy": strategy,
             "cost_structure": {
                 "rubrics": len(decisions),
-                "shared_triage_calls": int(
-                    strategy == "item-triage"
-                    and any(
-                        not row.scanner.get("objective_resolver_short_circuit")
+                "shared_triage_calls": max(
+                    (
+                        int(row.scanner.get("triage_view_count") or 0)
                         for row in decisions
-                    )
+                    ),
+                    default=0,
                 ),
                 "routed_candidates": sum(
                     int(row.scanner.get("triage_selected") is True)
                     for row in decisions
                 ),
+                "routed_candidates_by_view": {
+                    view: sum(
+                        int(
+                            view
+                            in (
+                                row.scanner.get("triage_selected_views") or []
+                            )
+                        )
+                        for row in decisions
+                    )
+                    for view in ("hidden_constraint", "support_challenge")
+                },
                 "isolated_verifier_calls": sum(
                     int(row.verifier is not None) for row in decisions
                 ),
