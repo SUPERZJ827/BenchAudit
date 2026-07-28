@@ -115,6 +115,18 @@ def score(args: argparse.Namespace) -> dict[str, Any]:
     # with a view reconstructs that view's final output without another API call.
     final_a = union_final & routed_a
     final_b = union_final & routed_b
+    support_only = routed_b - routed_a
+    support_only_outcomes = {
+        label: sum(
+            1
+            for item_id, row in new.items()
+            for decision in row.get("decisions", [])
+            if isinstance(decision, dict)
+            and (item_id, decision.get("rubric_index")) in support_only
+            and str(decision.get("label") or "").casefold() == label
+        )
+        for label in ("supported", "uncertain", "unsupported")
+    }
 
     metrics = {
         "legacy_final": binary_metrics(
@@ -205,6 +217,23 @@ def score(args: argparse.Namespace) -> dict[str, Any]:
             "union": len(routed_union),
             "hidden_only": len(routed_a - routed_b),
             "support_only": len(routed_b - routed_a),
+        },
+        "final_candidate_counts": {
+            "hidden_constraint": len(final_a),
+            "support_challenge": len(final_b),
+            "union": len(union_final),
+            "union_minus_hidden_constraint": len(union_final - final_a),
+            "union_minus_hidden_constraint_reviewed_positive": len(
+                (union_final - final_a) & reviewed_positive
+            ),
+            "union_minus_hidden_constraint_reviewed_negative": len(
+                (union_final - final_a)
+                & (reviewed_universe - reviewed_positive)
+            ),
+            "union_minus_hidden_constraint_unlabeled": len(
+                (union_final - final_a) - reviewed_universe
+            ),
+            "support_only_verifier_outcomes": support_only_outcomes,
         },
     }
 
@@ -297,6 +326,7 @@ def render(summary: dict[str, Any]) -> str:
     runtime = cost["runtime"]
     gates = summary["go_no_go"]
     candidate = routing["candidate_counts"]
+    final_candidate = routing["final_candidate_counts"]
     legacy_routing = routing["legacy_final"]
     reviewed_routing = routing["reviewed_positive"]
     gate_rows = "\n".join(
@@ -336,6 +366,17 @@ def render(summary: dict[str, Any]) -> str:
 
 - A∩B：{candidate['intersection']}；A-only：{candidate['hidden_only']}；
   B-only：{candidate['support_only']}。
+- B-only 的 verifier 结果：supported
+  {final_candidate['support_only_verifier_outcomes']['supported']}、
+  uncertain {final_candidate['support_only_verifier_outcomes']['uncertain']}、
+  unsupported {final_candidate['support_only_verifier_outcomes']['unsupported']}。
+- 并集相对 A 新增 {final_candidate['union_minus_hidden_constraint']} 条
+  review-only unsupported；其中 reviewed positive
+  {final_candidate['union_minus_hidden_constraint_reviewed_positive']}、
+  reviewed negative
+  {final_candidate['union_minus_hidden_constraint_reviewed_negative']}、
+  未标注 {final_candidate['union_minus_hidden_constraint_unlabeled']}。未标注项不能
+  直接记为真阳性或假阳性。
 
 ## 成本
 
@@ -347,6 +388,10 @@ def render(summary: dict[str, Any]) -> str:
 | 双视角并集（实际结构） | {cost['dual_union_logical_calls']} |
 
 - 相对旧 isolated 减少：**{cost['logical_call_reduction']:.1%}**
+- 仅 A 的反事实调用削减：
+  **{1 - cost['hidden_constraint_counterfactual_calls'] / cost['legacy_logical_calls']:.1%}**
+- 仅 B 的反事实调用削减：
+  **{1 - cost['support_challenge_counterfactual_calls'] / cost['legacy_logical_calls']:.1%}**
 - 实际 API attempts：{runtime['api_attempts']}
 - 实际 tokens：{runtime['total_tokens']:,}
 - API failures：{runtime['api_failures']}
