@@ -240,6 +240,122 @@ def test_batched_audit_downgrades_missing_or_duplicate_index(tmp_path: Path):
     assert all(row.scanner["operational_failure"] for row in decisions)
 
 
+def test_item_triage_uses_one_shared_scan_then_isolates_candidate_verification(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    rubrics = [
+        "Use the exact hidden title Alpha.",
+        "Use the exact hidden title Beta.",
+        "Use the exact hidden title Gamma.",
+    ]
+    item = make_item([source], rubrics[0])
+    item.raw["rubrics"] = rubrics
+    item.evaluator["rubrics"] = rubrics
+    item = declare_complete_inventory(item, [source.name])
+    client = FakeClient([
+        {
+            "candidates": [{
+                "rubric_index": 1,
+                "confidence": 0.91,
+                "requirement_type": "presentation",
+                "atomic_requirement": "exact hidden title Beta",
+                "reason": "The title is not visible to the agent.",
+                "evidence": [],
+                "missing_assumption": "A visible title requirement.",
+            }],
+        },
+        {
+            "label": "unsupported",
+            "confidence": 0.88,
+            "reason": "No visible source requires Beta.",
+            "decisive_evidence": {"source": "none", "quote": ""},
+        },
+    ])
+    auditor = WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path])
+
+    decisions = auditor.audit_item_two_stage(item)
+
+    assert len(client.prompts) == 2
+    triage_prompt = client.prompts[0][1]
+    verifier_prompt = client.prompts[1][1]
+    assert all(rubric in triage_prompt for rubric in rubrics)
+    assert rubrics[1] in verifier_prompt
+    assert rubrics[0] not in verifier_prompt
+    assert rubrics[2] not in verifier_prompt
+    assert [(row.rubric_index, row.label) for row in decisions] == [
+        (0, "uncertain"),
+        (1, "unsupported"),
+        (2, "uncertain"),
+    ]
+    assert decisions[0].scanner["triage_selected"] is False
+    assert decisions[1].scanner["triage_selected"] is True
+    assert decisions[1].verifier is not None
+
+
+def test_item_triage_schema_failure_marks_every_rubric_operational_unknown(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    rubrics = ["First requirement", "Second requirement"]
+    item = make_item([source], rubrics[0])
+    item.raw["rubrics"] = rubrics
+    item.evaluator["rubrics"] = rubrics
+    client = FakeClient([{"decisions": []}])
+    auditor = WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path])
+
+    decisions = auditor.audit_item_two_stage(item)
+
+    assert len(client.prompts) == 1
+    assert [row.label for row in decisions] == ["uncertain", "uncertain"]
+    assert all(row.scanner["operational_failure"] for row in decisions)
+
+
+def test_checker_can_use_item_triage_strategy(tmp_path: Path):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = declare_complete_inventory(make_item([source]), [source.name])
+    client = FakeClient([{"candidates": []}])
+    checker = WorkspaceRubricGroundingChecker(
+        WorkspaceRubricGroundingAuditor(client, allowed_roots=[tmp_path]),
+        strategy="item_triage",
+    )
+
+    assert list(checker.check(item)) == []
+    assert len(client.prompts) == 1
+    assert checker.last_decisions[0].scanner["routing_only"] is True
+
+
+def test_item_triage_candidate_cannot_emit_without_isolated_verifier(tmp_path: Path):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = declare_complete_inventory(make_item([source]), [source.name])
+    client = FakeClient([{
+        "candidates": [{
+            "rubric_index": 0,
+            "confidence": 0.99,
+            "requirement_type": "presentation",
+            "atomic_requirement": "hidden title",
+            "reason": "No visible title requirement.",
+            "evidence": [],
+            "missing_assumption": "A visible requirement.",
+        }],
+    }])
+    auditor = WorkspaceRubricGroundingAuditor(
+        client,
+        verify_unsupported=False,
+        allowed_roots=[tmp_path],
+    )
+
+    decision = auditor.audit_item_two_stage(item)[0]
+
+    assert decision.label == "uncertain"
+    assert decision.scanner["triage_selected"] is True
+    assert decision.verifier is None
+
+
 def test_evidence_bundle_never_reads_path_outside_allowed_root(tmp_path: Path):
     package = tmp_path / "package"
     package.mkdir()

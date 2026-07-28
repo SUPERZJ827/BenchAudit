@@ -281,6 +281,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Verify every unsupported Workspace rubric-grounding verdict (default: enabled)",
     )
     audit_parser.add_argument(
+        "--workspace-grounding-strategy",
+        choices=("item-triage", "isolated"),
+        default="item-triage",
+        help=(
+            "Scan shared Workspace context once per item and isolate only routed "
+            "rubrics (default), or use the legacy isolated per-rubric scanner"
+        ),
+    )
+    audit_parser.add_argument(
         "--workspace-runner-visibility-report",
         help=(
             "Validated transcript from audit_workspace_runner_visibility.py; "
@@ -1202,7 +1211,8 @@ def run_audit(args: argparse.Namespace) -> int:
                 client,
                 verify_unsupported=args.workspace_grounding_verifier,
                 allowed_roots=workspace_allowed_roots,
-            )
+            ),
+            strategy=args.workspace_grounding_strategy.replace("-", "_"),
         ))
     if args.value_recompute_audit:
         checkers.append(ValueRecomputeChecker(

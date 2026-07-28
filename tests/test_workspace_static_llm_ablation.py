@@ -8,6 +8,7 @@ from scripts.run_workspace_static_llm_ablation import (
     UNCERTAIN_REVIEW_LABEL,
     _assert_review_only,
     binary_metrics,
+    estimate_grounding_call_structure,
     materialize_input_view,
     parse_objective_output_reference,
     parse_objective_task_placeholder_reference,
@@ -71,6 +72,50 @@ def test_binary_metrics_do_not_count_predictions_outside_reference_universe():
         "positives": 2,
         "universe": 4,
     }
+
+
+def test_cost_structure_estimate_uses_shared_scan_and_candidate_only_verification():
+    rows = {
+        "item-1": {
+            "decisions": [
+                {
+                    "label": "unsupported",
+                    "scanner": {"label": "unsupported"},
+                    "verifier": {"label": "unsupported"},
+                },
+                {
+                    "label": "supported",
+                    "scanner": {"label": "unsupported"},
+                    "verifier": {"label": "supported"},
+                },
+                {
+                    "label": "supported",
+                    "scanner": {"label": "supported"},
+                    "verifier": None,
+                },
+            ],
+        },
+        "item-2": {
+            "decisions": [
+                {
+                    "label": "uncertain",
+                    "scanner": {"label": "uncertain"},
+                    "verifier": None,
+                },
+            ],
+        },
+    }
+
+    result = estimate_grounding_call_structure(rows)
+
+    assert result["legacy"]["logical_calls"] == 6
+    assert result["two_stage_conservative"]["shared_triage_calls"] == 2
+    assert result["two_stage_conservative"]["isolated_verifier_calls"] == 2
+    assert result["two_stage_conservative"]["logical_calls"] == 4
+    assert result["two_stage_conservative"]["relative_call_reduction"] == pytest.approx(
+        1 / 3,
+    )
+    assert result["two_stage_final_candidate_floor"]["logical_calls"] == 3
 
 
 def test_review_only_safety_assertion_rejects_confirmed():

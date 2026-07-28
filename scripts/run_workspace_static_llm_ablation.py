@@ -77,6 +77,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument(
+        "--grounding-strategy",
+        choices=("item-triage", "isolated"),
+        default="item-triage",
+        help=(
+            "item-triage sends shared item context once and isolates only "
+            "routed candidates; isolated preserves the legacy per-rubric path"
+        ),
+    )
+    parser.add_argument(
         "--stages",
         default="rules,taskcontract,grounding,score",
         help="Comma-separated subset of rules,taskcontract,grounding,score",
@@ -450,6 +459,7 @@ def run_grounding(
     cache_path: Path,
     rows_path: Path,
     workers: int,
+    strategy: str = "item-triage",
 ) -> dict[str, Any]:
     config = load_llm_config(str(config_path))
     config.cache_path = str(cache_path)
@@ -468,12 +478,38 @@ def run_grounding(
     def one(item: BenchmarkItem) -> dict[str, Any]:
         # A per-call wrapper keeps last_decisions local while sharing only the
         # thread-safe client and immutable auditor configuration.
-        checker = WorkspaceRubricGroundingChecker(auditor)
+        checker = WorkspaceRubricGroundingChecker(
+            auditor,
+            strategy=strategy.replace("-", "_"),
+        )
         findings = list(checker.check(item))
         _assert_review_only(findings)
+        decisions = checker.last_decisions
         return {
             "item_id": item.item_id,
-            "decisions": [row.to_dict() for row in checker.last_decisions],
+            "strategy": strategy,
+            "cost_structure": {
+                "rubrics": len(decisions),
+                "shared_triage_calls": int(
+                    strategy == "item-triage"
+                    and any(
+                        not row.scanner.get("objective_resolver_short_circuit")
+                        for row in decisions
+                    )
+                ),
+                "routed_candidates": sum(
+                    int(row.scanner.get("triage_selected") is True)
+                    for row in decisions
+                ),
+                "isolated_verifier_calls": sum(
+                    int(row.verifier is not None) for row in decisions
+                ),
+                "objective_short_circuits": sum(
+                    int(row.scanner.get("objective_resolver_short_circuit") is True)
+                    for row in decisions
+                ),
+            },
+            "decisions": [row.to_dict() for row in decisions],
             "findings": [violation_dict(row) for row in findings],
         }
 
@@ -496,6 +532,7 @@ def run_grounding(
         "wall_seconds": time.monotonic() - started,
         "resumed_items": len(items) - len(pending),
         "new_items": len(pending),
+        "strategy": strategy,
         "llm": client.run_stats(),
     }
 
@@ -541,6 +578,92 @@ def _all_findings(records: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
         for finding in row.get("findings", [])
         if isinstance(finding, dict)
     ]
+
+
+def estimate_grounding_call_structure(
+    grounding_rows: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Counterfactually replay call routing while freezing semantic decisions.
+
+    The conservative two-stage estimate routes every rubric that the legacy
+    isolated scanner called unsupported.  It therefore preserves all legacy
+    final candidates by construction and measures orchestration savings only;
+    it is not a claim about the recall of a newly sampled triage model.
+    """
+
+    rubric_count = 0
+    legacy_verifier_calls = 0
+    scanner_candidates = 0
+    final_candidates = 0
+    shared_triage_calls = 0
+    objective_short_circuits = 0
+    for row in grounding_rows.values():
+        unresolved_in_item = 0
+        for decision in row.get("decisions", []):
+            if not isinstance(decision, dict):
+                continue
+            rubric_count += 1
+            scanner = (
+                decision.get("scanner")
+                if isinstance(decision.get("scanner"), dict)
+                else {}
+            )
+            certificate = (
+                decision.get("citation_validation", {}).get(
+                    "objective_certificate", {}
+                )
+                if isinstance(decision.get("citation_validation"), dict)
+                else {}
+            )
+            objective = bool(
+                scanner.get("objective_resolver_short_circuit")
+                or (
+                    isinstance(certificate, dict)
+                    and certificate.get("eligible")
+                )
+            )
+            if objective:
+                objective_short_circuits += 1
+                continue
+            unresolved_in_item += 1
+            scanner_candidates += int(
+                str(scanner.get("label") or "").casefold() == "unsupported"
+            )
+            final_candidates += int(
+                str(decision.get("label") or "").casefold() == "unsupported"
+            )
+            legacy_verifier_calls += int(decision.get("verifier") is not None)
+        shared_triage_calls += int(unresolved_in_item > 0)
+
+    legacy_calls = rubric_count + legacy_verifier_calls
+
+    def projected(verifier_calls: int) -> dict[str, Any]:
+        calls = shared_triage_calls + verifier_calls
+        reduction = 1.0 - calls / legacy_calls if legacy_calls else 0.0
+        return {
+            "shared_triage_calls": shared_triage_calls,
+            "isolated_verifier_calls": verifier_calls,
+            "logical_calls": calls,
+            "relative_call_reduction": reduction,
+        }
+
+    return {
+        "policy": (
+            "Semantic outputs are frozen from the legacy run. Conservative "
+            "routing selects every legacy scanner-unsupported rubric; the "
+            "final-candidate floor is not an achieved router result."
+        ),
+        "items": len(grounding_rows),
+        "rubrics": rubric_count,
+        "objective_short_circuits": objective_short_circuits,
+        "legacy": {
+            "isolated_scanner_calls": rubric_count,
+            "isolated_verifier_calls": legacy_verifier_calls,
+            "logical_calls": legacy_calls,
+        },
+        "two_stage_conservative": projected(scanner_candidates),
+        "two_stage_final_candidate_floor": projected(final_candidates),
+    }
 
 
 def score_experiment(
@@ -1116,6 +1239,7 @@ def main() -> None:
         "items": len(items),
         "rubrics": sum(len(workspace_rubrics(item)) for item in items),
         "workers": args.workers,
+        "grounding_strategy": args.grounding_strategy,
         "full388": len(items) == 388 and args.limit is None,
         "artifact_view": artifact_view_receipt,
     }
@@ -1132,7 +1256,15 @@ def main() -> None:
     )
     rules_path = out_dir / "rules_only.json"
     task_rows_path = out_dir / "task_contract_items.jsonl"
-    grounding_rows_path = out_dir / "grounding_items.jsonl"
+    grounding_key = args.grounding_strategy.replace("-", "_")
+    grounding_rows_path = out_dir / f"grounding_{grounding_key}_items.jsonl"
+    legacy_grounding_rows_path = out_dir / "grounding_items.jsonl"
+    if (
+        args.grounding_strategy == "isolated"
+        and not grounding_rows_path.exists()
+        and legacy_grounding_rows_path.exists()
+    ):
+        grounding_rows_path = legacy_grounding_rows_path
 
     if "rules" in stages:
         rules = run_rules(items, roots)
@@ -1157,13 +1289,22 @@ def main() -> None:
         )
 
     if "grounding" in stages:
+        grounding_cache_path = out_dir / f"grounding_{grounding_key}_cache.jsonl"
+        legacy_grounding_cache_path = out_dir / "grounding_cache.jsonl"
+        if (
+            args.grounding_strategy == "isolated"
+            and not grounding_cache_path.exists()
+            and legacy_grounding_cache_path.exists()
+        ):
+            grounding_cache_path = legacy_grounding_cache_path
         runtime["grounding"] = run_grounding(
             items,
             roots,
             config_path,
-            out_dir / "grounding_cache.jsonl",
+            grounding_cache_path,
             grounding_rows_path,
             args.workers,
+            args.grounding_strategy,
         )
         runtime_path.write_text(
             json.dumps(runtime, ensure_ascii=False, indent=2, sort_keys=True),
