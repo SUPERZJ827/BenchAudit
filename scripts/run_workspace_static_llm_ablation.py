@@ -44,6 +44,8 @@ from benchcore.task_contract import LLMTaskContractAuditor
 from benchcore.workspace_grounding import (
     WorkspaceRubricGroundingAuditor,
     WorkspaceRubricGroundingChecker,
+    build_workspace_evidence_bundle,
+    resolve_objective_grounding_certificate,
     workspace_rubrics,
 )
 from benchcore.workspace_invariants import collect_workspace_invariant_issues
@@ -294,6 +296,39 @@ def run_rules(
                 "severity": issue.severity,
                 "review_only": issue.review_only,
             })
+        # The assisted auditor applies this deterministic resolver before
+        # emitting its final rubric decision.  Run the identical resolver in
+        # the rules arm so its contribution is not misattributed to DeepSeek.
+        bundle = build_workspace_evidence_bundle(
+            item,
+            allowed_roots=allowed_roots,
+        )
+        for rubric_index, rubric in enumerate(workspace_rubrics(item)):
+            certificate = resolve_objective_grounding_certificate(
+                item,
+                bundle,
+                rubric,
+            )
+            if (
+                certificate.get("eligible")
+                and certificate.get("label") == "unsupported"
+            ):
+                invariant_rows.append({
+                    "item_id": item.item_id,
+                    "defect_type": "task_rubric_mismatch",
+                    "message": str(certificate.get("reason") or ""),
+                    "evidence": {
+                        "rubric_index": rubric_index,
+                        "rubric": rubric,
+                        "evidence_level": (
+                            "objective_structured_grounding_certificate"
+                        ),
+                        "objective_certificate": certificate,
+                    },
+                    "severity": "review",
+                    "review_only": True,
+                    "source": "deterministic_objective_grounding_resolver",
+                })
     return {
         "schema_version": "workspace-static-rules-v1",
         "output_filename_findings": output_rows,
@@ -619,11 +654,15 @@ def score_experiment(
                 value == UNCERTAIN_REVIEW_LABEL for value in reviewed.values()
             ),
             "objective_output_positive_items": len(output_positive_items),
+            "output_reference_has_exhaustive_negative_labels": False,
             "human_gold": False,
             "warning": (
                 "The rubric reference is a prior two-stage LLM evidence review, "
                 "not exhaustive human gold. Rubric P/R/F1 are conditional on "
-                "the explicitly reviewed positive/negative subset."
+                "the explicitly reviewed positive/negative subset. The output "
+                "reference supplies known positives from a deterministic scan, "
+                "not exhaustive human clean labels; output precision/F1 are "
+                "strict reference-alignment metrics."
             ),
         },
         "output_filename": {
@@ -723,12 +762,15 @@ def render_report(
 Rubric 指标只是在既有证据化复核子集上的条件指标，不是完整人工真值：
 现有文件明确记录为双阶段 LLM 复核。未标注 rubric 不被当成 clean。
 
-## 1. 输出文件名：客观 item-level 参考
+## 1. 输出文件名：全库确定性扫描参考
 
-参考正类是全库确定性复核得到的
+已知正类是全库确定性复核得到的
 `task_vs_contract_filename`，共
-{summary['reference']['objective_output_positive_items']} 个 item；负类为其余
-full388 item。
+{summary['reference']['objective_output_positive_items']} 个 item。下表为便于
+配对而采用严格 reference convention：其余 full388 item 暂按未命中参考
+处理。由于新的语义抽取可能发现旧扫描规则覆盖不到的文件名冲突，FP
+在这里表示“未进入旧参考集”，**不等价于已经人工证伪**；因此主要看
+已知正类召回和两臂差异，Precision/F1 只作 reference-alignment 指标。
 
 | 系统 | TP | FP | FN | Precision | Recall | F1 |
 |---|---:|---:|---:|---:|---:|---:|
@@ -801,7 +843,9 @@ Provenance：
 
 ## 6. 解释边界
 
-1. 输出文件名指标有全量、确定性的客观参考，可以按标准 P/R/F1 解读。
+1. 输出文件名的 12 个参考正类来自全库确定性扫描，但其余 item 没有逐条
+   人工 clean 标签；因此已知正类 Recall 可直接解读，Precision/F1 只能
+   解读为对该窄参考集的 alignment，新增项需要复核。
 2. Rubric grounding 的参考集由旧系统候选触发并由双阶段 LLM 复核，
    存在 selection bias；指标只回答“在已明确复核的候选上，哪一臂覆盖
    更多可信问题且少命中可信非问题”。
