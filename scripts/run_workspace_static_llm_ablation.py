@@ -78,13 +78,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument(
         "--grounding-strategy",
-        choices=("item-triage", "item-exact-triage", "dual-triage", "isolated"),
+        choices=(
+            "item-triage",
+            "item-exact-triage",
+            "item-structured-triage",
+            "dual-triage",
+            "isolated",
+        ),
         default="item-triage",
         help=(
             "item-triage sends shared item context once and isolates only "
             "routed candidates; item-exact-triage adds a zero-API "
-            "exact-constraint router; dual-triage unions two LLM routers; "
+            "exact-constraint router; item-structured-triage uses the "
+            "reason-coded A-prime router; dual-triage unions two LLM routers; "
             "isolated preserves the legacy per-rubric path"
+        ),
+    )
+    parser.add_argument(
+        "--structured-min-confidence",
+        type=float,
+        default=0.5,
+        help=(
+            "Local route threshold for item-structured-triage. Raw structured "
+            "decisions are preserved so frozen thresholds can be replayed "
+            "offline without another API call."
         ),
     )
     parser.add_argument(
@@ -494,6 +511,7 @@ def run_grounding(
     strategy: str = "item-triage",
     *,
     verify_unsupported: bool = True,
+    structured_min_confidence: float = 0.5,
 ) -> dict[str, Any]:
     config = load_llm_config(str(config_path))
     config.cache_path = str(cache_path)
@@ -515,6 +533,7 @@ def run_grounding(
         checker = WorkspaceRubricGroundingChecker(
             auditor,
             strategy=strategy.replace("-", "_"),
+            structured_min_confidence=structured_min_confidence,
         )
         findings = list(checker.check(item))
         _assert_review_only(findings)
@@ -549,6 +568,7 @@ def run_grounding(
                         "hidden_constraint",
                         "support_challenge",
                         "exact_constraint",
+                        "structured_a_prime",
                     )
                 },
                 "isolated_verifier_calls": sum(
@@ -584,6 +604,7 @@ def run_grounding(
         "new_items": len(pending),
         "strategy": strategy,
         "verify_unsupported": verify_unsupported,
+        "structured_min_confidence": structured_min_confidence,
         "llm": client.run_stats(),
     }
 
@@ -1252,10 +1273,13 @@ def main() -> None:
         raise ValueError(f"unknown stages: {sorted(unknown)}")
     if args.workers < 1:
         raise ValueError("--workers must be positive")
+    if not 0.0 <= args.structured_min_confidence <= 1.0:
+        raise ValueError("--structured-min-confidence must be within [0, 1]")
     if (
         args.grounding_routing_only
         and args.grounding_strategy not in {
             "item-triage", "item-exact-triage", "dual-triage",
+            "item-structured-triage",
         }
     ):
         raise ValueError(
@@ -1318,6 +1342,7 @@ def main() -> None:
         "workers": args.workers,
         "grounding_strategy": args.grounding_strategy,
         "grounding_routing_only": args.grounding_routing_only,
+        "structured_min_confidence": args.structured_min_confidence,
         "item_ids_manifest": (
             str(item_ids_manifest) if item_ids_manifest is not None else None
         ),
@@ -1392,6 +1417,7 @@ def main() -> None:
             args.workers,
             args.grounding_strategy,
             verify_unsupported=not args.grounding_routing_only,
+            structured_min_confidence=args.structured_min_confidence,
         )
         runtime_path.write_text(
             json.dumps(runtime, ensure_ascii=False, indent=2, sort_keys=True),
