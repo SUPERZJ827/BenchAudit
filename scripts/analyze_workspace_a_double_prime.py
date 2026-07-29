@@ -289,16 +289,20 @@ def collect_residue_observations(
 def _reviewed_metrics(
     candidates: set[Key],
     reviewed_labels: Mapping[Key, str] | None,
+    expected_items: set[str],
 ) -> dict[str, Any] | None:
     if reviewed_labels is None:
         return None
     universe = {
         key for key, value in reviewed_labels.items()
-        if value in {POSITIVE_REVIEW_LABEL, NEGATIVE_REVIEW_LABEL}
+        if (
+            key[0] in expected_items
+            and value in {POSITIVE_REVIEW_LABEL, NEGATIVE_REVIEW_LABEL}
+        )
     }
     positives = {
         key for key, value in reviewed_labels.items()
-        if value == POSITIVE_REVIEW_LABEL
+        if key[0] in expected_items and value == POSITIVE_REVIEW_LABEL
     }
     return binary_metrics(candidates, positives, universe)
 
@@ -362,6 +366,7 @@ def analyze(
         int(not row.review_only or row.confirmation_eligible)
         for row in observations
     )
+    expected_items = set(items)
 
     def metrics(rule_ids: tuple[str, ...]) -> dict[str, Any]:
         rule_union = set().union(*(rule_sets[rule_id] for rule_id in rule_ids))
@@ -383,7 +388,9 @@ def analyze(
             "marginal_candidates_per_recovered_positive": (
                 len(additions) / len(recovered) if recovered else None
             ),
-            "reviewed": _reviewed_metrics(candidates, reviewed_labels),
+            "reviewed": _reviewed_metrics(
+                candidates, reviewed_labels, expected_items,
+            ),
             "review_ceiling_escape": review_ceiling_escape,
             "operational_unknown": len(operational_unknown),
             "pass": (
