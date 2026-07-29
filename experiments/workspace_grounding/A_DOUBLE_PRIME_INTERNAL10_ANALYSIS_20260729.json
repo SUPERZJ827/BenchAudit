@@ -1,0 +1,142 @@
+{
+  "candidate_rate": 0.45588235294117646,
+  "counts": {
+    "a_prime_candidates": 88,
+    "candidates": 93,
+    "family_hits": 3,
+    "family_positives": 7,
+    "incremental_candidates_vs_a_prime": 5,
+    "old_a_candidates": 118,
+    "rubrics": 204,
+    "rule_union_triggers": 5,
+    "tasks": 10
+  },
+  "decision": "FAIL",
+  "decomposition": {
+    "action_counts": {
+      "do_not_route": 116,
+      "route": 88
+    },
+    "evidence_source_counts": {
+      "input": 84,
+      "input_inventory": 37,
+      "intrinsic": 12,
+      "none": 31,
+      "output_contract": 6,
+      "task": 34
+    },
+    "legacy_reason_observability": "unavailable: the original A schema stored indices only",
+    "reason_counts_all": {
+      "artifact_satisfaction_only": 2,
+      "general_quality": 19,
+      "input_supported": 59,
+      "intrinsic_validity": 3,
+      "output_contract_supported": 5,
+      "task_rubric_contradiction": 1,
+      "task_supported": 28,
+      "unsupported_exact_constraint": 86,
+      "unsupported_prescriptive_content": 1
+    }
+  },
+  "family_recall": 0.42857142857142855,
+  "frozen_input_sha256": {
+    "artifact:WorkspaceBench_full388_Codex证据化逐条标注_20260720.md": "fa8fbef8497ac2f8f39b21975e28dd88005a5d2541db07cbe162fb04558978cf",
+    "artifact:datasets/workspacebench/full.jsonl": "2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe",
+    "artifact:reports/workspace_grounding_dual_triage_holdout30_20260728/grounding_dual_triage_items.jsonl": "2562ca10533e8f1a0a87080eed306fcf19389039ed7172ac7f04c1c197f9a50e",
+    "artifact:reports/workspace_p0_blind_adjudication_20260728/GEMINI_3_1_PRO_INDEPENDENT_ANNOTATIONS.jsonl": "b091fae11b9ecbd2bffc826c4cf60615e15c39357b700abdf3c9510daa3b8e62",
+    "artifact:reports/workspace_p0_blind_adjudication_20260728/SEALED_MAPPING.json": "18232ed0e0e65e9215dd51c857c34b560512d59be51d74b89b1c3efad4619ee9",
+    "repo:benchcore/workspace_constraint_residue.py": "aa0f09461a0414466259d9f37e5512c9226c5918578f5b167159dc84411c0b34",
+    "repo:benchcore/workspace_grounding.py": "0f64ce1d7050b16f0596c2e4cae2772b380b6ebb6337dd983d1b4c9fa126592a",
+    "repo:configs/llm_deepseek_workspace_a_prime_internal_validation.json": "f6542eb4dd7c326f22c5fe109575258b8ba48f57a75493a66ddc0861948bad86",
+    "repo:experiments/workspace_grounding/A_DOUBLE_PRIME_INTERNAL10_PROTOCOL_20260729.md": "5d9bf989dd560eeedc072329486124fb5537864219f3c62ee2982a33fc2f4e85",
+    "repo:experiments/workspace_grounding/A_PRIME_INTERNAL_VALIDATION_10_20260729.json": "8af94ea6a23663654bec21e115928f6a7d5b30b86d1912e6992e9a5d24325515",
+    "repo:scripts/run_workspace_static_llm_ablation.py": "e941aa57953a693d94d9be12844a66fa45c6aa6bc753dc01ca17cc972b3566e2"
+  },
+  "gate": {
+    "candidate_count_at_most_118": true,
+    "candidate_rate_at_most_118_of_204": true,
+    "family_hits_at_least_6_of_7": false,
+    "fixed_working_point": true,
+    "logical_calls_at_most_128": true,
+    "operational_unknown_zero": true,
+    "review_ceiling_escape_zero": true
+  },
+  "h1": {
+    "diagnostics": 92,
+    "status_counts": {
+      "invalid": 9,
+      "unknown": 53,
+      "valid": 30
+    }
+  },
+  "logical_call_reduction_vs_old_a": 0.1953125,
+  "logical_calls": 103,
+  "old_a_logical_calls": 128,
+  "old_a_reviewed": {
+    "f1": 0.7368421052631577,
+    "fn": 2,
+    "fp": 3,
+    "positives": 9,
+    "precision": 0.7,
+    "predicted": 10,
+    "recall": 0.7777777777777778,
+    "tn": 2,
+    "tp": 7,
+    "universe": 14
+  },
+  "operational_unknown_tasks": [],
+  "protocol": "workspace-grounding-a-double-prime-internal10-v1-20260729",
+  "raw_output_sha256": {
+    "grounding_item_structured_triage_cache.jsonl": "eda228758f22da1fa508dad07a655d3bdfa483221ed53f5e65ea8b3f80778eef",
+    "grounding_item_structured_triage_items.jsonl": "cab777f36735f38f182d7ace397e47fd276c1d2a729a6dfb38e5e88298837042",
+    "provenance.json": "42bfdf12009441a791222c9dc80cdef84d95002749f2255c36be622417325fd2",
+    "runtime.json": "8a1e3b50c763d9e0eaa134a239eefa612708740015291dc83359fd260ec58885"
+  },
+  "review_ceiling_escape": 0,
+  "reviewed": {
+    "f1": 0.7058823529411765,
+    "fn": 3,
+    "fp": 2,
+    "positives": 9,
+    "precision": 0.75,
+    "predicted": 8,
+    "recall": 0.6666666666666666,
+    "tn": 3,
+    "tp": 6,
+    "universe": 14
+  },
+  "rule_target_hits": {
+    "R2c": 0,
+    "R2d": 0
+  },
+  "rule_trigger_counts": {
+    "R2c": 0,
+    "R2d": 5
+  },
+  "runtime": {
+    "api_attempts": 10,
+    "api_failures": 0,
+    "api_successes": 10,
+    "checks": {
+      "api_attempts_at_most_10": true,
+      "api_failures_zero": true,
+      "api_successes_10": true,
+      "dataset_hash_matches": true,
+      "manifest_hash_matches": true,
+      "raw_threshold_preserved": true,
+      "routing_only": true,
+      "runtime_present": true,
+      "strategy_matches": true,
+      "total_tokens_at_most_200000": true,
+      "verifier_disabled": true,
+      "workers_at_most_4": true
+    },
+    "completion_tokens": 19167,
+    "prompt_tokens": 74058,
+    "total_tokens": 93225
+  },
+  "selected_rule_ids": [
+    "R2c",
+    "R2d"
+  ]
+}
