@@ -44,7 +44,8 @@ R2a–R2d 四个规则族是在研究者已经查看 A′ 的 7 条已知漏检�
 - A″ 是否可以产生 confirmed finding；
 - 新 schema 或第二次 LLM 调用是否有价值。
 
-本阶段 **0 API 调用**。只允许读取冻结的 A′ calibration 产物。
+本阶段 **0 API 调用**。只允许读取冻结的 A′ calibration 产物，以及生成
+这些产物时使用、按 SHA256 冻结且不含评审标签的 WorkspaceBench 源数据。
 
 ---
 
@@ -77,6 +78,11 @@ R2a–R2d 四个规则族是在研究者已经查看 A′ 的 7 条已知漏检�
 | `reports/workspace_grounding_a_prime_calibration_20260729/grounding_item_structured_triage_items.jsonl` | `689fad58c3947109b3547561681d3fa258ecbc7ded9ec94cfb7751d2ec061c1a` |
 | `reports/workspace_grounding_a_prime_calibration_20260729/grounding_item_structured_triage_cache.jsonl` | `53740726724c1a58e200245a3795ca243c2573ec49aa1ce838b1f7d7b39fc6e4` |
 | `reports/workspace_grounding_a_prime_calibration_20260729/analysis.json` | `fee5a065173851bb5597af5994e3beee9408bf40aaa0b9d62854d617d5434147` |
+| `datasets/workspacebench/full.jsonl` | `2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe` |
+
+源数据只用于恢复 task、output contract 和 input inventory 的可见文本，
+以机械校验 A′ evidence quote 及 constraint residue；不得读取其中不存在的
+缺陷标签，也不得用 calibration manifest 之外的行调规则。
 
 ### 2.3 禁止读取
 
@@ -255,7 +261,8 @@ task/output_contract 直接支持相同数量或封闭集合
     → 被覆盖原子 derivable_specific，不路由；未覆盖残差继续判断
 task/contract 明确委托“覆盖 input 中全部/每个对象”，且 input 可完整枚举
     → delegated_derivation，不路由
-4a. 数量或封闭集合约束在 task/output_contract/input 中均无对应支持
+4a. task/output_contract/input 中不存在支持该约束的量值或闭集；
+    包括存在相同对象但量值/闭集与 rubric 要求不一致
     → unsupported quantity candidate
        reason=unsupported_quantity_without_source
 4b. 仅 input 中存在 N 个对象或封闭集合，task/output_contract 无覆盖义务
@@ -272,6 +279,9 @@ task/contract 明确委托“覆盖 input 中全部/每个对象”，且 input 
 - 漏掉“任何规范性来源都没有，rubric 自行要求恰好七项”的凭空数量；
 - 让部分 derivation certificate 为未覆盖的其他约束免责；
 - 在 supported 与 unsupported 之间留下依赖分支顺序的空隙。
+
+4a 优先处理可机械观察的量值/闭集冲突，不因 LLM 将该行自报为
+`unrelated_or_conflicting` 而弃权。
 
 ---
 
@@ -626,7 +636,8 @@ Reviewed F1 可以报告，但不参与单独放行。
 9. R2d 具名结构、通用质量和 task 明确授权反例；
 10. observation 永远 review-only；
 11. candidate ID 和输出排序确定性；
-12. `--artifact-root` 缺失、文件缺失或输入哈希不匹配均 fail-closed；
+12. `--artifact-root` 缺失、源数据/产物缺失或任一输入哈希不匹配均
+    fail-closed；
 13. 旧 A 缺 reason schema 时不伪造 breakdown；
 14. 15 个组合枚举及 tie-break 确定性。
 
