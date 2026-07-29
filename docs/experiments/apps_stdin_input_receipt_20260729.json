@@ -1,0 +1,20 @@
+{
+  "dataset_repository": "codeparrot/apps",
+  "dataset_revision": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+  "files": {
+    "README.md": {
+      "sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846"
+    },
+    "apps.py": {
+      "sha256": "e2483d6878a8c44c76721e77cc3f978320e135af152a7f83be4f3e713df1bf37"
+    },
+    "test.jsonl": {
+      "blob_id": "ce62a3228ba3463b6fffcb7079d586e1a4c75f8d",
+      "bytes": 1292436853,
+      "lines": 5000,
+      "sha256": "5b003a65ac40feb47dd5eaec267a767a6fc435bdcfa68ff715fe869f948e760c"
+    }
+  },
+  "receipt_schema": "benchaudit-apps-stdin-input-receipt-v1",
+  "task_outcomes_inspected_before_receipt": false
+}
