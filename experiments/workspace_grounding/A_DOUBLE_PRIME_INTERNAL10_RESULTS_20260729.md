@@ -1,5 +1,12 @@
 # Workspace grounding A″：internal10 冻结结果
 
+> **2026-07-30 口径更正：**本报告的 7 条 family positive 使用了 P0
+> 盲审包。该包的抽样部分依赖旧路由器的漏检/B-only 案例，不适合估计旧 A
+> 的 recall。原始预注册裁决仍为 FAIL，但跨方法比较应使用此前已存在的 P1
+> family reference：旧 A、A′、A″ 分别为 **6/7、4/7、4/7**。详见
+> `A_DOUBLE_PRIME_INTERNAL10_P1_CORRECTION_20260730.md`。下文保留原始
+> P0 协议数字，作为不可改写的历史记录，不再作为公平基线。
+
 协议：`workspace-grounding-a-double-prime-internal10-v1-20260729`
 
 裁决：**FAIL。停止 A″ 路线，不创建第四份 holdout。**
