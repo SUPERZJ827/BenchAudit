@@ -369,16 +369,18 @@ evaluation to an APPS stdin/stdout adapter.  The frozen pilot constructed a
 two-case weak prefix and compared it with each task's complete official test
 list.
 
-| Requested | Valid | Candidates | Completed pairs | Confirmed gaps | Affected tasks | Witness yield |
-|---:|---:|---:|---:|---:|---:|---:|
-| 30 | 26 | 140 | 135 | **7** | **4** | **5.19%** |
+| Requested | Valid | Candidates | Completed pairs | Constructed-prefix gaps | Affected tasks | All-pair yield | Conditional yield after weak pass |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 30 | 26 | 140 | 135 | **7** | **4** | **5.19%** (7/135) | **21.21%** (7/33) |
 
 Two complete repetitions had the same full-result SHA-256 and stable-summary
 SHA-256.  Canonical, identical-outcome, timeout/error, swapped-direction,
 missing-attestation, and corrupt-attestation controls all produced zero
 confirmed findings.  The run made zero LLM/API calls.
 
-This is evidence for **adapter and proof-contract portability**, not evidence
+The tracked candidate-level artifact permits independent recomputation of both
+denominators and every typed weak/strong outcome.  This is evidence for
+**adapter and proof-contract portability**, not evidence
 that APPS's official full evaluator is defective: the weak two-case prefix was
 constructed for this experiment.  Protocol, input receipt, witnesses, and
 limitations are in

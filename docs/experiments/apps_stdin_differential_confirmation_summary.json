@@ -37,6 +37,10 @@
     "requested_tasks": 30,
     "timeout_pairs": 4,
     "valid_tasks": 26,
+    "weak_pass_pairs": 33,
+    "weak_pass_strong_fail_pairs": 7,
+    "weak_pass_with_completed_strong_pairs": 33,
+    "conditional_gap_yield": 0.21212121212121213,
     "witness_yield": 0.05185185185185185
   },
   "protocol": {
@@ -52,15 +56,21 @@
     "workers": 6
   },
   "repetitions": {
-    "raw_result_sha256_run_1": "28709312b5b0ad190641e587504b49f4ea04c48c4b69ed1e5ce2600f4e40e5a9",
-    "raw_result_sha256_run_2": "28709312b5b0ad190641e587504b49f4ea04c48c4b69ed1e5ce2600f4e40e5a9",
-    "stable_summary_sha256_run_1": "153411da35dd1cc25c46b0b5a82972fa226d690f39985dd950d056c022ae4330",
-    "stable_summary_sha256_run_2": "153411da35dd1cc25c46b0b5a82972fa226d690f39985dd950d056c022ae4330"
+    "detailed_raw_result_sha256_run_1": "646f6774a5a25d118c99a5f3f82b9dea64704a29689dfa31ab62f4ae03f4080b",
+    "detailed_raw_result_sha256_run_2": "646f6774a5a25d118c99a5f3f82b9dea64704a29689dfa31ab62f4ae03f4080b",
+    "detailed_raw_result_sha256_tracked_copy": "646f6774a5a25d118c99a5f3f82b9dea64704a29689dfa31ab62f4ae03f4080b",
+    "detailed_stable_summary_sha256_run_1": "4d3a384e05fb7eafa9cb35aab5b5e442dfcd22c99299a70ea7f318189f0dc4f4",
+    "detailed_stable_summary_sha256_run_2": "4d3a384e05fb7eafa9cb35aab5b5e442dfcd22c99299a70ea7f318189f0dc4f4",
+    "original_raw_result_sha256_run_1": "28709312b5b0ad190641e587504b49f4ea04c48c4b69ed1e5ce2600f4e40e5a9",
+    "original_raw_result_sha256_run_2": "28709312b5b0ad190641e587504b49f4ea04c48c4b69ed1e5ce2600f4e40e5a9",
+    "original_stable_summary_sha256_run_1": "153411da35dd1cc25c46b0b5a82972fa226d690f39985dd950d056c022ae4330",
+    "original_stable_summary_sha256_run_2": "153411da35dd1cc25c46b0b5a82972fa226d690f39985dd950d056c022ae4330"
   },
   "schema_version": "apps-stdin-differential-confirmation-summary-v1",
   "tests": {
     "full_repository_before_run": "772 passed",
-    "script_specific_after_run": "14 passed",
+    "full_repository_after_reproducibility_bundle": "776 passed",
+    "script_specific_after_detailed_replay": "16 passed",
     "safety_claim_registry": "valid"
   },
   "witnesses": [

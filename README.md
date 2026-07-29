@@ -378,7 +378,7 @@ The full tables, definitions, and limitations are in [RESULTS.md](RESULTS.md).
 | Workspace identical-output control | 6/11 independent re-evaluations changed by more than 3 pp | Fine-grained single-judge deltas require a noise control |
 | Terminal enriched paired subset | Deterministic F1 0.741; union F1 0.786 | The preregistered paired-method gate still failed; the method was not promoted |
 | EvalPlus structural-memory LOBO | Witness yield: random-order mean 3.54%→memory 3.94% (MBPP→HumanEval); 7.19%→8.40% (HumanEval→MBPP) | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
-| APPS stdin/stdout MR-4 transfer | 7 confirmed relative gaps across 4/26 valid tasks; witness yield 5.19%; all controls 0 | The generic confirmation contract transferred across execution protocols; the constructed weak prefix is not an APPS evaluator-defect claim |
+| APPS stdin/stdout MR-4 transfer | 7 confirmed gaps vs. a constructed prefix across 4/26 valid tasks; all-pair yield 5.19%, conditional yield 21.21%; all controls 0 | The generic confirmation contract transferred across execution protocols; the constructed weak prefix is not an APPS evaluator-defect claim |
 
 The EvalPlus result is deliberately reported against 500 random family
 orders, rather than only against one fixed generic order that happened to
