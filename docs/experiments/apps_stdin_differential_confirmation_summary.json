@@ -1,0 +1,99 @@
+{
+  "claim": "the generic MR-4 proof contract transfers to a stdin/stdout harness and confirms relative coverage gaps between a frozen two-case prefix and the complete APPS test list",
+  "claim_scope": "adapter and proof-contract transfer only; the weak oracle was constructed for this experiment and is not the official APPS evaluator",
+  "controls": {
+    "canonical_finding_count": 0,
+    "corrupt_attestation_confirmed_count": 0,
+    "identical_outcome_confirmed_count": 0,
+    "swapped_direction_confirmed_count": 0,
+    "timeout_error_confirmed_count": 0,
+    "unattested_confirmed_count": 0
+  },
+  "date": "2026-07-29",
+  "input": {
+    "dataset_bytes": 1292436853,
+    "dataset_repository": "codeparrot/apps",
+    "dataset_revision": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "dataset_sha256": "5b003a65ac40feb47dd5eaec267a767a6fc435bdcfa68ff715fe869f948e760c",
+    "rows_scanned": 5000,
+    "statically_eligible_rows": 1343
+  },
+  "metrics": {
+    "affected_task_rate": 0.15384615384615385,
+    "affected_tasks": 4,
+    "canonical_invalid_tasks": 3,
+    "completed_pairs": 135,
+    "confirmed_by_family": {
+      "arithmetic_operator": 1,
+      "boolean_operator": 2,
+      "condition_negation": 3,
+      "numeric_constant": 1
+    },
+    "confirmed_relative_coverage_gaps": 7,
+    "generated_candidates": 140,
+    "indeterminate_pairs": 5,
+    "no_candidate_tasks": 1,
+    "operational_failed_tasks": 0,
+    "requested_tasks": 30,
+    "timeout_pairs": 4,
+    "valid_tasks": 26,
+    "witness_yield": 0.05185185185185185
+  },
+  "protocol": {
+    "comparator_version": "benchaudit-apps-stdin-comparator-v1",
+    "container_image": "sha256:9e30f4122a069ab7f626cdd70a3c11ddbbf44a9bd0cc4cc834136a2a2f08e995",
+    "execution_driver_sha256": "b48cd74eba936838fa6a824cffa98fa34c44b544acfb1d080fd9168456774edc",
+    "llm_calls": 0,
+    "operational_retries": 1,
+    "per_case_timeout_seconds": 2.0,
+    "per_family": 1,
+    "schema_version": "apps-stdin-differential-confirmation-v1",
+    "task_timeout_seconds": 120.0,
+    "workers": 6
+  },
+  "repetitions": {
+    "raw_result_sha256_run_1": "28709312b5b0ad190641e587504b49f4ea04c48c4b69ed1e5ce2600f4e40e5a9",
+    "raw_result_sha256_run_2": "28709312b5b0ad190641e587504b49f4ea04c48c4b69ed1e5ce2600f4e40e5a9",
+    "stable_summary_sha256_run_1": "153411da35dd1cc25c46b0b5a82972fa226d690f39985dd950d056c022ae4330",
+    "stable_summary_sha256_run_2": "153411da35dd1cc25c46b0b5a82972fa226d690f39985dd950d056c022ae4330"
+  },
+  "schema_version": "apps-stdin-differential-confirmation-summary-v1",
+  "tests": {
+    "full_repository_before_run": "772 passed",
+    "script_specific_after_run": "14 passed",
+    "safety_claim_registry": "valid"
+  },
+  "witnesses": [
+    {
+      "families": [
+        "arithmetic_operator",
+        "boolean_operator",
+        "condition_negation"
+      ],
+      "problem_id": 1402,
+      "test_cases": 18
+    },
+    {
+      "families": [
+        "condition_negation"
+      ],
+      "problem_id": 1785,
+      "test_cases": 12
+    },
+    {
+      "families": [
+        "condition_negation"
+      ],
+      "problem_id": 1849,
+      "test_cases": 10
+    },
+    {
+      "families": [
+        "boolean_operator",
+        "numeric_constant"
+      ],
+      "problem_id": 4352,
+      "test_cases": 10
+    }
+  ]
+}

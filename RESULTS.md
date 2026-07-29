@@ -361,3 +361,25 @@ This confirms a **relative evaluator coverage gap** against a declared stronger
 oracle; it is not an absolute claim that every stronger-oracle test perfectly
 captures human intent.  Full protocol and limitations:
 `docs/experiments/EVALPLUS_DIFFERENTIAL_CONFIRMATION_RESULTS_20260727.md`.
+
+### Cross-harness stdin/stdout transfer: APPS (2026-07-29)
+
+The same generic proof contract was next transferred from function-call
+evaluation to an APPS stdin/stdout adapter.  The frozen pilot constructed a
+two-case weak prefix and compared it with each task's complete official test
+list.
+
+| Requested | Valid | Candidates | Completed pairs | Confirmed gaps | Affected tasks | Witness yield |
+|---:|---:|---:|---:|---:|---:|---:|
+| 30 | 26 | 140 | 135 | **7** | **4** | **5.19%** |
+
+Two complete repetitions had the same full-result SHA-256 and stable-summary
+SHA-256.  Canonical, identical-outcome, timeout/error, swapped-direction,
+missing-attestation, and corrupt-attestation controls all produced zero
+confirmed findings.  The run made zero LLM/API calls.
+
+This is evidence for **adapter and proof-contract portability**, not evidence
+that APPS's official full evaluator is defective: the weak two-case prefix was
+constructed for this experiment.  Protocol, input receipt, witnesses, and
+limitations are in
+`docs/experiments/APPS_STDIN_DIFFERENTIAL_CONFIRMATION_RESULTS_20260729.md`.

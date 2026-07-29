@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import sys
 
 import pytest
 
+import scripts.run_apps_stdin_differential_confirmation as apps
 from scripts.run_apps_stdin_differential_confirmation import (
     APPS_STDIN_DRIVER,
     AppsTask,
     _candidates,
     _contract,
     _eligible_task,
+    load_selected_tasks,
     _payload,
+    verify_dataset_file,
 )
 
 
@@ -166,3 +170,40 @@ def test_payload_preserves_strict_test_prefix_without_reordering():
     assert payload["weak_tests"] == list(task.tests[:2])
     assert payload["strong_tests"] == list(task.tests)
     assert payload["strong_tests"][:2] == payload["weak_tests"]
+
+
+def test_hash_selection_is_independent_of_input_row_order(tmp_path):
+    rows = [row(problem_id=problem_id) for problem_id in range(50)]
+    first = tmp_path / "first.jsonl"
+    second = tmp_path / "second.jsonl"
+    first.write_text(
+        "\n".join(json.dumps(value) for value in rows) + "\n",
+        encoding="utf-8",
+    )
+    second.write_text(
+        "\n".join(json.dumps(value) for value in reversed(rows)) + "\n",
+        encoding="utf-8",
+    )
+    selected_first, _ = load_selected_tasks(first, limit=10)
+    selected_second, _ = load_selected_tasks(second, limit=10)
+    assert [value.problem_id for value in selected_first] == [
+        value.problem_id for value in selected_second
+    ]
+
+
+def test_input_receipt_fails_closed_on_same_size_byte_change(
+    tmp_path,
+    monkeypatch,
+):
+    source = tmp_path / "test.jsonl"
+    source.write_bytes(b"frozen")
+    monkeypatch.setattr(apps, "EXPECTED_DATASET_BYTES", 6)
+    monkeypatch.setattr(
+        apps,
+        "EXPECTED_DATASET_SHA256",
+        hashlib.sha256(b"frozen").hexdigest(),
+    )
+    verify_dataset_file(source)
+    source.write_bytes(b"broken")
+    with pytest.raises(ValueError, match="SHA-256"):
+        verify_dataset_file(source)
