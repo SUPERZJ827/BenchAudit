@@ -1,0 +1,1090 @@
+{
+  "api_calls": 0,
+  "calibration_go": true,
+  "chosen_working_point": {
+    "candidate_rate": 0.5061728395061729,
+    "candidates": 205,
+    "family_hits": 16,
+    "family_positives": 19,
+    "family_recall": 0.8421052631578947,
+    "incremental_candidates": 17,
+    "marginal_candidates_per_recovered_positive": 4.25,
+    "operational_unknown": 0,
+    "pass": true,
+    "raw_trigger_count": 17,
+    "recovered_keys": [
+      [
+        "workspacebench-196",
+        7
+      ],
+      [
+        "workspacebench-49",
+        18
+      ],
+      [
+        "workspacebench-9",
+        8
+      ],
+      [
+        "workspacebench-9",
+        9
+      ]
+    ],
+    "recovered_known_family_positives": 4,
+    "review_ceiling_escape": 0,
+    "reviewed": {
+      "f1": 0.8571428571428571,
+      "fn": 3,
+      "fp": 3,
+      "positives": 21,
+      "precision": 0.8571428571428571,
+      "predicted": 21,
+      "recall": 0.8571428571428571,
+      "tn": 4,
+      "tp": 18,
+      "universe": 28
+    },
+    "rule_ids": [
+      "R2c",
+      "R2d"
+    ]
+  },
+  "combinations": [
+    {
+      "candidate_rate": 0.4765432098765432,
+      "candidates": 193,
+      "family_hits": 13,
+      "family_positives": 19,
+      "family_recall": 0.6842105263157895,
+      "incremental_candidates": 5,
+      "marginal_candidates_per_recovered_positive": 5.0,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 5,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ]
+      ],
+      "recovered_known_family_positives": 1,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.7368421052631577,
+        "fn": 7,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8235294117647058,
+        "predicted": 17,
+        "recall": 0.6666666666666666,
+        "tn": 4,
+        "tp": 14,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a"
+      ]
+    },
+    {
+      "candidate_rate": 0.5432098765432098,
+      "candidates": 220,
+      "family_hits": 17,
+      "family_positives": 19,
+      "family_recall": 0.8947368421052632,
+      "incremental_candidates": 32,
+      "marginal_candidates_per_recovered_positive": 6.4,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 32,
+      "recovered_keys": [
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 5,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8444444444444444,
+        "fn": 2,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.7916666666666666,
+        "predicted": 24,
+        "recall": 0.9047619047619048,
+        "tn": 2,
+        "tp": 19,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2b"
+      ]
+    },
+    {
+      "candidate_rate": 0.4666666666666667,
+      "candidates": 189,
+      "family_hits": 13,
+      "family_positives": 19,
+      "family_recall": 0.6842105263157895,
+      "incremental_candidates": 1,
+      "marginal_candidates_per_recovered_positive": 1.0,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 1,
+      "recovered_keys": [
+        [
+          "workspacebench-49",
+          18
+        ]
+      ],
+      "recovered_known_family_positives": 1,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.7368421052631577,
+        "fn": 7,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8235294117647058,
+        "predicted": 17,
+        "recall": 0.6666666666666666,
+        "tn": 4,
+        "tp": 14,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2c"
+      ]
+    },
+    {
+      "candidate_rate": 0.5037037037037037,
+      "candidates": 204,
+      "family_hits": 15,
+      "family_positives": 19,
+      "family_recall": 0.7894736842105263,
+      "incremental_candidates": 16,
+      "marginal_candidates_per_recovered_positive": 5.333333333333333,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 16,
+      "recovered_keys": [
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 3,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8292682926829269,
+        "fn": 4,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.85,
+        "predicted": 20,
+        "recall": 0.8095238095238095,
+        "tn": 4,
+        "tp": 17,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5555555555555556,
+      "candidates": 225,
+      "family_hits": 18,
+      "family_positives": 19,
+      "family_recall": 0.9473684210526315,
+      "incremental_candidates": 37,
+      "marginal_candidates_per_recovered_positive": 6.166666666666667,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 37,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 6,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8695652173913043,
+        "fn": 1,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.8,
+        "predicted": 25,
+        "recall": 0.9523809523809523,
+        "tn": 2,
+        "tp": 20,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2b"
+      ]
+    },
+    {
+      "candidate_rate": 0.47901234567901235,
+      "candidates": 194,
+      "family_hits": 14,
+      "family_positives": 19,
+      "family_recall": 0.7368421052631579,
+      "incremental_candidates": 6,
+      "marginal_candidates_per_recovered_positive": 3.0,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 6,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-49",
+          18
+        ]
+      ],
+      "recovered_known_family_positives": 2,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.7692307692307692,
+        "fn": 6,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8333333333333334,
+        "predicted": 18,
+        "recall": 0.7142857142857143,
+        "tn": 4,
+        "tp": 15,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2c"
+      ]
+    },
+    {
+      "candidate_rate": 0.5160493827160494,
+      "candidates": 209,
+      "family_hits": 16,
+      "family_positives": 19,
+      "family_recall": 0.8421052631578947,
+      "incremental_candidates": 21,
+      "marginal_candidates_per_recovered_positive": 5.25,
+      "operational_unknown": 0,
+      "pass": true,
+      "raw_trigger_count": 21,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 4,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8571428571428571,
+        "fn": 3,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8571428571428571,
+        "predicted": 21,
+        "recall": 0.8571428571428571,
+        "tn": 4,
+        "tp": 18,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5456790123456791,
+      "candidates": 221,
+      "family_hits": 18,
+      "family_positives": 19,
+      "family_recall": 0.9473684210526315,
+      "incremental_candidates": 33,
+      "marginal_candidates_per_recovered_positive": 5.5,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 33,
+      "recovered_keys": [
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-49",
+          18
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 6,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8695652173913043,
+        "fn": 1,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.8,
+        "predicted": 25,
+        "recall": 0.9523809523809523,
+        "tn": 2,
+        "tp": 20,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2b",
+        "R2c"
+      ]
+    },
+    {
+      "candidate_rate": 0.5432098765432098,
+      "candidates": 220,
+      "family_hits": 17,
+      "family_positives": 19,
+      "family_recall": 0.8947368421052632,
+      "incremental_candidates": 32,
+      "marginal_candidates_per_recovered_positive": 6.4,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 32,
+      "recovered_keys": [
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 5,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8444444444444444,
+        "fn": 2,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.7916666666666666,
+        "predicted": 24,
+        "recall": 0.9047619047619048,
+        "tn": 2,
+        "tp": 19,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2b",
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5061728395061729,
+      "candidates": 205,
+      "family_hits": 16,
+      "family_positives": 19,
+      "family_recall": 0.8421052631578947,
+      "incremental_candidates": 17,
+      "marginal_candidates_per_recovered_positive": 4.25,
+      "operational_unknown": 0,
+      "pass": true,
+      "raw_trigger_count": 17,
+      "recovered_keys": [
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-49",
+          18
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 4,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8571428571428571,
+        "fn": 3,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8571428571428571,
+        "predicted": 21,
+        "recall": 0.8571428571428571,
+        "tn": 4,
+        "tp": 18,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2c",
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5580246913580247,
+      "candidates": 226,
+      "family_hits": 19,
+      "family_positives": 19,
+      "family_recall": 1.0,
+      "incremental_candidates": 38,
+      "marginal_candidates_per_recovered_positive": 5.428571428571429,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 38,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-49",
+          18
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 7,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8936170212765957,
+        "fn": 0,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.8076923076923077,
+        "predicted": 26,
+        "recall": 1.0,
+        "tn": 2,
+        "tp": 21,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2b",
+        "R2c"
+      ]
+    },
+    {
+      "candidate_rate": 0.5555555555555556,
+      "candidates": 225,
+      "family_hits": 18,
+      "family_positives": 19,
+      "family_recall": 0.9473684210526315,
+      "incremental_candidates": 37,
+      "marginal_candidates_per_recovered_positive": 6.166666666666667,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 37,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 6,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8695652173913043,
+        "fn": 1,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.8,
+        "predicted": 25,
+        "recall": 0.9523809523809523,
+        "tn": 2,
+        "tp": 20,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2b",
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5185185185185185,
+      "candidates": 210,
+      "family_hits": 17,
+      "family_positives": 19,
+      "family_recall": 0.8947368421052632,
+      "incremental_candidates": 22,
+      "marginal_candidates_per_recovered_positive": 4.4,
+      "operational_unknown": 0,
+      "pass": true,
+      "raw_trigger_count": 22,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-49",
+          18
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 5,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8837209302325582,
+        "fn": 2,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8636363636363636,
+        "predicted": 22,
+        "recall": 0.9047619047619048,
+        "tn": 4,
+        "tp": 19,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2c",
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5456790123456791,
+      "candidates": 221,
+      "family_hits": 18,
+      "family_positives": 19,
+      "family_recall": 0.9473684210526315,
+      "incremental_candidates": 33,
+      "marginal_candidates_per_recovered_positive": 5.5,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 33,
+      "recovered_keys": [
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-49",
+          18
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 6,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8695652173913043,
+        "fn": 1,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.8,
+        "predicted": 25,
+        "recall": 0.9523809523809523,
+        "tn": 2,
+        "tp": 20,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2b",
+        "R2c",
+        "R2d"
+      ]
+    },
+    {
+      "candidate_rate": 0.5580246913580247,
+      "candidates": 226,
+      "family_hits": 19,
+      "family_positives": 19,
+      "family_recall": 1.0,
+      "incremental_candidates": 38,
+      "marginal_candidates_per_recovered_positive": 5.428571428571429,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 38,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ],
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-49",
+          18
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 7,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8936170212765957,
+        "fn": 0,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.8076923076923077,
+        "predicted": 26,
+        "recall": 1.0,
+        "tn": 2,
+        "tp": 21,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a",
+        "R2b",
+        "R2c",
+        "R2d"
+      ]
+    }
+  ],
+  "counts": {
+    "a_prime_candidates": 188,
+    "a_prime_family_hits": 12,
+    "family_positives": 19,
+    "h1_diagnostics": 133,
+    "observations": 38,
+    "rubrics": 405,
+    "tasks": 20
+  },
+  "decision": "PASS",
+  "decomposition": {
+    "action_counts": {
+      "do_not_route": 207,
+      "route": 198
+    },
+    "evidence_source_counts": {
+      "input": 145,
+      "input_inventory": 37,
+      "intrinsic": 36,
+      "none": 116,
+      "output_contract": 12,
+      "task": 59
+    },
+    "legacy_reason_observability": "unavailable: the original A schema stored indices only",
+    "reason_counts_all": {
+      "artifact_satisfaction_only": 29,
+      "general_quality": 51,
+      "input_evidence_contradiction": 1,
+      "input_supported": 75,
+      "intrinsic_validity": 3,
+      "mechanically_derivable": 1,
+      "output_contract_supported": 11,
+      "task_supported": 47,
+      "unsupported_exact_constraint": 178,
+      "unsupported_prescriptive_content": 9
+    }
+  },
+  "frozen_input_sha256": {
+    "artifact:datasets/workspacebench/full.jsonl": "2e3d8fd1f5a741b9e6b73ebab9ce23e26ce054527b4f3477de8fdd950aad9dbe",
+    "artifact:reports/workspace_grounding_a_prime_calibration_20260729/analysis.json": "fee5a065173851bb5597af5994e3beee9408bf40aaa0b9d62854d617d5434147",
+    "artifact:reports/workspace_grounding_a_prime_calibration_20260729/grounding_item_structured_triage_cache.jsonl": "53740726724c1a58e200245a3795ca243c2573ec49aa1ce838b1f7d7b39fc6e4",
+    "artifact:reports/workspace_grounding_a_prime_calibration_20260729/grounding_item_structured_triage_items.jsonl": "689fad58c3947109b3547561681d3fa258ecbc7ded9ec94cfb7751d2ec061c1a",
+    "repo:experiments/workspace_grounding/A_PRIME_CALIBRATION_20_20260729.json": "d17f47f5d74507878f63df16291952b8e33167f1941d20af64ce020f6bbe1d76",
+    "repo:experiments/workspace_grounding/A_PRIME_CALIBRATION_RESULTS_20260729.md": "ff22fd7069afaef524532c06bd20883d5e4d51d2eb337bee6af9b37cacc0fe17",
+    "repo:experiments/workspace_grounding/A_PRIME_DEV_PROTOCOL_20260729.md": "e7402f26bb46714687454ec368ee6e7e068a99a09a764a4f57a8708f618aabd4",
+    "repo:experiments/workspace_grounding/A_PRIME_INTERNAL_VALIDATION_10_20260729.json": "8af94ea6a23663654bec21e115928f6a7d5b30b86d1912e6992e9a5d24325515"
+  },
+  "h1": {
+    "empty_quote_count": 9,
+    "status_counts": {
+      "invalid": 13,
+      "unknown": 72,
+      "valid": 48
+    }
+  },
+  "known_family_misses_before_a_double_prime": [
+    [
+      "workspacebench-130",
+      19
+    ],
+    [
+      "workspacebench-157",
+      10
+    ],
+    [
+      "workspacebench-196",
+      7
+    ],
+    [
+      "workspacebench-49",
+      18
+    ],
+    [
+      "workspacebench-9",
+      2
+    ],
+    [
+      "workspacebench-9",
+      8
+    ],
+    [
+      "workspacebench-9",
+      9
+    ]
+  ],
+  "operational_unknown_tasks": [],
+  "protocol": "workspace-grounding-a-double-prime-residue-v1-20260729",
+  "review_ceiling_escape": 0,
+  "rule_intersections": {
+    "R2a&R2b": 0,
+    "R2a&R2c": 0,
+    "R2a&R2d": 0,
+    "R2b&R2c": 0,
+    "R2b&R2d": 16,
+    "R2c&R2d": 0
+  },
+  "single_rules": {
+    "R2a": {
+      "candidate_rate": 0.4765432098765432,
+      "candidates": 193,
+      "family_hits": 13,
+      "family_positives": 19,
+      "family_recall": 0.6842105263157895,
+      "incremental_candidates": 5,
+      "marginal_candidates_per_recovered_positive": 5.0,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 5,
+      "recovered_keys": [
+        [
+          "workspacebench-130",
+          19
+        ]
+      ],
+      "recovered_known_family_positives": 1,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.7368421052631577,
+        "fn": 7,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8235294117647058,
+        "predicted": 17,
+        "recall": 0.6666666666666666,
+        "tn": 4,
+        "tp": 14,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2a"
+      ]
+    },
+    "R2b": {
+      "candidate_rate": 0.5432098765432098,
+      "candidates": 220,
+      "family_hits": 17,
+      "family_positives": 19,
+      "family_recall": 0.8947368421052632,
+      "incremental_candidates": 32,
+      "marginal_candidates_per_recovered_positive": 6.4,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 32,
+      "recovered_keys": [
+        [
+          "workspacebench-157",
+          10
+        ],
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          2
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 5,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8444444444444444,
+        "fn": 2,
+        "fp": 5,
+        "positives": 21,
+        "precision": 0.7916666666666666,
+        "predicted": 24,
+        "recall": 0.9047619047619048,
+        "tn": 2,
+        "tp": 19,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2b"
+      ]
+    },
+    "R2c": {
+      "candidate_rate": 0.4666666666666667,
+      "candidates": 189,
+      "family_hits": 13,
+      "family_positives": 19,
+      "family_recall": 0.6842105263157895,
+      "incremental_candidates": 1,
+      "marginal_candidates_per_recovered_positive": 1.0,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 1,
+      "recovered_keys": [
+        [
+          "workspacebench-49",
+          18
+        ]
+      ],
+      "recovered_known_family_positives": 1,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.7368421052631577,
+        "fn": 7,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.8235294117647058,
+        "predicted": 17,
+        "recall": 0.6666666666666666,
+        "tn": 4,
+        "tp": 14,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2c"
+      ]
+    },
+    "R2d": {
+      "candidate_rate": 0.5037037037037037,
+      "candidates": 204,
+      "family_hits": 15,
+      "family_positives": 19,
+      "family_recall": 0.7894736842105263,
+      "incremental_candidates": 16,
+      "marginal_candidates_per_recovered_positive": 5.333333333333333,
+      "operational_unknown": 0,
+      "pass": false,
+      "raw_trigger_count": 16,
+      "recovered_keys": [
+        [
+          "workspacebench-196",
+          7
+        ],
+        [
+          "workspacebench-9",
+          8
+        ],
+        [
+          "workspacebench-9",
+          9
+        ]
+      ],
+      "recovered_known_family_positives": 3,
+      "review_ceiling_escape": 0,
+      "reviewed": {
+        "f1": 0.8292682926829269,
+        "fn": 4,
+        "fp": 3,
+        "positives": 21,
+        "precision": 0.85,
+        "predicted": 20,
+        "recall": 0.8095238095238095,
+        "tn": 4,
+        "tp": 17,
+        "universe": 28
+      },
+      "rule_ids": [
+        "R2d"
+      ]
+    }
+  },
+  "triggered_a_prime_reason_codes": {
+    "R2a": {
+      "input_supported": 2,
+      "task_supported": 3
+    },
+    "R2b": {
+      "general_quality": 4,
+      "input_supported": 17,
+      "mechanically_derivable": 1,
+      "task_supported": 10
+    },
+    "R2c": {
+      "task_supported": 1
+    },
+    "R2d": {
+      "general_quality": 1,
+      "input_supported": 9,
+      "task_supported": 6
+    }
+  }
+}
