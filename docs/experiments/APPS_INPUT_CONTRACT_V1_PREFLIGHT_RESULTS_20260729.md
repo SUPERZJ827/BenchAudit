@@ -43,6 +43,22 @@ Supported schema families:
 | `counted_integer_vector` | 0 |
 | `fixed_lines_of_integers` | 0 |
 
+The two more expressive V1 families were therefore inactive: all 33 supported
+rows came from the two simplest scalar/tuple patterns.  This strengthens the
+negative diagnosis.  The issue is not merely that the overall count missed the
+threshold; half of the assumed certificate structures did not appear once in a
+mechanically admissible form.
+
+The full-question fail-closed scan excluded 686/1,327 eligible non-target rows
+(51.7%) because constraints such as `guaranteed`, `distinct`, `exactly one`,
+parity, permutation, connectivity, tree structure, primality, or ordering
+appeared outside the narrow input-shape grammar.  This scan was added during
+independent protocol review specifically to prevent a format parser from
+certifying inputs that violate semantic preconditions.  Its observed scale
+shows that the false-confirmation path was not merely theoretical: omitting
+full-question constraints would have exposed roughly half of the preflight
+population to potentially invalid certificates.
+
 The conclusion is not sensitive to treating every parser near-miss as
 recoverable.  There were 115 such rows: 12 counted-vector, 74 fixed-line,
 20 fixed-tuple, and 9 single-integer near-misses.  Even the deliberately
@@ -91,6 +107,18 @@ The protocol hardening and scanner were finalized in the working tree before
 the aggregate-only preflight, but committed afterward.  The receipt binds the
 exact executed scanner by source SHA-256.  No target outcome was available to
 guide these changes because target rows were skipped before decoding.
+
+The frozen 20% threshold and scanner were committed together 80 seconds before
+the result commit.  Future preflights should commit the threshold separately
+before scanner execution to make chronology directly observable.  Here the
+decision was a large failure (2.49% versus 20%), so changing the threshold
+afterward would have required moving it strongly against the pre-registered
+stopping discipline.
+
+The 1.29 GB dataset split is not committed to this repository.  Independent
+re-execution therefore requires obtaining the pinned dataset revision and
+verifying its recorded SHA-256; the committed receipt alone supports internal
+consistency and source binding, not a dataset-free rerun.
 
 Post-run verification:
 
