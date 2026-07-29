@@ -766,6 +766,38 @@ def test_routing_only_suppresses_objective_short_circuit_finding():
     assert decision.verifier is None
 
 
+def test_checker_rejects_unverified_routing_label_even_when_verification_enabled(
+    tmp_path: Path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("ordinary source", encoding="utf-8")
+    item = declare_complete_inventory(make_item([source]), [source.name])
+    routing_auditor = WorkspaceRubricGroundingAuditor(
+        FakeClient([{"candidate_indices": [0]}]),
+        verify_unsupported=False,
+        allowed_roots=[tmp_path],
+    )
+    decision = routing_auditor.audit_item_two_stage(item)[0]
+    assert decision.scanner["routing_only"] is True
+    assert decision.verifier is None
+    # Simulate a future partial-verification path that returns early after
+    # routing but forgets to downgrade the scanner's unsupported label.
+    decision.label = "unsupported"
+
+    checking_auditor = WorkspaceRubricGroundingAuditor(
+        FakeClient([]),
+        verify_unsupported=True,
+        allowed_roots=[tmp_path],
+    )
+    checking_auditor.audit_item_two_stage = lambda *args, **kwargs: [decision]
+    checker = WorkspaceRubricGroundingChecker(
+        checking_auditor,
+        strategy="item_triage",
+    )
+
+    assert list(checker.check(item)) == []
+
+
 def test_checker_can_use_dual_triage_strategy(tmp_path: Path):
     source = tmp_path / "source.txt"
     source.write_text("ordinary source", encoding="utf-8")

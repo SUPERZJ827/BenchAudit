@@ -2261,6 +2261,15 @@ class WorkspaceRubricGroundingChecker(Checker):
             # above and remain visible.
             if not self.auditor.verify_unsupported:
                 continue
+            # Defense in depth for future partial-verification paths.  The
+            # current auditor gives every selected routing row a verifier when
+            # verification is enabled, but a later budget stop or early return
+            # must not let an unverified routing label become substantive.
+            if (
+                decision.scanner.get("routing_only") is True
+                and decision.verifier is None
+            ):
+                continue
             if decision.label != "unsupported":
                 continue
             yield _violation(
