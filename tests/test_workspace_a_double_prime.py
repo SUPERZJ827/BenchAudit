@@ -10,6 +10,7 @@ from benchcore.workspace_constraint_residue import (
     route_constraint_residue,
 )
 from scripts import analyze_workspace_a_double_prime as analysis
+from scripts.run_workspace_static_llm_ablation import POSITIVE_REVIEW_LABEL
 
 
 def _route(
@@ -131,11 +132,14 @@ def test_r2b_direct_certificate_delegation_4a_and_4b_paths():
         "Does the report contain exactly seven charts?",
     )
     descriptive, _ = _observe(
-        "Does the report contain at least ten suggestions?",
+        "Does the report contain at least ten specific improvement suggestions?",
         route=_route(
             reason="input_supported",
             source="input",
-            quote="ten suggestions",
+            quote=(
+                "Alpha idea, Beta idea, Gamma idea, Delta idea, Epsilon idea, "
+                "Zeta idea, Eta idea, Theta idea, Iota idea, Kappa idea"
+            ),
         ),
     )
     assert direct is None
@@ -179,6 +183,15 @@ def test_r2b_and_r2d_union_preserves_both_reasons():
     )
     assert observation.rule_ids == ("R2b", "R2d")
     assert len(observation.hits) == 2
+
+
+def test_r2b_treats_named_list_without_explicit_number_as_closed_set():
+    observation, _ = _observe(
+        "Does the report include sections for Alpha, Beta, and Gamma?",
+    )
+    hit = next(hit for hit in observation.hits if hit.rule_id == "R2b")
+    assert hit.details["atom"]["count"] == 3
+    assert hit.details["atom"]["closed_members"] == ("Alpha", "Beta", "Gamma")
 
 
 def test_r2c_parses_shared_head_modifier_and_rejects_supported_modifier():
@@ -308,6 +321,20 @@ def test_missing_structured_route_is_operational_unknown_not_clean():
     assert candidates == set()
     assert count == 1
     assert unknown == ["synthetic-item"]
+
+
+def test_reviewed_metrics_are_conditioned_on_calibration_tasks():
+    metrics = analysis._reviewed_metrics(
+        {("task-a", 0)},
+        {
+            ("task-a", 0): POSITIVE_REVIEW_LABEL,
+            ("task-b", 0): POSITIVE_REVIEW_LABEL,
+        },
+        {"task-a"},
+    )
+    assert metrics["universe"] == 1
+    assert metrics["positives"] == 1
+    assert metrics["tp"] == 1
 
 
 def test_rule_combinations_and_tie_break_are_deterministic():

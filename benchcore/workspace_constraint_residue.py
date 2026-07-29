@@ -53,9 +53,9 @@ _COUNT_RE = re.compile(
     rf"\b(?:(?P<quantifier>exactly|at\s+least|at\s+most|no\s+fewer\s+than|"
     rf"no\s+more\s+than|minimum\s+of|maximum\s+of)\s+)?"
     rf"(?P<count>\d{{1,5}}|{'|'.join(_NUMBER_WORDS)})\s+"
-    rf"(?:(?:specific|named|major|first-level|distinct|total|visual|bar|pie|"
-    rf"donut|line|scatter|stacked|gantt|heatmap|radar|area|bubble|"
-    rf"waterfall|timeline|histogram)\s+)*"
+    rf"(?:(?:specific|named|major|first-level|distinct|total|visual|"
+    rf"improvement|actionable|concrete|bar|pie|donut|line|scatter|stacked|"
+    rf"gantt|heatmap|radar|area|bubble|waterfall|timeline|histogram)\s+)*"
     rf"(?P<head>{_COUNT_HEADS})\b",
     re.IGNORECASE,
 )
@@ -333,6 +333,30 @@ def extract_quantity_atoms(text: str) -> tuple[QuantityAtom, ...]:
                 closed_members=members,
                 span=TextSpan(match.group(0), match.start(), match.end()),
             ))
+    # A named closed list is a countable obligation even when the prose omits
+    # an explicit numeral ("sections for Alpha, Beta, and Gamma").
+    for head_match in _STRUCTURE_HEAD_RE.finditer(text):
+        members = _closed_members_after(text, head_match.start())
+        if len(members) < 2:
+            continue
+        head = singular(head_match.group(1))
+        if any(
+            atom.object_head == head
+            and atom.span.start <= head_match.start() <= atom.span.end
+            for atom in atoms
+        ):
+            continue
+        atoms.append(QuantityAtom(
+            quantifier="exact",
+            count=len(members),
+            object_head=head,
+            closed_members=members,
+            span=TextSpan(
+                text[head_match.start():min(len(text), head_match.start() + 500)],
+                head_match.start(),
+                min(len(text), head_match.start() + 500),
+            ),
+        ))
     return tuple(sorted(
         atoms,
         key=lambda atom: (
@@ -519,8 +543,32 @@ def _route_r2b(
             continue
         if delegated and _same_head_atoms(atom, descriptive_atoms):
             continue
-        same_descriptive = _same_head_atoms(atom, descriptive_atoms)
         source = str(route.get("evidence_source") or "")
+        same_descriptive = _same_head_atoms(atom, descriptive_atoms)
+        if (
+            not same_descriptive
+            and source in {"input", "input_inventory"}
+            and atom.count is not None
+        ):
+            quote = str(route.get("evidence_quote") or "")
+            members = tuple(
+                dict.fromkeys(
+                    value
+                    for value in (
+                        _clean_member(part)
+                        for part in re.split(r",|\band\b", quote, flags=re.I)
+                    )
+                    if len(value) > 1
+                )
+            )
+            if len(members) >= atom.count:
+                same_descriptive = (QuantityAtom(
+                    quantifier="exact",
+                    count=len(members),
+                    object_head=atom.object_head,
+                    closed_members=members,
+                    span=TextSpan(quote, 0, len(quote)),
+                ),)
         if same_descriptive and source in {"input", "input_inventory"}:
             reason = "descriptive_input_not_normative_obligation"
             role = source
