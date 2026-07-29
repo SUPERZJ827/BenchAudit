@@ -32,6 +32,10 @@ holdout。**
 A′ 只将 candidate rate 降低 5.7 个百分点，反事实逻辑调用降低 10.0%，
 但 family recall 同时下降 21.0 个百分点。它没有形成有效 Pareto 改进。
 
+Family-positive 分母同样来自历史候选的独立复核，而非全量人工 gold；
+因此 84.2%/63.2% 都是**在已知可发现正例上的条件 recall**。该 universe
+不是旧 A 候选的子集（旧 A 本身也漏检），但仍不能外推为全库 recall。
+
 阈值 `0.50/0.60/0.70/0.80/0.90` 的候选集完全相同。405 个置信度中：
 
 - 273 个为 1.0；
@@ -84,15 +88,25 @@ A′ 将以下要求错误视为已被宽泛任务支持：
 
 这是语义错误，不是调 confidence threshold 能解决的校准问题。
 
+红队进一步发现，7 条漏检中有 3 条的 `brief_reason` 与 `reason_code`
+直接矛盾。例如 rubric 明确要求六个具名章节，模型的 brief 写
+“Requires specific sections”，却选择 `general_quality`、把证据来源标为
+`intrinsic` 且不给引文。因此问题不只是 confidence 未校准：让模型自行选择
+reason code 的结构本身没有形成可靠约束。
+
 ## 6. Exact 诊断探针
 
 在不调用 API、不改变 calibration 裁决的前提下，将冻结 Exact router
 与 A′ 做离线并集：
 
-- Exact 路由 9 条；
-- 其中相对 A′ 新增 3 条；
-- 并集 candidate rate 从 46.4% 上升到 47.2%；
-- A′ 的 7 条 family-positive 漏检恢复 0 条。
+| Evidence 设定 | Exact 路由 | 相对 A′ 新增 | 并集 candidate rate | 恢复漏检 |
+|---|---:|---:|---:|---:|
+| 空 input evidence（路由上界） | 9 | 3 | 47.2% | 0/7 |
+| 真实 input evidence | 6 | 0 | 46.4% | 0/7 |
+
+Exact 的条件只会检查目标是否“不在 visible evidence 中”；扩大 input
+evidence 只能删除路由原因、不会新增。因此空 evidence 的 9/+3/47.2%
+只是上界，不是操作值。真实证据设定下 Exact 对 A′ 没有新增候选。
 
 因此这些漏检不是现有 exact-literal 探针可补的形式缺口，而是对“宽泛任务
 是否授权精确设计”的语义判断错误。Exact 继续只保留为诊断/回归探针。

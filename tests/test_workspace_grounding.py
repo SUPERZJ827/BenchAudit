@@ -210,6 +210,21 @@ def test_structured_triage_schema_is_complete_and_reason_gated():
         {"decisions": [dict(parsed[0])]},
         {0, 1},
     ) is None
+    for invalid_index in (True, 1.0, 1.9, "1"):
+        rows = [
+            {
+                "rubric_index": index,
+                "action": "route",
+                "reason_code": "unsupported_exact_constraint",
+                "evidence_source": "none",
+                "confidence": 0.8,
+            }
+            for index in (0, invalid_index, 2)
+        ]
+        assert _indexed_structured_triage_decisions(
+            {"decisions": rows},
+            {0, 1, 2},
+        ) is None
 
 
 def test_deterministic_structured_rejection_is_narrow():
@@ -716,6 +731,39 @@ def test_checker_routing_only_decision_never_emits_semantic_finding(
     assert list(checker.check(item)) == []
     assert checker.last_decisions[0].scanner["routing_only"] is True
     assert checker.last_decisions[0].verifier is None
+
+
+def test_routing_only_suppresses_objective_short_circuit_finding():
+    rubric = (
+        'Does the primary requested artifact use the exact title "Beta"?'
+    )
+    item = BenchmarkItem(
+        item_id="workspacebench-objective-routing",
+        raw={"rubrics": [rubric]},
+        task=(
+            'Use the exact title "Alpha" for the primary requested artifact.'
+        ),
+        context={},
+        output_contract={
+            "type": "workspace_files",
+            "required_files": ["report.md"],
+        },
+        evaluator={"type": "workspacebench_rubric", "rubrics": [rubric]},
+    )
+    checker = WorkspaceRubricGroundingChecker(
+        WorkspaceRubricGroundingAuditor(
+            FakeClient([]),
+            verify_unsupported=False,
+        ),
+        strategy="item_triage",
+    )
+
+    assert list(checker.check(item)) == []
+    decision = checker.last_decisions[0]
+    assert decision.label == "unsupported"
+    assert decision.scanner["objective_resolver_short_circuit"] is True
+    assert decision.scanner["routing_only"] is False
+    assert decision.verifier is None
 
 
 def test_checker_can_use_dual_triage_strategy(tmp_path: Path):

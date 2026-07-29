@@ -2254,13 +2254,12 @@ class WorkspaceRubricGroundingChecker(Checker):
                     scope="operational",
                 )
                 continue
-            # Item-level triage has no authority to emit a semantic finding.
-            # When verification is deliberately disabled for a routing-only
-            # experiment, preserve the decision for measurement but stop here.
-            if (
-                decision.scanner.get("routing_only") is True
-                and decision.verifier is None
-            ):
+            # With semantic verification disabled, this checker is operating
+            # as a router/measurement arm. Preserve every decision (including
+            # objective-resolver short circuits) for diagnostics, but never
+            # emit a substantive finding. Operational failures were handled
+            # above and remain visible.
+            if not self.auditor.verify_unsupported:
                 continue
             if decision.label != "unsupported":
                 continue
@@ -2446,10 +2445,13 @@ def _indexed_structured_triage_decisions(
     for value in values:
         if not isinstance(value, dict):
             return None
-        try:
-            index = int(value.get("rubric_index"))
-        except (TypeError, ValueError):
+        raw_index = value.get("rubric_index")
+        # JSON booleans are Python ints and int(1.9) silently truncates. An
+        # indexed routing contract must accept only a literal JSON integer;
+        # coercion can otherwise align one decision with the wrong rubric.
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
             return None
+        index = raw_index
         if index not in requested or index in indexed:
             return None
         action = str(value.get("action") or "").strip().casefold()

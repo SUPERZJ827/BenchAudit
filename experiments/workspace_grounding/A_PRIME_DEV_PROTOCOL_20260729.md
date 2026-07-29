@@ -99,15 +99,22 @@ calibration 可用于选择 confidence threshold；internal validation 在运行
 
 阶段一：
 
+- 配置：`configs/llm_deepseek_workspace_a_prime_calibration.json`；
 - calibration 20 次逻辑调用；
 - 最多 25 API attempts；
 - 软 token 上限 400,000。
 
 只有 calibration 存在满足门槛的 Pareto 工作点，才运行 internal validation：
 
+- 配置：`configs/llm_deepseek_workspace_a_prime_internal_validation.json`；
 - 再增加 10 次逻辑调用；
-- 全阶段最多 35 API attempts；
-- 全阶段软 token 上限 600,000。
+- internal-validation 最多 10 API attempts / 200,000 tokens；
+- 两阶段机器上限合计 35 API attempts / 600,000 tokens。
+
+历史 calibration 实跑使用了合并配置
+`llm_deepseek_workspace_a_prime_dev.json`（上限 35/600,000），实际仅使用
+20/162,618。阶段专用配置在红队复核后加入，避免未来只靠人工遵守阶段一
+上限；它不 retroactively 改写历史 runtime。
 
 不得为了得到正结果调用第二模型或第二视角。
 
