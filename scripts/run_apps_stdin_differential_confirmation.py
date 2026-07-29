@@ -767,6 +767,8 @@ def _adjudicate(
         "task_id": task.task_id,
         "difficulty": task.difficulty,
         "status": "valid" if canonical_valid else "canonical_invalid",
+        "canonical_observations": worker["canonical"],
+        "candidate_observations": rows,
         "test_cases": len(task.tests),
         "candidates": len(candidates),
         "completed_pairs": len(complete),
@@ -818,6 +820,34 @@ def _adjudicate(
     }
 
 
+def _weak_pass_metrics(rows: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    weak_pass = 0
+    weak_pass_with_completed_strong = 0
+    weak_pass_strong_fail = 0
+    for task in rows:
+        for candidate in task.get("candidate_observations", []):
+            weak = candidate.get("weak", {})
+            strong = candidate.get("strong", {})
+            if weak.get("status") != "completed" or weak.get("accepted") is not True:
+                continue
+            weak_pass += 1
+            if strong.get("status") != "completed":
+                continue
+            weak_pass_with_completed_strong += 1
+            if strong.get("accepted") is False:
+                weak_pass_strong_fail += 1
+    return {
+        "weak_pass_pairs": weak_pass,
+        "weak_pass_with_completed_strong_pairs":
+            weak_pass_with_completed_strong,
+        "weak_pass_strong_fail_pairs": weak_pass_strong_fail,
+        "conditional_gap_yield": (
+            weak_pass_strong_fail / weak_pass_with_completed_strong
+            if weak_pass_with_completed_strong else 0.0
+        ),
+    }
+
+
 def _aggregate(
     rows: list[dict[str, Any]],
     *,
@@ -834,6 +864,7 @@ def _aggregate(
     completed = sum(row.get("completed_pairs", 0) for row in valid)
     confirmed = sum(row.get("confirmed", 0) for row in valid)
     affected = sum(row.get("confirmed", 0) > 0 for row in valid)
+    weak_pass_metrics = _weak_pass_metrics(valid)
     families: dict[str, int] = {}
     for row in valid:
         for finding in row.get("findings", []):
@@ -881,6 +912,7 @@ def _aggregate(
             "witness_yield": confirmed / completed if completed else 0.0,
             "affected_task_rate": affected / len(valid) if valid else 0.0,
             "confirmed_by_family": dict(sorted(families.items())),
+            **weak_pass_metrics,
         },
         "controls": {
             "canonical_finding_count": 0,
