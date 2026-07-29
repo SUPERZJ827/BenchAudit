@@ -385,3 +385,25 @@ that APPS's official full evaluator is defective: the weak two-case prefix was
 constructed for this experiment.  Protocol, input receipt, witnesses, and
 limitations are in
 `docs/experiments/APPS_STDIN_DIFFERENTIAL_CONFIRMATION_RESULTS_20260729.md`.
+
+### APPS official-suite survivor follow-up: stopped at V1 preflight (2026-07-29)
+
+The 26 mutants that survived the complete APPS test list motivated a stricter
+follow-up: confirm a behavior difference only on an input carrying a
+mechanically replayable task-domain certificate.  Before parsing the 16 target
+tasks, the frozen V1 certificate grammar was measured on non-target rows.
+
+| Non-target eligible rows | V1-supported | Coverage | Frozen proceed threshold | Decision |
+|---:|---:|---:|---:|---|
+| 1,327 | 33 | **2.49%** | 20.00% | **`NOT_IDENTIFIABLE_PREFLIGHT_V1`** |
+
+All 16 target rows were skipped before JSON decoding.  The preflight made zero
+candidate/reference executions and zero LLM/API calls.  Even an optimistic
+upper bound that treats all 115 parser near-misses as supported reaches only
+11.15%.  The APPS-specific parser line therefore stops here: no target
+inspection, V2 grammar, or survivor-confirmation run is authorized.
+
+This negative result concerns the coverage of the V1 certificate language; it
+does not show that the official APPS tests are sufficient.  Protocol, aggregate
+receipt, and limitations are in
+`docs/experiments/APPS_INPUT_CONTRACT_V1_PREFLIGHT_RESULTS_20260729.md`.

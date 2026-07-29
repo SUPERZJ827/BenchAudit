@@ -1,8 +1,9 @@
 # APPS official-suite survivor confirmation protocol
 
-Status: **frozen before reading the 16 target problem statements, implementing
-an input-contract parser, generating any new input, or re-executing any
-surviving mutant**.
+Status: **terminated at the non-target V1 preflight with
+`NOT_IDENTIFIABLE_PREFLIGHT_V1`; the 16 target problem statements were not
+parsed, no candidate or reference solution was executed, and no V2 grammar is
+authorized**.
 
 Branch:
 `research/apps-official-survivor-confirmation-20260729`
@@ -433,4 +434,27 @@ found.
 - `NOT_IDENTIFIABLE_PREFLIGHT_V1` or `NOT_IDENTIFIABLE_V1` terminates this
   APPS-specific parser line; neither may be followed by a target-informed V2.
 
-No implementation begins until this protocol receives independent review.
+## 13. Frozen preflight outcome
+
+The reviewed protocol and exact scanner source were run once over the
+non-target rows:
+
+| Measure | Result |
+|---|---:|
+| Non-target statically eligible rows | 1,327 |
+| Supported by V1 | 33 |
+| V1 coverage | **2.49%** |
+| Proceed threshold | **20.00%** |
+| Target rows skipped before JSON decoding | 16/16 |
+| Candidate/reference executions | 0 |
+| LLM/API calls | 0 |
+| Decision | **`NOT_IDENTIFIABLE_PREFLIGHT_V1`** |
+
+The result terminates this experiment before target parsing or confirmation
+implementation.  No V2 grammar, target-informed exclusion change, or APPS
+task-specific certificate is permitted under this protocol.
+
+The aggregate receipt is
+`docs/experiments/apps_input_contract_v1_preflight_20260729.json`; the full
+interpretation and reproducibility record are in
+`docs/experiments/APPS_INPUT_CONTRACT_V1_PREFLIGHT_RESULTS_20260729.md`.
