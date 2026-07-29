@@ -14,6 +14,7 @@ from scripts.run_apps_stdin_differential_confirmation import (
     _candidates,
     _contract,
     _eligible_task,
+    _weak_pass_metrics,
     load_selected_tasks,
     _payload,
     verify_dataset_file,
@@ -207,3 +208,32 @@ def test_input_receipt_fails_closed_on_same_size_byte_change(
     source.write_bytes(b"broken")
     with pytest.raises(ValueError, match="SHA-256"):
         verify_dataset_file(source)
+
+
+def test_conditional_yield_excludes_weak_failures_and_indeterminate_strong():
+    metrics = _weak_pass_metrics([{
+        "candidate_observations": [
+            {
+                "weak": {"status": "completed", "accepted": False},
+                "strong": {"status": "completed", "accepted": False},
+            },
+            {
+                "weak": {"status": "completed", "accepted": True},
+                "strong": {"status": "timeout", "accepted": None},
+            },
+            {
+                "weak": {"status": "completed", "accepted": True},
+                "strong": {"status": "completed", "accepted": True},
+            },
+            {
+                "weak": {"status": "completed", "accepted": True},
+                "strong": {"status": "completed", "accepted": False},
+            },
+        ],
+    }])
+    assert metrics == {
+        "weak_pass_pairs": 3,
+        "weak_pass_with_completed_strong_pairs": 2,
+        "weak_pass_strong_fail_pairs": 1,
+        "conditional_gap_yield": 0.5,
+    }
