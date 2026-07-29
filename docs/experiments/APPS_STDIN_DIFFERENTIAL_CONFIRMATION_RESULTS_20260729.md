@@ -114,6 +114,13 @@ recomputed without downloading the 1.29 GB dataset.  The detailed artifact
 SHA-256 is
 `646f6774a5a25d118c99a5f3f82b9dea64704a29689dfa31ab62f4ae03f4080b`.
 
+For convenient independent recomputation, the repository also includes the
+135 completed weak/strong pairs as one row per candidate in
+`apps_stdin_differential_pairs_20260729.jsonl`.  Its SHA-256 is
+`7b2190b71b02ccf5a26fea93857edc4fadc01253be16120ca9352a84297d5420`.
+Those 135 rows directly reproduce 7 confirmed constructed-prefix gaps, 33 weak
+passes, both reported yields, and four affected problem ids.
+
 The output-only serialization was added after the original run in response to
 independent review.  It does not change task selection, mutation generation,
 execution, comparison, attestation, checking, or promotion.  Two detailed
@@ -122,7 +129,8 @@ replays and the tracked copy are byte-identical.
 ## Determinism
 
 Two complete repetitions used the same frozen task list, code, image, resource
-limits, and mutation budget.
+limits, and mutation budget.  The original observations corresponding to the
+reported hashes are now committed in the two reproducibility artifacts above.
 
 | Artifact | Detailed run 1 | Detailed run 2 |
 |---|---|---|
@@ -142,10 +150,10 @@ The execution driver SHA-256 was
 
 ## Verification
 
-- script-specific tests after the detailed replay: **16 passed**;
+- script-specific tests after the detailed replay: **17 passed**;
 - full repository regression before the run: **772 passed**;
 - full repository regression after adding the reproducibility bundle:
-  **776 passed**;
+  **777 passed**;
 - safety-claim registry: **valid**;
 - dataset input receipt:
   `5b003a65ac40feb47dd5eaec267a767a6fc435bdcfa68ff715fe869f948e760c`;

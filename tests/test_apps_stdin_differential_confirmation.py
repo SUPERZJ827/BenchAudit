@@ -29,6 +29,10 @@ SUMMARY_ARTIFACT = (
     ROOT / "docs" / "experiments"
     / "apps_stdin_differential_confirmation_summary.json"
 )
+PAIR_ARTIFACT = (
+    ROOT / "docs" / "experiments"
+    / "apps_stdin_differential_pairs_20260729.jsonl"
+)
 
 
 def row(
@@ -278,4 +282,28 @@ def test_tracked_detail_artifact_independently_recomputes_summary():
     }
     for key, value in recomputed.items():
         assert detail["apps_stdin"][key] == value
-        assert summary["metrics"][key] == value
+    assert summary["metrics"]["weak_pass_count"] == 33
+    assert summary["metrics"]["weak_pass_with_completed_strong_pairs"] == 33
+    assert summary["metrics"]["weak_pass_strong_fail_pairs"] == 7
+    assert summary["metrics"]["conditional_witness_yield"] == 7 / 33
+    assert (
+        summary["metrics"]["witness_yield_over_all_completed_pairs"]
+        == 7 / 135
+    )
+
+
+def test_completed_pair_jsonl_recomputes_public_metrics():
+    rows = [
+        json.loads(line)
+        for line in PAIR_ARTIFACT.read_text(encoding="utf-8").splitlines()
+    ]
+    confirmed = [row for row in rows if row["outcome"] == "confirmed"]
+    weak_pass = [
+        row for row in rows if row["weak"]["accepted"] is True
+    ]
+    assert len(rows) == 135
+    assert len(confirmed) == 7
+    assert len(weak_pass) == 33
+    assert len({row["problem_id"] for row in confirmed}) == 4
+    assert len(confirmed) / len(rows) == 7 / 135
+    assert len(confirmed) / len(weak_pass) == 7 / 33
