@@ -53,6 +53,11 @@ interpretation:
 
 - <https://arxiv.org/abs/2404.09241>
 
+That study is specifically about manually created mutants in Code Defenders.
+Its directly relevant lesson here is narrower: human judgments of mutant
+equivalence are themselves unreliable, which motivates a mechanically
+replayable distinction rather than a human or LLM equivalence label.
+
 Therefore this pilot is worth continuing only if the following possible
 difference survives experiment:
 
@@ -172,6 +177,22 @@ fail-closed rejection.
 
 No task id, benchmark difficulty, target mutation family, or observed output
 may participate in parsing.
+
+Before parsing the `Input` section, the checker scans the **entire question**
+for unsupported domain conditions.  A case-insensitive match of any frozen
+marker below makes the task `not_identifiable_input_contract`, even when the
+`Input` section alone would otherwise match:
+
+- `guaranteed`, `distinct`, `pairwise`, `permutation`, `connected`, `tree`;
+- `sorted`, `non-decreasing`, `non-increasing`, `strictly increasing`;
+- `prime`, `coprime`, `no two`, `exactly one`;
+- `at least one ... such that`;
+- `even` or `odd` when used in a sentence containing `input`, `integer`,
+  `number`, `n`, `m`, `value`, or `element`.
+
+The scan is intentionally over-conservative: a marker in output prose or an
+example may exclude a task, but it cannot admit an input whose hidden domain
+condition was ignored.  Marker spans and the full-question hash are recorded.
 
 ### 4.4 Certificate replay
 
@@ -334,7 +355,11 @@ Report:
 - confirmed/review/not-identifiable counts;
 - unique confirmed survivors and tasks;
 - confirmation rate over mechanically identifiable survivors;
-- Arm B minus Arm A incremental confirmations under equal budget;
+- confirmations found by both arms, Arm-A-only, and Arm-B-only;
+- signed difference `Arm B confirmations - Arm A confirmations`, without
+  calling it incremental gain;
+- generated templates per family, retained templates per family, and templates
+  truncated by the 64-input budget, including family names;
 - execution time and candidate-input count;
 - all control counts;
 - LLM/API calls, fixed at zero;
@@ -345,6 +370,29 @@ Survivor count alone is not a success metric.
 ## 11. Go / no-go
 
 This is a feasibility gate, not a paper-scale evaluation.
+
+### Non-target preflight before implementation
+
+Before target parsing or confirmation code is implemented, run the frozen V1
+grammar over the 1,343 statically eligible stdin/stdout APPS rows while
+excluding all 16 target task ids.  The preflight:
+
+- reads no target question text;
+- performs no candidate or reference-solution execution;
+- makes zero LLM/API calls;
+- reports only aggregate schema-family and exclusion-reason counts;
+- records the scanner source SHA-256, dataset receipt, excluded target-id-set
+  SHA-256, and output SHA-256.
+
+The implementation phase proceeds only if at least 20% of non-target rows match
+a supported V1 schema after the full-question exclusion scan.  This threshold
+corresponds to a reasonable expectation of at least three identifiable tasks
+among 16 targets; it is a feasibility heuristic, not a statistical guarantee.
+
+If coverage is below 20%, record `NOT_IDENTIFIABLE_PREFLIGHT_V1` and stop this
+line.  Do not inspect targets, add V2 grammar families, or relax full-question
+exclusions.  This rule prevents the pilot from turning into a hand-built APPS
+input parser.
 
 ### Go
 
@@ -382,5 +430,7 @@ found.
 - A no-go result falsifies this V1 approach on the frozen survivor pool.
 - Merely reproducing STING with APPS and an LLM is not sufficient novelty for a
   new paper.
+- `NOT_IDENTIFIABLE_PREFLIGHT_V1` or `NOT_IDENTIFIABLE_V1` terminates this
+  APPS-specific parser line; neither may be followed by a target-informed V2.
 
 No implementation begins until this protocol receives independent review.
