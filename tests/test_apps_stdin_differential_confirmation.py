@@ -20,6 +20,16 @@ from scripts.run_apps_stdin_differential_confirmation import (
     verify_dataset_file,
 )
 
+ROOT = apps.REPO_ROOT
+DETAIL_ARTIFACT = (
+    ROOT / "docs" / "experiments"
+    / "apps_stdin_differential_confirmation_detail.json"
+)
+SUMMARY_ARTIFACT = (
+    ROOT / "docs" / "experiments"
+    / "apps_stdin_differential_confirmation_summary.json"
+)
+
 
 def row(
     *,
@@ -237,3 +247,35 @@ def test_conditional_yield_excludes_weak_failures_and_indeterminate_strong():
         "weak_pass_strong_fail_pairs": 1,
         "conditional_gap_yield": 0.5,
     }
+
+
+def test_tracked_detail_artifact_independently_recomputes_summary():
+    detail = json.loads(DETAIL_ARTIFACT.read_text(encoding="utf-8"))
+    summary = json.loads(SUMMARY_ARTIFACT.read_text(encoding="utf-8"))
+    valid = [row for row in detail["raw"] if row["status"] == "valid"]
+    observations = [
+        candidate
+        for task in valid
+        for candidate in task["candidate_observations"]
+    ]
+    completed = [
+        row for row in observations
+        if row["weak"]["status"] == "completed"
+        and row["strong"]["status"] == "completed"
+    ]
+    confirmed = sum(
+        finding["tier"] == "confirmed"
+        for task in valid for finding in task["findings"]
+    )
+    recomputed = _weak_pass_metrics(valid)
+    assert len(completed) == 135
+    assert confirmed == 7
+    assert recomputed == {
+        "weak_pass_pairs": 33,
+        "weak_pass_with_completed_strong_pairs": 33,
+        "weak_pass_strong_fail_pairs": 7,
+        "conditional_gap_yield": 7 / 33,
+    }
+    for key, value in recomputed.items():
+        assert detail["apps_stdin"][key] == value
+        assert summary["metrics"][key] == value
