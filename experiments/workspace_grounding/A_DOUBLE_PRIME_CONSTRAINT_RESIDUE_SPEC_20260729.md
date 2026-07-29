@@ -61,9 +61,18 @@ R2a–R2d 四个规则族是在研究者已经查看 A′ 的 7 条已知漏检�
 
 ### 2.2 本地冻结运行产物
 
-以下产物不随本 Spec 提交，但分析器必须在运行前校验哈希：
+以下产物不随本 Spec 提交，且位于被 `.gitignore` 排除的 `reports/` 下。
+本轮冻结产物根目录为：
 
-| 仓库相对路径 | SHA256 |
+```text
+/home/zhoujun/llmdata/after623
+```
+
+该绝对路径只属于本轮实验的冻结记录，不得硬编码进库代码。分析器必须要求
+显式传入 `--artifact-root`，再解析下表中的相对路径；文件缺失或哈希不匹配
+必须 fail-closed。
+
+| `--artifact-root` 下相对路径 | SHA256 |
 |---|---|
 | `reports/workspace_grounding_a_prime_calibration_20260729/grounding_item_structured_triage_items.jsonl` | `689fad58c3947109b3547561681d3fa258ecbc7ded9ec94cfb7751d2ec061c1a` |
 | `reports/workspace_grounding_a_prime_calibration_20260729/grounding_item_structured_triage_cache.jsonl` | `53740726724c1a58e200245a3795ca243c2573ec49aa1ce838b1f7d7b39fc6e4` |
@@ -229,19 +238,29 @@ R2 规则只为机械可观察的 `unsupported_specific` 生成 review-routing
 }
 ```
 
-v1 实现若没有预注册证书，必须弃权，不得临时用 LLM 代替。
+约束必须按原子处理。若证书只覆盖一部分新增约束，已覆盖原子保持
+`derivable_specific`，未覆盖残差继续执行下面的 4a/4b，不能让部分证书
+为整条 rubric 免责。
+
+v1 若没有可重放证书，不得采信 LLM 自报的 `mechanically_derivable`，也
+不得临时用 LLM 补证书。未被证书覆盖的残差继续走 4a/4b；若两者均不
+满足，则归为 `unknown` 并弃权。
 
 R2b 的判定优先级固定为：
 
 ```text
 task/output_contract 直接支持相同数量或封闭集合
     → supported，不路由
-确定性 derivation certificate 覆盖全部新增约束
-    → derivable_specific，不路由
+确定性 derivation certificate 覆盖一个或多个新增约束原子
+    → 被覆盖原子 derivable_specific，不路由；未覆盖残差继续判断
 task/contract 明确委托“覆盖 input 中全部/每个对象”，且 input 可完整枚举
     → delegated_derivation，不路由
-只有 input 中存在 N 个对象，没有输出覆盖义务
+4a. 数量或封闭集合约束在 task/output_contract/input 中均无对应支持
     → unsupported quantity candidate
+       reason=unsupported_quantity_without_source
+4b. 仅 input 中存在 N 个对象或封闭集合，task/output_contract 无覆盖义务
+    → unsupported quantity candidate
+       reason=descriptive_input_not_normative_obligation
 其他情况
     → unknown，不由 R2b 路由
 ```
@@ -250,6 +269,8 @@ task/contract 明确委托“覆盖 input 中全部/每个对象”，且 input 
 
 - 把“全年→12个月”等机械推导误报为超纲；
 - 把“输入里刚好有十条→输出必须写十条”误判为已支持；
+- 漏掉“任何规范性来源都没有，rubric 自行要求恰好七项”的凭空数量；
+- 让部分 derivation certificate 为未覆盖的其他约束免责；
 - 在 supported 与 unsupported 之间留下依赖分支顺序的空隙。
 
 ---
@@ -277,7 +298,9 @@ H1：
 - 不改变旧 A/A′ 指标；
 - 可用于未来 prompt/schema 卫生回归。
 
-当前冻结数据中空 quote 数预计为 9，只用于完整性校验，不作为 recall 结果。
+当前冻结数据中，空 quote 分支预计命中 9 条，只用于完整性校验，不作为
+recall 结果；非空 quote 的“不是声明来源逐字子串”分支尚未预估，不得把
+9 写成 H1 总触发数。
 
 ---
 
@@ -331,7 +354,9 @@ H1：
 ### 9.1 适用范围
 
 与 R2a 相同，并额外允许 `mechanically_derivable` 进入诊断，但证书校验
-通过时必须保持拒绝，不能成为候选。
+通过时必须保持拒绝，不能成为候选。若没有有效证书，LLM 自报的
+`mechanically_derivable` 不提供任何豁免；未覆盖约束残差必须继续执行
+第 6 节 4a/4b，只有两条均不满足时才归为 `unknown`。
 
 ### 9.2 必要条件
 
@@ -405,7 +430,20 @@ R2c v1 的解析器必须输出：
    输出义务；
 7. 解析出多个竞争 head、无法唯一对齐时弃权。
 
-### 10.3 v1 可实现性约束
+### 10.3 v1 范围边界
+
+R2c v1 只处理“同一 semantic head 下新增 subtype modifier”的情形。
+若 rubric 引入的对象 head 在全部规范性 task/output-contract span 中均
+不存在，R2c 必须弃权，不能退化为“全新对象”关键词检测。这一类可能由
+R2b 的未授权数量/闭集规则或 R2d 的具名结构规则独立捕获，但不属于
+R2c v1 的主张。
+
+因此，`wb-9/2` 在 R2c 上预期弃权：支持 span 的 head 是 `dashboard`，
+rubric 新增的是 `chart`，不存在共享 head；其 `three charts` 数量残差
+由 R2b 4a 评估。`wb-49/18` 才是 R2c 的目标形态：`visualization chart`
+与 `bar chart` 共享 `chart`，残差为 `bar`。
+
+### 10.4 v1 可实现性约束
 
 为避免暗中退化为 marker regex，v1 实现必须：
 
@@ -458,6 +496,26 @@ rubric 中必须能抽取：
 `general_quality` 的 brief 声称“specific sections”但 evidence source 为
 intrinsic、引文为空时，R2d 可以生成 candidate；判断依据是抽出的具名
 结构，不是 brief 中的单词。
+
+### 11.3 七条已知漏检的实现前推演
+
+下表在实现前冻结，用于检查四条规则的必要条件是否自洽。它是
+dev20 上的开发期预期，不是逐 item 测试 oracle，也不是泛化证据。实现和
+测试禁止读取 item ID 写特例；若通用规则的实际结果与表不同，必须报告
+原因，不得事后修改表来迎合结果。
+
+| 已知漏检 | R2a | R2b | R2c | R2d | 实现前预期 |
+|---|---|---|---|---|---|
+| `wb-130/19` | trigger | abstain | abstain | abstain | 未授权顺序/位置由 R2a 恢复 |
+| `wb-157/10` | abstain | trigger 4b | abstain | abstain | input 描述性数量不构成输出义务 |
+| `wb-196/7` | abstain | trigger 4a | abstain | trigger | 未授权闭集规模与具名章节可同时触发 |
+| `wb-49/18` | abstain | abstain | trigger | abstain | 共享 `chart` head，新增 `bar` modifier |
+| `wb-9/2` | abstain | trigger 4a | explicit abstain | abstain | `three charts` 无规范性来源；R2c 因无共享 head 弃权 |
+| `wb-9/8` | abstain | trigger 4a | abstain | trigger | 未授权闭集规模与具名类别可同时触发 |
+| `wb-9/9` | abstain | trigger 4a | abstain | trigger | 未授权闭集规模与具名类别可同时触发 |
+
+这张表只证明规则设计覆盖了已知开发案例。Calibration 的真实结果仍以
+统一运行、全量 candidate rate 和 19 条 family-positive 集合为准。
 
 ---
 
@@ -523,11 +581,14 @@ R2a、R2b、R2c、R2d 分别报告：
 - `candidate_count <= 211`；
 - `family_tp >= 16/19`；
 - `candidate_rate <= 211/405`；
-- `marginal_candidates_per_recovered_positive <= 5.75`；
 - `review_ceiling_escape == 0`；
 - `operational_unknown == 0`；
 - 不包含 item-ID 特例；
 - R2c 没有退化为 marker ANY/ALL。
+
+`marginal_candidates_per_recovered_positive <= 5.75` 由
+`candidate_count <= 211` 和 `family_tp >= 16/19` 数学派生，只作为开发期
+效率诊断报告，不构成第三个独立放行门槛。
 
 若多个组合通过：
 
@@ -556,16 +617,18 @@ Reviewed F1 可以报告，但不参与单独放行。
 2. H1 正面支持无引文与其他空引文类别的区分；
 3. R2a relation + anchor 双必要条件；
 4. R2b 直接支持、derivation certificate、delegated all-input、
-   只有 input 数量四条互斥路径；
-5. R2b/R2d 同时触发时 union 去重且 reasons 保留；
-6. R2c head–modifier 正例、supported modifier 反例、同词异短语反例、
+   无来源数量 4a、只有 input 数量 4b 五条路径；
+5. R2b 部分证书只豁免被覆盖原子，未覆盖残差继续进入 4a/4b；
+6. R2b/R2d 同时触发时 union 去重且 reasons 保留；
+7. R2c head–modifier 正例、supported modifier 反例、同词异短语反例、
    多 head fail-closed；
-7. R2d 具名结构、通用质量和 task 明确授权反例；
-8. observation 永远 review-only；
-9. candidate ID 和输出排序确定性；
-10. 输入哈希不匹配 fail-closed；
-11. 旧 A 缺 reason schema 时不伪造 breakdown；
-12. 15 个组合枚举及 tie-break 确定性。
+8. R2c 对全新 object head 明确弃权，不启用 marker fallback；
+9. R2d 具名结构、通用质量和 task 明确授权反例；
+10. observation 永远 review-only；
+11. candidate ID 和输出排序确定性；
+12. `--artifact-root` 缺失、文件缺失或输入哈希不匹配均 fail-closed；
+13. 旧 A 缺 reason schema 时不伪造 breakdown；
+14. 15 个组合枚举及 tie-break 确定性。
 
 测试 fixture 不得包含真实 7 个 item ID，也不得用测试判断字符串中特定
 benchmark ID。
