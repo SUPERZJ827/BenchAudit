@@ -94,11 +94,37 @@ APPS V1 的最高价值不是 2.49% 本身，而是一个通用实验模式：
 
 周期：1–2 周。
 
+### A0. 写协议前的数据可得性预检
+
+在冻结 A1 协议之前，先做一次约十分钟、aggregate-only 的可得性检查。它只
+读取目录结构、schema、行数和 item ID，不读取 task/candidate/reference
+正文，也不执行数据库代码。
+
+分别统计：
+
+- task 行数与唯一 item ID 数；
+- candidate/model output 行数与唯一 item ID 数；
+- reference 行数与唯一 item ID 数；
+- score/per-item status 行数与唯一 item ID 数；
+- execution trace 行数与唯一 item ID 数；
+- task ↔ candidate ↔ reference ↔ score ↔ trace 的两两和全链 join 覆盖率；
+- 缺失、重复、冲突 ID 数；
+- 是否存在稳定 evaluator/harness identity。
+
+如果不存在稳定共享 ID，或可形成完整执行链的 item 少于 30 条，先记为
+`NOT_IDENTIFIABLE_DATA_LINKAGE`，不要按猜测的数据形态写 A1 协议。可得性
+receipt 必须先于协议提交。
+
 ### A1. 研究问题
 
 通用确认核心已经跨函数调用和 stdin/stdout 复用，但尚不知道接入陌生协议
-究竟需要多少人工工作。Phase A 不以“又接通一个 benchmark”为结果，而以
-一张逐步骤成本表为结果。
+究竟需要多少人工工作。Phase A 同时要求两类结果：
+
+1. 一张逐步骤适配成本表；
+2. adapter 在该 benchmark 上实际产生至少一条可重放 confirmed，或给出
+   有原则、可复核的 `NOT_IDENTIFIABLE`。
+
+只有成本表而没有能力结局，只能记为“成本已测量，能力未验证”。
 
 ### A2. 首轮对象
 
@@ -108,9 +134,11 @@ APPS V1 的最高价值不是 2.49% 本身，而是一个通用实验模式：
 - `/data/expdata/BenchAudit/DBCode/SQLite_Function_Code_Generation`;
 - `/data/expdata/BenchAudit/DBCode/PostgreSQL_Function_Code_Generation`.
 
-SQLite 优先，因为执行环境更易本地重放；PostgreSQL 作为第二个同族但不同
-运行时的迁移检查。SQLBench 目前主要是 README/sidecar，是否进入实验取决于
-能否获得冻结的逐题输入、输出与 evaluator receipt。
+SQLite 优先，因为执行环境更易本地重放，标为 `first-of-family`；
+PostgreSQL 作为同族不同运行时的迁移检查，标为 `second-of-family`。两者
+成本必须分别报告，不能把首个适配器的一次性协议学习成本算到第二个上。
+SQLBench 目前主要是 README/sidecar，是否进入实验取决于能否获得冻结的逐题
+输入、输出与 evaluator receipt。
 
 ### A3. 必须记录的步骤
 
@@ -139,13 +167,28 @@ SQLite 优先，因为执行环境更易本地重放；PostgreSQL 作为第二�
 
 ### A4. 预注册判据
 
-对每个新执行协议：
+能力判据优先于成本判据：
 
-- adapter-specific 生产 LOC `<150`，且人工瓶颈集中在 `≤2` 个步骤：
-  自动适配值得进入 A2；
-- adapter-specific 生产 LOC `>500`，且人工工作分散在 `≥4` 个步骤：
-  当前架构不支持“任意 benchmark”，停止自动生成叙事，先重构；
-- 中间区间：成本曲线本身作为结果，不强行二分。
+- 产生 `≥1` 条可重放 confirmed 且所有安全硬门通过：能力得到验证；
+- 没有 confirmed，但输出有原则的 `NOT_IDENTIFIABLE`，明确指出是缺少
+  可执行 oracle、无可确认缺陷、证据链不完整还是环境不可冻结：有效负结果，
+  但不推进北极星事件 1，也不进入 A2；
+- 既没有 confirmed，也没有可复核的 `NOT_IDENTIFIABLE`：记为“成本已测量，
+  能力未验证”，不得进入 A2。
+
+成本判据以人工活跃时间与必须人工介入的步骤数为主，LOC 只作辅助：
+
+- SQLite `first-of-family` 只建立首个成本点，不用 150/500 LOC 对它作
+  Go/No-Go；
+- PostgreSQL `second-of-family` 若人工活跃时间 `≤8 小时`、必须人工步骤
+  `≤2`，且 adapter-specific 生产 LOC `<150`：自动适配值得继续；
+- PostgreSQL `second-of-family` 若人工活跃时间 `>24 小时`、必须人工步骤
+  `≥4`，且 adapter-specific 生产 LOC `>500`：当前架构不支持“任意
+  benchmark”，停止自动生成叙事，先重构；
+- 其余组合：报告完整成本曲线，不强行二分。
+
+时间只统计主动分析、编码、调试和人工配置；等待测试或容器下载的 wall-clock
+单独报告。人工步骤按“缺少该判断就无法继续”的独立决策点计数。
 
 安全硬门：
 
@@ -157,7 +200,8 @@ SQLite 优先，因为执行环境更易本地重放；PostgreSQL 作为第二�
 
 ### A5. A2 的条件触发
 
-只有 A1 表明瓶颈集中在 1–2 步时，才尝试自动化：
+只有新 benchmark 至少产出一条 confirmed、全部安全门通过，并且
+second-of-family 成本显示瓶颈集中在 1–2 步时，才尝试自动化：
 
 1. 自动识别协议族；
 2. 从冻结模板选择 adapter skeleton；
@@ -168,6 +212,7 @@ SQLite 优先，因为执行环境更易本地重放；PostgreSQL 作为第二�
 A2 的成功不是“代码能运行”，而是：
 
 - 人工 adapter-specific LOC 至少下降 50%；
+- 人工活跃时间至少下降 50%；
 - 人工干预步骤减少；
 - 控制集与手写 adapter 完全等价；
 - confirmation 数量不能因放宽门槛增加。
@@ -257,15 +302,16 @@ repair-identifiability gate：
 - benchmark 官方 v1 ↔ 官方修订版；
 - 有明确旧测试/增强测试 receipt 的公开执行 benchmark。
 
-这条线必须避免退化成已有 mutation-guided test generation 的复刻。可能的
-差异点只保留：
+这条线必须避免退化成已有 mutation-guided test generation 的复刻。真正的
+差异点只保留两项：
 
-- 证明合同中央化；
-- evidence attestation；
-- fail-closed promotion；
-- 每条确认可本地重放；
-- adapter 成本可量化；
-- 确认之后进入修复闭环。
+1. **机器可重放的确认合同**：中央 proof contract、evidence attestation、
+   fail-closed promotion 和逐条本地 replay 是同一个技术贡献的组成部分，
+   不拆成四项贡献；
+2. **确认后的修复闭环**：从 confirmed 继续走到最小修复与回归证明。
+
+adapter 成本曲线是 Phase A 对可扩展性的实证，不作为 Phase C 的独立新颖性
+主张。
 
 不再做：
 
@@ -291,7 +337,9 @@ repair-identifiability gate：
 ### D2. 最低实验组合
 
 - 至少 3 种执行协议；
-- 至少 2 个自然存在的强 oracle 对；
+- 至少 2 个自然存在的强 oracle 对，其中至少 1 个必须来自 EvalPlus 之外的
+  独立数据集、作者或修订机制；HumanEval+ 与 MBPP+ 不能被解释为两份独立
+  方法学证据；
 - 至少 1 个从未手写 item-level verifier 的新 benchmark；
 - 至少 1 条完整修复闭环；
 - 每个 confirmed 路径均有对抗控制；
@@ -309,9 +357,10 @@ repair-identifiability gate：
 
 适配能力：
 
-- adapter-specific LOC；
 - human intervention count；
+- active human time；
 - time-to-first-replay；
+- adapter-specific LOC；
 - shared-core reuse ratio；
 - protocol-family holdout success。
 
@@ -334,9 +383,9 @@ repair-identifiability gate：
 
 | 周 | 主要任务 | 必须产物 | 停止条件 |
 |---|---|---|---|
-| 1 | A1 协议与 DBCode/SQLite 预飞 | 输入 receipt、成本记录 schema、非目标覆盖率 | 数据/执行器不可重放 |
-| 2 | SQLite adapter 成本测量 | LOC/时间/步骤瓶颈表、控制集 | >500 LOC 且瓶颈分散 |
-| 3 | PostgreSQL 同族迁移 | 第二个成本点、迁移差异 | 环境不可冻结 |
+| 1 | A0 数据关联预检 + A1 协议与 SQLite 预飞 | linkage receipt、输入 receipt、成本 schema | 共享 ID/执行链不可识别 |
+| 2 | SQLite first-of-family adapter | 时间/步骤/LOC 表、能力结局、控制集 | 无 confirmed 且无原则性弃权 |
+| 3 | PostgreSQL second-of-family 迁移 | 第二个成本点、迁移差异、能力结局 | 环境不可冻结或成本分散 |
 | 4 | B1 repair-identifiability + 单条修复 | pre/post replay、patch、回归 | 修复意图不唯一 |
 | 5 | B2 同族扩展或第二条闭环 | 批量结果或诚实 NOT_IDENTIFIABLE | confirmed 样本不足 |
 | 6 | 自然 oracle 扩展 | 官方强 oracle 的重放结果 | 只能构造自有弱 oracle |
@@ -369,6 +418,12 @@ Phase A1 或 B1 失败时不补做更多同类小实验来“救结果”；按�
 - commit；
 - 输入 SHA-256；
 - 命令；
+- 容器镜像的 registry digest；
+- network-disabled 策略；
+- read-only root filesystem 与可写临时目录边界；
+- non-root UID/GID；
+- dropped Linux capabilities 与进程数限制；
+- 禁止 secret/API key mount；
 - CPU/内存/超时；
 - 最大任务数；
 - 最大 API/token 成本；
@@ -379,12 +434,15 @@ Phase A1 或 B1 失败时不补做更多同类小实验来“救结果”；按�
 ## 10. 明天开始时的精确顺序
 
 1. 合并或复核 A″ P1 分母更正 `0a15f1d`；
-2. 单独提交 Phase A1 measurement protocol，暂不写 adapter；
-3. 对 DBCode/SQLite 做 aggregate-only 数据与执行器预飞；
-4. 只有预飞通过才实现 adapter；
-5. 另开 B1 repair protocol，先判断 workspacebench-351 的修复是否唯一；
-6. B1 通过 identifiability gate 后才生成 patch；
-7. 不启动 APPS V2，不回到 Workspace router 调参。
+2. 对 DBCode 做十分钟 aggregate-only 数据可得性检查，生成 task/candidate/
+   reference/score/trace 的 ID 覆盖表；
+3. 只有 linkage 可识别，才单独提交 Phase A1 measurement protocol，暂不写
+   adapter；
+4. 对 DBCode/SQLite 做输入与执行器预飞；
+5. 只有预飞通过才实现 adapter；
+6. 另开 B1 repair protocol，先判断 workspacebench-351 的修复是否唯一；
+7. B1 通过 identifiability gate 后才生成 patch；
+8. 不启动 APPS V2，不回到 Workspace router 调参。
 
 ## 11. 对外汇报的简洁版本
 
