@@ -85,6 +85,46 @@ Reviewed P/R/F1 只覆盖 28/405 条、且 reference selection biased，只能�
 协议首先最小化 candidate count，所以选择第 1 个；这不是根据最终指标
 临时改变 tie-break。
 
+### 3.1 承重消融与工作点脆弱性
+
+冻结工作点虽然通过 calibration gate，但通过余量很窄：
+
+- R2c 在 405 条 rubric 上的 `raw_trigger_count` 只有 1；
+- `_NP_HEADS` 的 8 个词中只有 `chart` 承重；
+- `_CONTENT_MODIFIERS` 的 14 个词中只有 `bar` 承重；
+- 因而 22 个词表项中有 20 个在 dev20 上没有触发；
+- 去掉 R2c 后，当前工作点退化为 R2d 单独：204 条候选、15/19，
+  不再通过 family TP 门槛；
+- 不使用 R2c 时仍能通过的最小组合是 R2a+R2d：209 条候选、
+  16/19，边际成本为 5.25，而不是头条工作点的 4.25。
+
+R2c 的 head/modifier 机制通过了共享 head、已获支持 modifier、同词异
+短语和多竞争 head 的对抗测试，因此这不是 marker 换名；但 dev20 只真实
+触发了 `bar + chart` 一次，不能据此声称其余解析分支或词表项已经获得
+数据层验证。205 条候选与 4.25 的边际成本应被理解为脆弱的开发集工作点。
+
+R2d 也存在类似的词表稀疏性。8 个 governing head 中只有 `section` 和
+`chapter` 在 dev20 上触发：`section` 承担 family 召回，`chapter` 在红队
+留一消融中只增加非 family 候选；其余 6 个词没有触发。
+`suggestion`/`recommendation` 是对 Spec 中示例 governing head 的实现层
+延伸，本轮没有产生结果影响。它们不能被表述为已验证能力。
+
+### 3.2 词表与开发目标重合
+
+R2a–R2d 是查看 7 条漏检后设计的规则族，部分词表直接重合于目标 rubric
+措辞：
+
+- R2c 的承重词正是 `bar` 和 `chart`；
+- R2b 的计数短语形容词包含
+  `specific`、`visual`、`improvement`、`actionable`、`concrete`；
+- 从 R2b 移除这 5 个词后，离线消融从 220 条候选、17/19 降为
+  218 条候选、15/19；
+- R2b 的 `risk point` head 在 dev20 上没有触发。
+
+这说明 calibration 结果包含明确的开发集选择效应。上述词表在冻结后不因
+消融结果删改，但其数字只能用于诊断和生成可证伪的 internal10 预期，不能
+作为跨任务泛化证据。
+
 ## 4. 与实现前推演的对照
 
 四规则全并集对 7 条实现前预期漏检的恢复为 7/7：
@@ -110,12 +150,20 @@ H1 共检查 133 条正面支持型拒绝：
 
 - valid：48；
 - invalid：13；
-- source text unavailable：72；
+- source text unavailable：72（72/133，54.1%）；
 - 其中空 quote：9，与预注册预期一致。
 
 H1 不进入候选集、不调用 verifier、不产生 finding，因此不影响 A″
-calibration gate。`input` 来源的完整逐字校验在本轮部分不可识别，被记为
-unknown，没有伪装成 valid 或 invalid。
+calibration gate。本轮分析器没有传入 `input_text`；72 条 unknown 全部来自
+`evidence_source="input"`，因此 `input` 来源的完整逐字校验在本轮不可
+识别，被诚实记为 unknown，没有伪装成 valid 或 invalid。
+
+同一输入可见性边界也影响 R2b。R2b 的 descriptive atoms 只能使用
+`input_inventory`、空的 `input_text` 与 `evidence_quote`：当真实输入正文
+包含支持信息但 inventory/quote 未保留时，step 3 可能无法应用应有的委托
+豁免，4b 也可能被归因为 4a。因此 R2b 的 32 条新增候选和 5 条恢复只能
+视为输入部分可见条件下的开发诊断，其子类型归因并非完全可识别。冻结
+工作点 R2c+R2d 不包含 R2b，所以这一限制不改变 205/16-19 的头条数字。
 
 ## 6. 诚实边界与下一步
 
@@ -140,6 +188,19 @@ unknown，没有伪装成 valid 或 invalid。
 3. internal10 必须使用冻结工作点 `R2c + R2d`，不得重新选组合；
 4. internal10 不通过则停止，不创建第四份 holdout；
 5. internal10 通过后，才创建 task-disjoint 的新 holdout 检验泛化。
+
+### 6.1 internal10 运行前冻结的脆弱性预期
+
+在看到 internal10 结果前，冻结如下预期与处理纪律：
+
+- 工作点保持 `R2c + R2d`，不得改为更稳健但候选更多的 R2a+R2d；
+- 根据 dev20 的触发稀疏性，R2c 在 internal10 上预期只触发 0–1 次；
+- 若 R2c 触发 0 次，工作点在该批数据上会实际等价于 R2d 单独，family
+  recall 有较大概率不能达到 85%；
+- 这种情况按正常负结果记录，不修改 tie-break、不补词表、不切换组合，
+  也不进行 operational retry；
+- internal10 的完整样本、指标和成本 gate 仍需在运行前单独冻结；本段只
+  冻结 R2c 的触发预期和失败处理，不以事后结果反推协议。
 
 ## 7. 复现命令
 
