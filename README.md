@@ -422,6 +422,7 @@ examples/                       small runnable inputs
 configs/                        API configuration templates using env-var keys
 scripts/                        dataset adapters and reproducible runners
 experiments/response_triage/    frozen response-triage research protocols
+docs/research/                   long-term research roadmaps and study designs
 reports/                        selected small reproducibility artifacts
 docker/                         pinned execution image recipes
 DESIGN.md                       evidence and architecture design notes
