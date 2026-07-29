@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from scripts.analyze_workspace_a_prime import analyze
 from scripts.run_workspace_static_llm_ablation import (
     NEGATIVE_REVIEW_LABEL,
@@ -116,3 +119,31 @@ def test_a_prime_analysis_marks_missing_structured_row_operational_unknown():
 
     assert result["operational_unknown_tasks"] == ["item-1"]
     assert not result["calibration_go"]
+
+
+
+
+def test_a_prime_stage_configs_machine_enforce_registered_caps():
+    repo = Path(__file__).resolve().parents[1]
+    calibration = json.loads(
+        (
+            repo / "configs/llm_deepseek_workspace_a_prime_calibration.json"
+        ).read_text(encoding="utf-8")
+    )
+    internal = json.loads(
+        (
+            repo
+            / "configs/llm_deepseek_workspace_a_prime_internal_validation.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert calibration["max_api_attempts"] == 25
+    assert calibration["observed_token_stop"] == 400_000
+    assert internal["max_api_attempts"] == 10
+    assert internal["observed_token_stop"] == 200_000
+    assert calibration["max_api_attempts"] + internal["max_api_attempts"] == 35
+    assert (
+        calibration["observed_token_stop"]
+        + internal["observed_token_stop"]
+        == 600_000
+    )
