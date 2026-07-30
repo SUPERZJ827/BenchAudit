@@ -1,0 +1,183 @@
+{
+  "candidate_executions": 0,
+  "decision": "NOT_IDENTIFIABLE_DATA_LINKAGE",
+  "families": [
+    {
+      "candidate_content_ids": 79,
+      "component_unique_id_counts": {
+        "candidate": 79,
+        "reference": 0,
+        "score": 0,
+        "task": 79,
+        "trace": 5
+      },
+      "decision": "NOT_IDENTIFIABLE_DATA_LINKAGE",
+      "family": "SQLite_Function_Code_Generation",
+      "file_counts": {
+        "candidate_json": 6,
+        "per_item_status_csv": 1,
+        "trajectory": 137
+      },
+      "full_chain_count": 0,
+      "full_chain_coverage_over_candidate_ids": 0.0,
+      "full_chain_id_set_sha256": "47147f4bc2ffbc15fbf6690b47cb6d9c3fc0b2ec1796be73f5cfee4b82a88bb7",
+      "gate": {
+        "candidate_ids_at_least_30": true,
+        "full_chain_at_least_30": false,
+        "identity_conflicts_zero": true,
+        "reference_ids_at_least_30": false,
+        "score_ids_at_least_30": false,
+        "task_ids_at_least_30": true,
+        "trace_ids_at_least_30": false
+      },
+      "id_set_sha256": {
+        "candidate": "b4b5dcd0a063e89dc637cc4c0859f30f920002a65c8a71a2ceed26bfb230ef90",
+        "reference": "f3511f31111538dde7f82db49a91ce3ca7d7dc367312d3cda87d3f6d5c69ea11",
+        "score": "9ad608ca77088bd3e6036aed3da90fa8d474785c5271b9f8327756960f623bdd",
+        "task": "03be541133f508f7dc437351a06650df7dd3829a867c6cc289d1b612a56ca47a",
+        "trace": "df9a43c69209b0e3c2eb72098d7fbcd2c084b56754813fdcfde1d5454bce20b3"
+      },
+      "pairwise_join_counts": {
+        "candidate_and_reference": 0,
+        "candidate_and_score": 0,
+        "candidate_and_trace": 5,
+        "reference_and_score": 0,
+        "reference_and_trace": 0,
+        "score_and_trace": 0,
+        "task_and_candidate": 79,
+        "task_and_reference": 0,
+        "task_and_score": 0,
+        "task_and_trace": 5
+      },
+      "reason_counts": {
+        "filename_before_date": 109,
+        "parent_confirmed_after_date": 28
+      },
+      "record_counts": {
+        "candidate_records": 321,
+        "exact_duplicate_candidate_triples": 242,
+        "identity_conflicts": 0,
+        "score_records": 321
+      },
+      "schema_key_frequencies": {
+        "dependency": 158,
+        "execution_time": 5,
+        "file_changes": 4,
+        "gen_code": 5,
+        "harness": 1,
+        "has_is_success": 1,
+        "has_is_success_func": 1,
+        "is_success": 322,
+        "is_success_func": 317,
+        "model": 1,
+        "origin_code": 321,
+        "prompt": 163,
+        "prompt_ndep": 158,
+        "response": 163,
+        "response_ndep": 158,
+        "result": 316,
+        "result_func": 316,
+        "source_result_file": 1,
+        "task_id": 1,
+        "time": 317,
+        "time_func": 317,
+        "time_total": 317,
+        "time_total_func": 317,
+        "variant": 1
+      }
+    },
+    {
+      "candidate_content_ids": 286,
+      "component_unique_id_counts": {
+        "candidate": 286,
+        "reference": 0,
+        "score": 0,
+        "task": 286,
+        "trace": 6
+      },
+      "decision": "NOT_IDENTIFIABLE_DATA_LINKAGE",
+      "family": "PostgreSQL_Function_Code_Generation",
+      "file_counts": {
+        "candidate_json": 8,
+        "per_item_status_csv": 1,
+        "trajectory": 12
+      },
+      "full_chain_count": 0,
+      "full_chain_coverage_over_candidate_ids": 0.0,
+      "full_chain_id_set_sha256": "e8130c96b325775abad69eba0c041027bd61b95e99a04c2b6b1c1bd4c0947cf6",
+      "gate": {
+        "candidate_ids_at_least_30": true,
+        "full_chain_at_least_30": false,
+        "identity_conflicts_zero": true,
+        "reference_ids_at_least_30": false,
+        "score_ids_at_least_30": false,
+        "task_ids_at_least_30": true,
+        "trace_ids_at_least_30": false
+      },
+      "id_set_sha256": {
+        "candidate": "389b0c28c1ad1252f874930bf66c00bd35a77838c47c9bfccf40e0491d5e3268",
+        "reference": "870d2c776b8754afff5d10ed32da170eb8d2905f69071cdc0ddaa1a056a21840",
+        "score": "7d32843e2cd39c32e96dddd49e044b8604b31f9dd9ba87c4de3d96413f4029b3",
+        "task": "ee158798be92221a4686515c34d68c5a74b95e7376df0b2702476173488d3686",
+        "trace": "ddbb2f0e55b686a5f8d66b25b8e31363a90bad6041592f6aa8a1f00c4164b865"
+      },
+      "pairwise_join_counts": {
+        "candidate_and_reference": 0,
+        "candidate_and_score": 0,
+        "candidate_and_trace": 6,
+        "reference_and_score": 0,
+        "reference_and_trace": 0,
+        "score_and_trace": 0,
+        "task_and_candidate": 286,
+        "task_and_reference": 0,
+        "task_and_score": 0,
+        "task_and_trace": 6
+      },
+      "reason_counts": {
+        "filename_before_date": 11,
+        "trace_identity_not_identifiable": 1
+      },
+      "record_counts": {
+        "candidate_records": 1092,
+        "exact_duplicate_candidate_triples": 806,
+        "identity_conflicts": 0,
+        "score_records": 1092
+      },
+      "schema_key_frequencies": {
+        "dependency": 593,
+        "harness": 1,
+        "has_is_success": 1,
+        "has_is_success_func": 1,
+        "is_success": 893,
+        "is_success_func": 1,
+        "model": 1,
+        "origin_code": 1092,
+        "prompt": 593,
+        "prompt_ndep": 499,
+        "response": 593,
+        "response_ndep": 499,
+        "result": 892,
+        "source_result_file": 1,
+        "task_id": 1,
+        "time": 893,
+        "time_func": 1,
+        "time_total": 893,
+        "time_total_func": 1,
+        "variant": 1
+      }
+    }
+  ],
+  "llm_api_calls": 0,
+  "protocol_sha256": "95f215b6b1e6814d37b5047011e37bc02a9cf45eb6d421247a102f81d4da3fd4",
+  "raw_content_emitted": false,
+  "raw_item_ids_emitted": false,
+  "scanner_sha256": "3a6c3e3064ec1ae8a133fa23649e56106a015fdfab3f596d9723d224a1c65e5a",
+  "schema_version": "dbcode-data-linkage-preflight-v1-20260730",
+  "source_receipt": {
+    "file_count": 218,
+    "manifest_sha256": "e4e24e4264b2d36138a1e185f62a361b87b1d0938f8699624a875de8674809d0",
+    "total_bytes": 126374595
+  },
+  "sql_executions": 0,
+  "stable_summary_sha256": "b5a407f421ae546deed02121d4ab43a2f6c570e5fc40a4f1434ed84182f1147b"
+}

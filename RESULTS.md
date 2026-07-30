@@ -407,3 +407,21 @@ This negative result concerns the coverage of the V1 certificate language; it
 does not show that the official APPS tests are sufficient.  Protocol, aggregate
 receipt, and limitations are in
 `docs/experiments/APPS_INPUT_CONTRACT_V1_PREFLIGHT_RESULTS_20260729.md`.
+
+### DBCode adapter availability preflight: stopped before A1 (2026-07-30)
+
+An aggregate-only linkage scan tested whether the collected SQLite and
+PostgreSQL function-generation artifacts could support an attested chain from
+task through execution trace.
+
+| Family | Candidate IDs | Trace IDs | Candidate∩trace | Full chain | Frozen threshold |
+|---|---:|---:|---:|---:|---:|
+| SQLite | 79 | 5 | 5 | **0** | 30 |
+| PostgreSQL | 286 | 6 | 6 | **0** | 30 |
+
+The result is **`NOT_IDENTIFIABLE_DATA_LINKAGE`**. Schema diagnostics suggest
+that `origin_code` and `is_success` could provide reference/status roles, but
+even granting those roles optimistically leaves at most 5/6 trace-linked
+items. No A1 adapter protocol was written, and no SQL, candidate, or API call
+was executed. Full receipt and limitations:
+`docs/experiments/DBCODE_DATA_LINKAGE_PREFLIGHT_RESULTS_20260730.md`.

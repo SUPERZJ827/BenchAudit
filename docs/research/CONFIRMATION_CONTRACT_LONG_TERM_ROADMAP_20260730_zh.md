@@ -115,6 +115,11 @@ APPS V1 的最高价值不是 2.49% 本身，而是一个通用实验模式：
 `NOT_IDENTIFIABLE_DATA_LINKAGE`，不要按猜测的数据形态写 A1 协议。可得性
 receipt 必须先于协议提交。
 
+执行更新（2026-07-30）：DBCode/SQLite 与 PostgreSQL 分别只有 5 与 6 个
+candidate-to-trace 关联，完整链均为 0，已触发
+`NOT_IDENTIFIABLE_DATA_LINKAGE`。本数据包不进入 A1，不围绕少量轨迹手写
+adapter。Phase A 等待新的、带明确 trace-to-item mapping 的版本化数据包。
+
 ### A1. 研究问题
 
 通用确认核心已经跨函数调用和 stdin/stdout 复用，但尚不知道接入陌生协议
@@ -431,18 +436,21 @@ Phase A1 或 B1 失败时不补做更多同类小实验来“救结果”；按�
 - 输出目录；
 - 两次确定性复跑要求。
 
-## 10. 明天开始时的精确顺序
+## 10. 当前下一步
 
-1. 合并或复核 A″ P1 分母更正 `0a15f1d`；
-2. 对 DBCode 做十分钟 aggregate-only 数据可得性检查，生成 task/candidate/
-   reference/score/trace 的 ID 覆盖表；
-3. 只有 linkage 可识别，才单独提交 Phase A1 measurement protocol，暂不写
-   adapter；
-4. 对 DBCode/SQLite 做输入与执行器预飞；
-5. 只有预飞通过才实现 adapter；
-6. 另开 B1 repair protocol，先判断 workspacebench-351 的修复是否唯一；
-7. B1 通过 identifiability gate 后才生成 patch；
-8. 不启动 APPS V2，不回到 Workspace router 调参。
+已完成：
+
+1. A″ P1 分母更正 `0a15f1d`；
+2. DBCode aggregate-only 数据可得性检查；
+3. 因完整链 0/0 停止 DBCode A1，没有实现 adapter。
+
+接下来：
+
+1. 另开 B1 repair protocol，先判断 workspacebench-351 的修复是否唯一；
+2. B1 通过 identifiability gate 后才生成 patch；
+3. 若未来获得带 trace-to-item mapping 的新版 DBCode 包，从全新 A0 协议
+   重启，不能 reinterpret 当前 receipt；
+4. 不启动 APPS V2，不回到 Workspace router 调参。
 
 ## 11. 对外汇报的简洁版本
 
