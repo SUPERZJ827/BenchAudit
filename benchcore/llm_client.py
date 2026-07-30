@@ -5,13 +5,15 @@ import http.client
 import json
 import os
 import ssl
+import base64
 import threading
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
+from urllib.request import getproxies, proxy_bypass
 
 
 @dataclass
@@ -106,6 +108,71 @@ def _perform_http_request_with_deadline(
     if not isinstance(status, int) or not isinstance(body, bytes):
         raise http.client.HTTPException("LLM HTTP transaction returned invalid data")
     return status, body
+
+
+def _connection_for_url(
+    parsed: Any,
+    *,
+    timeout: float,
+    context: ssl.SSLContext | None,
+) -> http.client.HTTPConnection:
+    """Create a direct connection or a standards-based HTTPS proxy tunnel.
+
+    ``http.client`` does not consult ``HTTPS_PROXY`` by itself.  That made the
+    CLI silently hang on hosts where curl/Python package managers work only
+    through an outbound proxy.  Keep direct connections as the default and use
+    CONNECT only when the environment explicitly configures a proxy and the
+    destination is not covered by ``NO_PROXY``.
+    """
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("LLM base URL must include a hostname")
+
+    proxy_value = None
+    if not proxy_bypass(hostname):
+        proxy_value = getproxies().get(parsed.scheme)
+    if not proxy_value:
+        conn_cls = (
+            http.client.HTTPSConnection
+            if parsed.scheme == "https"
+            else http.client.HTTPConnection
+        )
+        if parsed.scheme == "https":
+            return conn_cls(
+                parsed.netloc, timeout=timeout, context=context,
+            )
+        return conn_cls(parsed.netloc, timeout=timeout)
+
+    proxy = urlparse(proxy_value)
+    if proxy.scheme not in {"http", ""}:
+        raise ValueError(
+            f"unsupported {parsed.scheme.upper()} proxy scheme: {proxy.scheme}"
+        )
+    if not proxy.hostname:
+        raise ValueError("proxy URL must include a hostname")
+    if parsed.scheme != "https":
+        raise ValueError("proxied non-HTTPS LLM endpoints are not supported")
+
+    proxy_headers: dict[str, str] = {}
+    if proxy.username is not None:
+        password = unquote(proxy.password or "")
+        credentials = f"{unquote(proxy.username)}:{password}".encode("utf-8")
+        proxy_headers["Proxy-Authorization"] = (
+            "Basic " + base64.b64encode(credentials).decode("ascii")
+        )
+
+    connection = http.client.HTTPSConnection(
+        proxy.hostname,
+        proxy.port or 80,
+        timeout=timeout,
+        context=context,
+    )
+    connection.set_tunnel(
+        hostname,
+        port=parsed.port or 443,
+        headers=proxy_headers,
+    )
+    return connection
 
 
 def load_llm_config(path: str | None = None) -> LLMConfig:
@@ -247,7 +314,6 @@ class LLMClient:
 
     def _post_chat_completions(self, body: dict[str, Any], api_key: str) -> dict[str, Any]:
         parsed = urlparse(self.config.base_url.rstrip("/") + "/chat/completions")
-        conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
         context = ssl.create_default_context() if parsed.scheme == "https" else None
         payload = json.dumps(body).encode("utf-8")
         headers = {
@@ -258,10 +324,10 @@ class LLMClient:
         path = parsed.path or "/chat/completions"
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
-            conn = (
-                conn_cls(parsed.netloc, timeout=self.config.timeout, context=context)
-                if context
-                else conn_cls(parsed.netloc, timeout=self.config.timeout)
+            conn = _connection_for_url(
+                parsed,
+                timeout=float(self.config.timeout),
+                context=context,
             )
             try:
                 self._begin_api_attempt()

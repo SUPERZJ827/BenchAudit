@@ -10,9 +10,11 @@ from unittest import mock
 from benchcore.llm_client import (
     LLMClient,
     LLMConfig,
+    _connection_for_url,
     _extract_json_result,
     _perform_http_request_with_deadline,
 )
+from urllib.parse import urlparse
 
 
 class StubLLMClient(LLMClient):
@@ -124,6 +126,56 @@ def _wait_for_singleflight_followers(
 
 
 class LLMClientTest(unittest.TestCase):
+    def test_https_proxy_uses_connect_tunnel_without_target_credentials(self):
+        parsed = urlparse("https://api.deepseek.com/chat/completions")
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "HTTPS_PROXY": "http://127.0.0.1:17890",
+                "https_proxy": "http://127.0.0.1:17890",
+                "NO_PROXY": "",
+                "no_proxy": "",
+            },
+            clear=True,
+        ), mock.patch(
+            "benchcore.llm_client.http.client.HTTPSConnection"
+        ) as connection_cls:
+            connection = _connection_for_url(
+                parsed, timeout=12, context=mock.sentinel.context,
+            )
+
+        self.assertIs(connection, connection_cls.return_value)
+        connection_cls.assert_called_once_with(
+            "127.0.0.1", 17890, timeout=12, context=mock.sentinel.context,
+        )
+        connection.set_tunnel.assert_called_once_with(
+            "api.deepseek.com", port=443, headers={},
+        )
+
+    def test_no_proxy_keeps_direct_https_connection(self):
+        parsed = urlparse("https://api.deepseek.com/chat/completions")
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "HTTPS_PROXY": "http://127.0.0.1:17890",
+                "https_proxy": "http://127.0.0.1:17890",
+                "NO_PROXY": "api.deepseek.com",
+                "no_proxy": "api.deepseek.com",
+            },
+            clear=True,
+        ), mock.patch(
+            "benchcore.llm_client.http.client.HTTPSConnection"
+        ) as connection_cls:
+            connection = _connection_for_url(
+                parsed, timeout=12, context=mock.sentinel.context,
+            )
+
+        self.assertIs(connection, connection_cls.return_value)
+        connection_cls.assert_called_once_with(
+            "api.deepseek.com", timeout=12, context=mock.sentinel.context,
+        )
+        connection.set_tunnel.assert_not_called()
+
     def test_cache_only_refuses_miss_before_network_and_uses_exact_hit(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache_path = Path(tmp) / "cache.jsonl"
