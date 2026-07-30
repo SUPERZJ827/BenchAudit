@@ -1,0 +1,84 @@
+{
+  "schema_version": "svamp-fp-regression-replay-v1",
+  "date": "2026-07-31",
+  "verdict": "NOT_IDENTIFIABLE_CACHE_KEY_INCOMPATIBLE",
+  "api_policy": {
+    "credentials_removed_from_subprocesses": true,
+    "all_runs_api_attempts": 0,
+    "cache_modified": false
+  },
+  "frozen_inputs": {
+    "cache_sha256": "117906a173198190d8360bfb360bc1e8afd4788a1c61dd3dde6035b88d96d32a",
+    "manifest_sha256": "c4ef5ddfb590b210243c0114d7d9eed7a15c2c0a1cf14a98f763cb7d4992d861",
+    "dataset_sha256": "f27f8ebf56b33fbeea4b6430f63f24c66adb37bd38a1a8b2bbe62960f588063e",
+    "replay_config_sha256": "f617394287a5eb848655196cb1cc2ce1a74d3d2a8e103b74da2e2ea94ff8b1f8"
+  },
+  "valid_baseline": {
+    "commit": "3b59ae1",
+    "base_commit": "b450d4e9e639883e2417167fc47e8f9cfb574a3b",
+    "report_sha256": "1bb7891b18a4ec47cc4c9870c28c209738c21d7e44f12226746a11dc736e9479",
+    "comparison_sha256": "813da6f00c03d3106d5974b32d4f9098a180408059ddd41f5a3ffe187996b58a",
+    "cache_hits": 661,
+    "api_attempts": 0,
+    "candidate": {
+      "prediction_items": 50,
+      "true_positive": 33,
+      "false_positive": 17,
+      "false_negative": 5,
+      "precision": 0.66,
+      "recall": 0.868421052631579,
+      "f1": 0.7500000000000001
+    }
+  },
+  "historical_runs": [
+    {
+      "commit": "a58bd5bc4d936b193fd0ae80ec4708c918615a2e",
+      "date": "2026-07-08T19:47:29+08:00",
+      "title": "Add rubric strictness review signals",
+      "status": "CACHE_KEY_INCOMPATIBLE",
+      "cache_hits": 0,
+      "api_attempts": 0,
+      "llm_audit_failures": 400,
+      "report_sha256": "87c4c06ab4a29e7af8d573bafa51f6090cfed244319998ecd909a364b3cf8de9",
+      "comparison_sha256": "96af63ddab1876ea36463a333872a315d74037a58f49bf1e2a36c45193304a41"
+    },
+    {
+      "commit": "6e189b821df3e76b9b477cefbc8c620621cfbe9c",
+      "date": "2026-07-13T15:24:51+08:00",
+      "title": "Add artifact-aware automatic benchmark auditing",
+      "status": "CACHE_KEY_INCOMPATIBLE",
+      "cache_hits": 0,
+      "api_attempts": 0,
+      "llm_audit_failures": 400,
+      "report_sha256": "412e751ede343e0277d65aaf95fd991b6c88010212189bb842357e7f0937953c",
+      "comparison_sha256": "945a3bf8c2320b8a32ca087152f4866535159eb4aac1cd574750b1c9d170fc47"
+    },
+    {
+      "commit": "ac99446fe503786922d9d57bcbbc983ef5c69b9b",
+      "date": "2026-07-16T21:44:27+08:00",
+      "title": "Add adaptive benchmark auditing and objective evidence replay",
+      "status": "CACHE_KEY_INCOMPATIBLE",
+      "cache_hits": 0,
+      "api_attempts": 0,
+      "llm_audit_failures": 400,
+      "report_sha256": "46d6a7be1482302cd48c2431df0e126a444d5013993c885a856e6ad8d1bf03f8",
+      "comparison_sha256": "9079330921065fe5e465b0cd39fb6beca5724606e02de31140d5169b2fdeb276"
+    },
+    {
+      "commit": "12a6e2ca5196afd521acf0119b9725fb9a11807d",
+      "date": "2026-07-23T15:25:26+08:00",
+      "title": "Add review-only historical response triage",
+      "status": "CACHE_KEY_INCOMPATIBLE",
+      "cache_hits": 0,
+      "api_attempts": 0,
+      "llm_audit_failures": 400,
+      "report_sha256": "9e1a9bdef0bfd4d57837386c8a804dc8faee800373ede1fc29e2e3d8ec2277af",
+      "comparison_sha256": "d2883cca44e330dd05442a4c457555bef841055b2925aa37e8627383a2da6685"
+    }
+  ],
+  "candidate_commits_touching_nominated_files": [
+    "6e189b821df3e76b9b477cefbc8c620621cfbe9c",
+    "ac99446fe503786922d9d57bcbbc983ef5c69b9b"
+  ],
+  "stop_reason": "The requested historical endpoint had zero exact cache hits; the preregistered cross-commit replay premise failed."
+}
