@@ -380,6 +380,7 @@ The full tables, definitions, and limitations are in [RESULTS.md](RESULTS.md).
 | EvalPlus structural-memory LOBO | Witness yield: random-order mean 3.54%→memory 3.94% (MBPP→HumanEval); 7.19%→8.40% (HumanEval→MBPP) | Cross-benchmark mutation-family priors improve verifier routing; memory remains review-only |
 | APPS stdin/stdout MR-4 transfer | 7 confirmed gaps vs. a constructed prefix across 4/26 valid tasks; all-pair yield 5.19%, conditional yield 21.21%; all controls 0 | The generic confirmation contract transferred across execution protocols; the constructed weak prefix is not an APPS evaluator-defect claim |
 | APPS official-suite survivor preflight | V1 mechanically certified 33/1,327 non-target eligible rows (2.49%) vs. a frozen 20% proceed threshold | `NOT_IDENTIFIABLE_PREFLIGHT_V1`; target tasks stayed unread and the APPS-specific parser line was stopped without V2 |
+| DBCode data-linkage preflight | SQLite/PostgreSQL full chains 0/0; candidate-to-trace joins only 5/6 vs. threshold 30 | `NOT_IDENTIFIABLE_DATA_LINKAGE`; no SQL adapter was built from incomplete archived traces |
 
 The EvalPlus result is deliberately reported against 500 random family
 orders, rather than only against one fixed generic order that happened to
@@ -399,6 +400,8 @@ metrics, not estimates of recall over all natural benchmark defects.
 
 Negative results are retained. In particular:
 
+- DBCode adapter work stopped before A1 because archived traces linked to only
+  5 SQLite and 6 PostgreSQL candidate IDs, far below the frozen 30-chain gate;
 - the APPS official-suite survivor follow-up stopped before target inspection:
   V1 input-domain certificates covered only 2.49% of non-target eligible rows,
   so no V2 grammar or target-specific parser was built;
