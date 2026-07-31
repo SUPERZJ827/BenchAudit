@@ -226,6 +226,10 @@ def main() -> int:
         help="Label value meaning 'clean' (repeat for multiple, default: clean ok false)",
     )
     parser.add_argument("--model", choices=["deepseek", "openrouter"], default="deepseek")
+    parser.add_argument(
+        "--llm-config",
+        help="Explicit LLM config path; overrides the config selected by --model",
+    )
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--progress-every", type=int, default=10)
     parser.add_argument("--llm-dry-run", action="store_true")
@@ -243,7 +247,7 @@ def main() -> int:
         "deepseek": "configs/llm_deepseek.json",
         "openrouter": "configs/llm_openrouter.json",
     }
-    config_path = PROJECT_ROOT / config_map[args.model]
+    config_path = Path(args.llm_config) if args.llm_config else PROJECT_ROOT / config_map[args.model]
     llm_config = load_llm_config(str(config_path))
     llm_config.cache_path = f"reports/{args.tag}_direct_llm_cache.jsonl"
     if args.llm_dry_run:
