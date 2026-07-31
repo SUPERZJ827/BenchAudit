@@ -64,11 +64,15 @@ def top1_changes(models, base_ids, removed_ids, min_items=15, min_removed=3):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--audit", default=str(OUT / "audit_full1000.json"))
+    ap.add_argument("--data", default=str(DATA))
+    ap.add_argument("--out-dir", default=str(OUT))
     ap.add_argument("--models", required=True)
     args = ap.parse_args()
 
+    data_path = Path(args.data)
+    out_dir = Path(args.out_dir)
     rows = {json.loads(l)["id"]: json.loads(l)
-            for l in DATA.read_text(encoding="utf-8").splitlines()}
+            for l in data_path.read_text(encoding="utf-8").splitlines()}
     all_ids = set(rows)
     mmlu_obj = {i for i, r in rows.items() if r["metadata"]["error_type"] in MMLU_OBJ}
 
@@ -137,9 +141,9 @@ def main():
           "- per-subject 冠军易主经随机删题对照后**不显著**(见 random_deletion_control.md);"
           "唯一稳健的单点是 philosophy(随机翻转概率 1.8%)。",
           "- 1000 题子集、DeepSeek 单模型审计、15 个作答模型、zero-shot 单次。"]
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "closed_loop_ranking.md").write_text("\n".join(L), encoding="utf-8")
-    (OUT / "closed_loop_ranking.json").write_text(json.dumps({
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "closed_loop_ranking.md").write_text("\n".join(L), encoding="utf-8")
+    (out_dir / "closed_loop_ranking.json").write_text(json.dumps({
         "auditor_flagged": len(flagged), "mmlu_objective": len(mmlu_obj), "tp": tp,
         "precision": prec, "recall": rec, "f1": f1,
         "tau_audit": tau_audit, "tau_mmlu": tau_mmlu,
@@ -147,7 +151,7 @@ def main():
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"flagged={len(flagged)} tp={tp} P={prec:.2f} R={rec:.2f} F1={f1:.2f} "
           f"tau_audit={tau_audit:.3f} subj_changed={len(subj_audit)}/{considered}")
-    print("wrote reports/ranking_impact/closed_loop_ranking.md")
+    print(f"wrote {out_dir / 'closed_loop_ranking.md'}")
 
 
 if __name__ == "__main__":
