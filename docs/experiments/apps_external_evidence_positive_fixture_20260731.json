@@ -1,0 +1,50 @@
+{
+  "fixture_schema": "benchaudit-external-evidence-positive-fixture-v1",
+  "fixture_only": true,
+  "production_git_verifier_implemented": false,
+  "network_accessed_while_constructing_fixture": false,
+  "basis": {
+    "frozen_input_receipt_path": "docs/experiments/apps_stdin_input_receipt_20260729.json",
+    "frozen_input_receipt_sha256": "9d4096cf343620a2a9c6f2e9fb241ed4ef50db2e7a59417e82dc319085a028e6",
+    "dataset_repository": "codeparrot/apps",
+    "dataset_revision": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "selected_normative_path": "README.md",
+    "selected_content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846"
+  },
+  "external_evidence_receipt": {
+    "receipt_version": "1",
+    "policy_version": "external-evidence-policy-v1",
+    "source_role": "normative",
+    "source_remote_url": "https://huggingface.co/datasets/codeparrot/apps",
+    "cutoff_remote_url": "https://huggingface.co/datasets/codeparrot/apps",
+    "source_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "cutoff_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "source_path": "README.md",
+    "content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846",
+    "relation_proof": {
+      "kind": "git_graph_and_tree_blob_v1",
+      "remote_url": "https://huggingface.co/datasets/codeparrot/apps",
+      "source_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+      "cutoff_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+      "source_path": "README.md",
+      "content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846"
+    }
+  },
+  "constructed_offline_verification": {
+    "verified": true,
+    "reason": "constructed positive-path fixture bound to the pre-outcome APPS input receipt",
+    "trust_domain": "independent_git_provenance_v1",
+    "receipt_payload_sha256": "f3bd1f19bc9645e46807ed365bfc1773e28e8a303e9c2184bb362b6b4ab733ad",
+    "verified_remote_url": "https://huggingface.co/datasets/codeparrot/apps",
+    "official_remote_verified": true,
+    "role_binding_verified": true,
+    "verified_source_role": "normative",
+    "source_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "cutoff_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "source_path": "README.md",
+    "source_tree_content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846",
+    "cutoff_tree_content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846",
+    "source_is_ancestor_of_cutoff": true,
+    "cutoff_is_ancestor_of_source": true
+  }
+}

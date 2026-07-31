@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ast
 from dataclasses import replace
+import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,15 @@ OFFICIAL_REMOTE = "https://github.com/example/benchmark.git"
 SOURCE_COMMIT = "a" * 40
 CUTOFF_COMMIT = "b" * 40
 CONTENT_SHA256 = "c" * 64
+REPO_ROOT = Path(__file__).resolve().parents[1]
+APPS_INPUT_RECEIPT = (
+    REPO_ROOT / "docs" / "experiments"
+    / "apps_stdin_input_receipt_20260729.json"
+)
+APPS_EXTERNAL_FIXTURE = (
+    REPO_ROOT / "docs" / "experiments"
+    / "apps_external_evidence_positive_fixture_20260731.json"
+)
 
 
 def _receipt(
@@ -470,3 +481,63 @@ def test_network_io_modules_do_not_directly_emit_undeclared_findings() -> None:
         "network-capable modules directly constructed findings without "
         f"external_evidence_receipts: {violations}"
     )
+
+
+def _apps_positive_fixture() -> tuple[
+    dict[str, Any],
+    ExternalEvidenceReceipt,
+    ExternalEvidenceVerification,
+]:
+    fixture = json.loads(APPS_EXTERNAL_FIXTURE.read_text(encoding="utf-8"))
+    original_bytes = APPS_INPUT_RECEIPT.read_bytes()
+    original = json.loads(original_bytes)
+    basis = fixture["basis"]
+    assert hashlib.sha256(original_bytes).hexdigest() == basis[
+        "frozen_input_receipt_sha256"
+    ]
+    assert original["dataset_repository"] == basis["dataset_repository"]
+    assert original["dataset_revision"] == basis["dataset_revision"]
+    assert original["files"][basis["selected_normative_path"]]["sha256"] == (
+        basis["selected_content_sha256"]
+    )
+    receipt = ExternalEvidenceReceipt.from_mapping(
+        fixture["external_evidence_receipt"]
+    )
+    verification = ExternalEvidenceVerification(
+        **fixture["constructed_offline_verification"]
+    )
+    assert fixture["fixture_only"] is True
+    assert fixture["production_git_verifier_implemented"] is False
+    return fixture, receipt, verification
+
+
+def test_apps_frozen_normative_fixture_reaches_all_four_uses() -> None:
+    _, receipt, verification = _apps_positive_fixture()
+
+    assert receipt_payload_sha256(receipt) == (
+        verification.receipt_payload_sha256
+    )
+    assert derive_allowed_uses(receipt, verification) == {
+        "routing", "detection", "confirmation", "validation",
+    }
+
+
+def test_apps_positive_fixture_reaches_existing_proof_not_self_confirmation() -> None:
+    fixture, _, verification = _apps_positive_fixture()
+    receipt_value = fixture["external_evidence_receipt"]
+    finding, item = _missing_task_finding([receipt_value])
+
+    decision = decide_promotion(
+        finding,
+        item,
+        external_evidence_verifier=_StaticVerifier(verification),
+    )
+
+    assert decision.tier == "confirmed"
+    finding.defect_type = "wrong_gold_answer"
+    finding.evidence["evidence_level"] = "unregistered_external_claim"
+    assert decide_promotion(
+        finding,
+        item,
+        external_evidence_verifier=_StaticVerifier(verification),
+    ).tier == "review"
