@@ -41,6 +41,7 @@ the verifier separately pins that value in source code.
 
 - targeted external-evidence tests: **48 passed**;
 - full repository tests before execution: **775 passed**;
+- fresh-clone tests after the result commit: **48 targeted / 776 full passed**;
 - API and LLM calls: **0**.
 
 The attacks cover manifest mutation and self-consistent substitution, URL and

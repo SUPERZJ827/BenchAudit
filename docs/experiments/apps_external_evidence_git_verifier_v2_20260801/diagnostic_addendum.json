@@ -47,5 +47,9 @@
   "tests_before_execution": {
     "full": "775 passed",
     "targeted_after_final_runner_test": "48 passed"
+  },
+  "tests_from_fresh_clone_after_result_commit": {
+    "full": "776 passed",
+    "targeted": "48 passed"
   }
 }
