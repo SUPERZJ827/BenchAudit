@@ -137,6 +137,13 @@ Consequences:
 - an old receipt is re-derived under the active policy and never reuses a
   cached permission result.
 
+`contemporaneous_metadata` deliberately has no confirmation capability. A
+pinned GitHub event, release record, or cross-PR link proves that the metadata
+snapshot existed; it does not by itself prove benchmark semantics or evaluator
+behavior. If a future evidence class has an independently replayable semantic
+proof, it must receive a new role and a separately frozen policy revision. The
+current metadata role will not be silently widened.
+
 ## 7. Central promotion behavior
 
 If a finding declares `external_evidence_receipts`:
@@ -153,7 +160,28 @@ If a finding declares `external_evidence_receipts`:
 With no configured verifier, external evidence is unverifiable and cannot
 enter detection. Existing findings with no external receipt are unchanged.
 
-## 8. Frozen constructed tests
+An explicitly declared empty `external_evidence_receipts` list means that the
+finding declared an external-evidence dependency but supplied no usable
+receipt. It therefore fails closed to `unknown`; it does not mean "no external
+evidence was needed." A producer that did not use external evidence must omit
+the field.
+
+## 8. Opt-in boundary
+
+This gate governs **declared** external evidence. It cannot prove that an
+arbitrary checker did not access external information and omit the receipt.
+Accordingly, the valid claim is:
+
+> Declared external evidence cannot gain detection or confirmation authority
+> without independent provenance replay and policy derivation.
+
+It is not valid to claim that BenchAudit prevents every undeclared network or
+out-of-band input from influencing a checker. A repository-level static test
+detects the cheaper direct failure mode: a module that imports a network I/O
+client and directly constructs findings without declaring external receipts.
+That scan is defense in depth, not whole-program information-flow proof.
+
+## 9. Frozen constructed tests
 
 At least these ten behaviors must be tested:
 
@@ -178,7 +206,7 @@ Additional integration tests must show:
 
 All pass claims must come from a fresh clone containing only committed files.
 
-## 9. Completion boundary
+## 10. Completion boundary
 
 This phase is complete when:
 

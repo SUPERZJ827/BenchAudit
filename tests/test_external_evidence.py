@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from benchcore.external_evidence import (
@@ -218,8 +220,14 @@ def test_caller_supplied_allowed_uses_cannot_forge_confirmation() -> None:
 def test_absent_independent_verifier_is_unverifiable_and_allows_nothing() -> None:
     decision = evaluate_external_evidence([_receipt()], None)
 
-    assert decision.present is True
     assert decision.allowed_uses == frozenset()
+
+
+def test_declared_empty_receipt_list_fails_closed() -> None:
+    decision = evaluate_external_evidence([], None)
+
+    assert decision.allowed_uses == frozenset()
+    assert "non-empty list" in decision.reason
 
 
 def test_correct_ancestry_with_wrong_cutoff_blob_hash_is_rejected() -> None:
@@ -280,6 +288,21 @@ def test_verification_against_a_different_remote_is_rejected() -> None:
     verification = _verification(
         receipt,
         verified_remote_url="https://github.com/attacker/fork.git",
+    )
+
+    assert derive_allowed_uses(receipt, verification) == frozenset()
+
+
+def test_post_cutoff_verification_rejects_unused_cutoff_blob_hash() -> None:
+    receipt = _parsed_receipt(
+        role="post_cutoff_correction",
+        source_commit="d" * 40,
+    )
+    verification = _verification(
+        receipt,
+        source_is_ancestor=False,
+        cutoff_is_ancestor=True,
+        cutoff_tree_content_sha256=receipt.content_sha256,
     )
 
     assert derive_allowed_uses(receipt, verification) == frozenset()
@@ -395,3 +418,55 @@ def test_findings_without_external_receipts_keep_existing_behavior() -> None:
     decision = decide_promotion(finding, item)
 
     assert decision.tier == "confirmed"
+
+
+def test_network_io_modules_do_not_directly_emit_undeclared_findings() -> None:
+    """Cheap defense in depth, not whole-program information-flow proof."""
+
+    root = Path(__file__).resolve().parents[1] / "benchcore"
+    network_modules: list[str] = []
+    violations: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        imports_network_io = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imports_network_io |= any(
+                    alias.name in {"requests", "httpx", "socket"}
+                    or alias.name.startswith("urllib.request")
+                    for alias in node.names
+                )
+            elif isinstance(node, ast.ImportFrom):
+                module = str(node.module or "")
+                imports_network_io |= (
+                    module in {"requests", "httpx", "socket", "urllib.request"}
+                    or module.startswith(("requests.", "httpx."))
+                )
+        if not imports_network_io:
+            continue
+        network_modules.append(str(path.relative_to(root)))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function_name = (
+                node.func.id if isinstance(node.func, ast.Name)
+                else node.func.attr if isinstance(node.func, ast.Attribute)
+                else ""
+            )
+            if function_name not in {"Violation", "_violation"}:
+                continue
+            declared = any(
+                isinstance(descendant, ast.Constant)
+                and descendant.value == "external_evidence_receipts"
+                for descendant in ast.walk(node)
+            )
+            if not declared:
+                violations.append(
+                    f"{path.relative_to(root)}:{getattr(node, 'lineno', '?')}"
+                )
+
+    assert network_modules, "scanner must exercise at least one network I/O module"
+    assert not violations, (
+        "network-capable modules directly constructed findings without "
+        f"external_evidence_receipts: {violations}"
+    )

@@ -134,6 +134,8 @@ tests.
 ## 9. Boundary
 
 Phase 1 proves that producer-controlled permission claims cannot cross the
-constructed central gate when the finding declares external evidence. It does
-not yet prove a real Git verifier implementation or a real APPS provenance
-fixture. With no configured verifier, the implementation fails closed.
+constructed central gate when the finding declares external evidence. This is
+an opt-in provenance contract: it does not prove that a checker cannot conceal
+external access by omitting the receipt field. It does not yet prove a real Git
+verifier implementation or a real APPS provenance fixture. With no configured
+verifier, the implementation fails closed.
