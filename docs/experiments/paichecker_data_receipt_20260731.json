@@ -1,0 +1,176 @@
+{
+  "api_or_llm_calls": 0,
+  "candidate_data_files": [
+    {
+      "evidence_field_presence": {
+        "instance_id": true,
+        "issue_body": true,
+        "issue_discussion": true,
+        "pr_description": true,
+        "production_patch": true,
+        "test_patch": true
+      },
+      "field_names": [
+        "commit_message",
+        "files",
+        "hints_text",
+        "instance_id",
+        "is_issue_mentioned",
+        "is_pr_mentioned",
+        "issue_number",
+        "patch",
+        "pr_comments",
+        "pr_description",
+        "problem_statement",
+        "review_comments",
+        "test_patch"
+      ],
+      "format": "jsonl",
+      "label_fields": [],
+      "parse_status": "parsed",
+      "path": "examples/dp_example.jsonl",
+      "qualifies_as_labeled_research_data": false,
+      "record_count": 1,
+      "sha256": "dfc412e57fe1ce987ba0eab0a747c65c77c30e63a2102fcf3021f299330637af",
+      "size_bytes": 12443
+    }
+  ],
+  "decision": "NOT_IDENTIFIABLE_DATA",
+  "decision_reason": "official_repository_contains_no_labeled_research_dataset",
+  "labeled_research_dataset_count": 0,
+  "protocol": "paichecker_public_data_stage0_v1",
+  "repository": {
+    "commit_sha": "4f2bd0b092765891203c72a43d22eb01c305981d",
+    "commit_timestamp": "2026-07-30T23:21:57+08:00",
+    "files": [
+      {
+        "path": ".agents/skills/paichecker/SKILL.md",
+        "sha256": "277a24d59c77a6819399ec639aeb44d386beebc7e980df30f649f763ab60ba6d",
+        "size_bytes": 13090
+      },
+      {
+        "path": ".agents/skills/paichecker/agents/openai.yaml",
+        "sha256": "1a28d0f420237eebd5236b4d8f0f40fe4f5fd96c1d89ea2379f7f8cfbdcf139d",
+        "size_bytes": 233
+      },
+      {
+        "path": ".claude/skills/paichecker/SKILL.md",
+        "sha256": "277a24d59c77a6819399ec639aeb44d386beebc7e980df30f649f763ab60ba6d",
+        "size_bytes": 13090
+      },
+      {
+        "path": ".gitignore",
+        "sha256": "1f2bf42537276b541282d54e301fa57e27111b6b44270449da827cf53b48265f",
+        "size_bytes": 541
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "882374b303aa0935b675b337f02affc0a8bc96318229da260131fa47ff540098",
+        "size_bytes": 1075
+      },
+      {
+        "path": "README.md",
+        "sha256": "dd7edf0c45f2874e1096d12708899888c0637293eb0052a927e95ba0694ef55f",
+        "size_bytes": 7178
+      },
+      {
+        "path": "examples/dp_example.jsonl",
+        "sha256": "dfc412e57fe1ce987ba0eab0a747c65c77c30e63a2102fcf3021f299330637af",
+        "size_bytes": 12443
+      },
+      {
+        "path": "pyproject.toml",
+        "sha256": "53e6449b5ab54f185a24cdbb43f86ce180baca4115db314f8efa7beb96d8b21b",
+        "size_bytes": 545
+      },
+      {
+        "path": "src/paichecker/__init__.py",
+        "sha256": "353f2b4a21e02c0d5cc534578cb713749e76fa9492634bbf04dec1343720e885",
+        "size_bytes": 1024
+      },
+      {
+        "path": "src/paichecker/agents/__init__.py",
+        "sha256": "4f0d402327f6ced83647336ee1f1bdd86311e2971ede7983b0f1f4ba7dff6355",
+        "size_bytes": 44
+      },
+      {
+        "path": "src/paichecker/agents/default.py",
+        "sha256": "24e59f6c7421783301f67312a7f1090ca2ee21bb084a61ee9ff06866ff780636",
+        "size_bytes": 15436
+      },
+      {
+        "path": "src/paichecker/agents/multi_agent.py",
+        "sha256": "274ad016109099d87db120e990fd53f08428a584b7a9267d7d1b8ea4006736d6",
+        "size_bytes": 14540
+      },
+      {
+        "path": "src/paichecker/config/__init__.py",
+        "sha256": "7387e085389dc3ab17a34bf759d2eb5f2fbc1e8bbdb077cadf9e76691f374928",
+        "size_bytes": 819
+      },
+      {
+        "path": "src/paichecker/config/multi_swe_detector.yaml",
+        "sha256": "7ea2ce131f4fae1b6e458c3c310f0f3a33cfc18f90242c1b3225a5425b07f716",
+        "size_bytes": 44171
+      },
+      {
+        "path": "src/paichecker/environments/__init__.py",
+        "sha256": "aa0a01bd13df3117df62cc1f2953f8bd07ca28836964de7f8a371664f3882ee0",
+        "size_bytes": 937
+      },
+      {
+        "path": "src/paichecker/environments/local.py",
+        "sha256": "5e06121bf8c0da3d606dadbdfe7938c3652ea8243168d9d0a0d776be4a5daaf6",
+        "size_bytes": 1241
+      },
+      {
+        "path": "src/paichecker/models/__init__.py",
+        "sha256": "162ffb8fdf3b91b1ddbaf279b656007c125766c9b899088cb019a23509430540",
+        "size_bytes": 4394
+      },
+      {
+        "path": "src/paichecker/models/litellm_model.py",
+        "sha256": "c6631336a47dd54379b81c277d5ba1f4e5b3e529c591e6deae5d339c10676263",
+        "size_bytes": 5042
+      },
+      {
+        "path": "src/paichecker/models/utils/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": "src/paichecker/models/utils/cache_control.py",
+        "sha256": "ce08bd7bfef6635a5cd2a362ad6f3faccca2f1170ba2718936d7dabea197e7f2",
+        "size_bytes": 1917
+      },
+      {
+        "path": "src/paichecker/run/__init__.py",
+        "sha256": "9b7ef8b90ce81b19e3e397600ac85bf46db1f5242e63589683b92508cb8ccc4b",
+        "size_bytes": 48
+      },
+      {
+        "path": "src/paichecker/run/multi_swe_detector.py",
+        "sha256": "fe10ca122c737c13a65cf21383330988b9545840749964d3a489f730a6fbbf31",
+        "size_bytes": 6678
+      },
+      {
+        "path": "src/paichecker/utils/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "size_bytes": 0
+      },
+      {
+        "path": "src/paichecker/utils/log.py",
+        "sha256": "a6c596879cf70535655eb95e21c7a908c3205dd8fa041fc1ee33b60ca5e00440",
+        "size_bytes": 990
+      },
+      {
+        "path": "src/paichecker/utils/pricing.py",
+        "sha256": "f66bcd302660a50a407da1ef3fb504a851a241fe7dd35010e7d82d72bc8d00d8",
+        "size_bytes": 1542
+      }
+    ],
+    "remote_url": "https://github.com/manyifire/PAIChecker.git",
+    "tracked_file_count": 25
+  },
+  "stage1_executed": false
+}
