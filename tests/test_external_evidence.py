@@ -165,10 +165,14 @@ def _missing_task_finding(
     )
 
 
-def test_normative_pre_cutoff_receipt_allows_all_uses() -> None:
+def test_strict_ancestor_normative_pre_cutoff_receipt_allows_all_uses() -> None:
     receipt = _parsed_receipt()
+    verification = _verification(receipt)
 
-    assert derive_allowed_uses(receipt, _verification(receipt)) == {
+    assert receipt.source_commit != receipt.cutoff_commit
+    assert verification.source_is_ancestor_of_cutoff is True
+    assert verification.cutoff_is_ancestor_of_source is False
+    assert derive_allowed_uses(receipt, verification) == {
         "routing", "detection", "confirmation", "validation",
     }
 
@@ -481,6 +485,48 @@ def test_network_io_modules_do_not_directly_emit_undeclared_findings() -> None:
         "network-capable modules directly constructed findings without "
         f"external_evidence_receipts: {violations}"
     )
+
+
+def test_production_external_evidence_activation_remains_absent() -> None:
+    """Phase 1/fixture code must not silently become a production verifier."""
+
+    root = REPO_ROOT / "benchcore"
+    concrete_verifier_calls: list[str] = []
+    producer_receipt_literals: list[str] = []
+    verifier_wiring: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        relative = str(path.relative_to(root))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                function_name = (
+                    node.func.id if isinstance(node.func, ast.Name)
+                    else node.func.attr if isinstance(node.func, ast.Attribute)
+                    else ""
+                )
+                if function_name == "ExternalEvidenceVerification":
+                    concrete_verifier_calls.append(
+                        f"{relative}:{getattr(node, 'lineno', '?')}"
+                    )
+                if relative != "promotion.py" and any(
+                    keyword.arg == "external_evidence_verifier"
+                    for keyword in node.keywords
+                ):
+                    verifier_wiring.append(
+                        f"{relative}:{getattr(node, 'lineno', '?')}"
+                    )
+            if (
+                relative not in {"external_evidence.py", "promotion.py"}
+                and isinstance(node, ast.Constant)
+                and node.value == "external_evidence_receipts"
+            ):
+                producer_receipt_literals.append(
+                    f"{relative}:{getattr(node, 'lineno', '?')}"
+                )
+
+    assert concrete_verifier_calls == []
+    assert verifier_wiring == []
+    assert producer_receipt_literals == []
 
 
 def _apps_positive_fixture() -> tuple[
