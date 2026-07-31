@@ -34,7 +34,7 @@ The following V1 artifacts remain immutable:
 
 | Artifact | SHA-256 |
 |---|---|
-| V1 protocol | `01798c8264b985a8a0044362230e20819891f3144f64286b2b42238eba63daaa` |
+| V1 protocol (as of hardening commit `e66ac39`) | `01798c8264b985a8a0044362230e20819891f3144f64286b2b42238eba63daaa` |
 | V1 preflight report | `6576d487a49a1a53fa67838358c3b59aaac698e33a172358263ed6c1438d660c` |
 | V1 source-selection receipt | `ce38712e53c32fc5283de1e1451c459ad21b1c63cdb428151e675b8fe30d50b6` |
 
@@ -85,6 +85,12 @@ Equality is not a fallback and is not inferred from timestamps. It must be
 verified from the fetched object IDs and both ancestry directions in the fresh
 object database.
 
+Policy v1 independently enforces the Git DAG invariant that bidirectional
+ancestry requires identical source and cutoff commit IDs. A verifier reporting
+both ancestry directions as true for distinct commits is rejected before
+relation capabilities are derived. This defense was added in the separate
+pre-implementation hardening commit `61c2ab0`.
+
 Strict-ancestor behavior remains mandatory and must be covered by the frozen
 constructed test. It is no longer an unnecessary precondition for the APPS
 normative-cutoff positive replay.
@@ -115,7 +121,10 @@ pass.
 
 ## 5. Frozen tests
 
-All 20 V1 tests remain required. None is deleted or weakened.
+All 20 V1 tests remain required. None is deleted or weakened. V2 adds one
+policy-level adversarial test, for a total of 21 frozen tests: distinct source
+and cutoff commit IDs with both ancestry directions reported true must be
+rejected.
 
 Two tests have distinct responsibilities:
 
@@ -183,11 +192,12 @@ must match.
 
 `PASS_VERIFIER_NOT_ACTIVATED` requires:
 
-- all 20 frozen tests pass;
+- all 21 frozen tests pass;
 - all constructed attacks fail closed;
 - the APPS V2 real replay reproduces the pinned remote, equal-commit identity,
   role binding, blob IDs, and README content SHA-256;
-- two independent real replays produce the same stable-summary SHA-256;
+- two independent real replays, each using its own new empty object database,
+  produce the same stable-summary SHA-256;
 - production non-activation remains mechanically true;
 - targeted and full repository tests pass from a fresh clone.
 
