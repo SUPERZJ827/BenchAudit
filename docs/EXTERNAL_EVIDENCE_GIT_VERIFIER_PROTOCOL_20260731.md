@@ -149,6 +149,12 @@ For every receipt:
 
 No timestamp participates in relation derivation.
 
+The SHA-256 input is exactly the content byte stream returned by
+`git cat-file blob <blob-oid>`. It excludes Git's internal
+`blob <size>\0` object header. The verifier must not create or hash a checked-out
+working tree: checkout filters, `core.autocrlf`, file modes, and platform line
+ending behavior must not alter the bytes being attested.
+
 ## 6. Verification output
 
 The verifier may return `ExternalEvidenceVerification(verified=True)` only
@@ -218,6 +224,8 @@ Frozen target:
 
 - benchmark: `codeparrot/apps`;
 - host: Hugging Face dataset repository;
+- source: a separately frozen commit that is a **strict ancestor** of the
+  cutoff and contains `README.md`;
 - cutoff: `21e74ddf8de1a21436da12e3e653065c5213e9d1`;
 - normative path: `README.md`;
 - expected SHA-256:
@@ -226,6 +234,14 @@ Frozen target:
 The existing offline positive fixture is not accepted as the real replay. The
 production verifier must fetch against the trusted manifest and reproduce the
 ancestry/tree facts itself.
+
+The real replay may not use `source_commit == cutoff_commit`. Before verifier
+implementation, a source-selection receipt must freeze an earlier README-
+bearing commit from the official remote. If its README content differs from
+the receipt's expected bytes, content verification must fail and that failure
+is retained as valid information. If no suitable strict ancestor is available,
+the result is `NOT_IDENTIFIABLE_PRODUCTION_VERIFIER`; the equal-commit fixture
+must not substitute for it.
 
 ## 10. Required artifacts
 
@@ -240,14 +256,33 @@ ancestry/tree facts itself.
 Raw credentials, Git object packs, repository clones, and dataset bytes must
 not be committed.
 
+The stable summary contains exactly:
+
+- receipt payload SHA-256;
+- trusted-manifest ID, payload SHA-256, host kind, and canonical remote;
+- source/cutoff commit IDs and source path;
+- fetched object IDs used for ancestry and tree lookup;
+- both ancestry booleans;
+- source/cutoff blob IDs and content SHA-256 values;
+- role-binding result and verified role;
+- host-handler ID and verifier policy/source SHA-256;
+- final verified boolean, derived relation, and normalized reason code;
+- security-control booleans for redirects, alternates, grafts, replacement
+  refs, shallow state, credentials, and checkout absence.
+
+Wall-clock timestamps, temporary paths, process IDs, command durations, DNS
+answers, transfer sizes/speeds, and human-readable stderr belong only to the
+raw transcript and are excluded from the stable summary. Raw transcript hashes
+may differ; repeated stable-summary hashes must match.
+
 ## 11. Go / no-go
 
 `PASS_VERIFIER_NOT_ACTIVATED` requires:
 
 - all 20 frozen tests pass;
 - all attacks fail closed;
-- APPS real replay reproduces the pinned remote, exact commit relation, role
-  binding, and README SHA-256;
+- APPS real replay reproduces the pinned remote, strict-ancestor relation,
+  role binding, and README SHA-256;
 - repeated transcript summaries are deterministic;
 - production non-activation remains mechanically true;
 - full repository tests pass from a fresh clone.
