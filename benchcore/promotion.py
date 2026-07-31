@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 from typing import Any, Callable
 
+from .external_evidence import ExternalEvidenceVerifier, evaluate_external_evidence
 from .schema import BenchmarkItem, Violation
 
 
@@ -1321,6 +1322,7 @@ def decide_promotion(
     violation: Violation,
     item: BenchmarkItem | None = None,
     items: list[BenchmarkItem] | None = None,
+    external_evidence_verifier: ExternalEvidenceVerifier | None = None,
 ) -> PromotionDecision:
     proof = _proof_kind(violation)
     level = str(violation.evidence.get("evidence_level") or "")
@@ -1345,6 +1347,26 @@ def decide_promotion(
             "unknown", proof,
             "Operational failure describes audit coverage, not a benchmark defect.",
         )
+    if "external_evidence_receipts" in violation.evidence:
+        external_evidence = evaluate_external_evidence(
+            violation.evidence.get("external_evidence_receipts"),
+            external_evidence_verifier,
+        )
+        if "detection" not in external_evidence.allowed_uses:
+            return PromotionDecision(
+                "unknown",
+                "external_evidence_provenance",
+                "External evidence is not authorized for defect detection: "
+                + external_evidence.reason,
+            )
+        if "confirmation" not in external_evidence.allowed_uses:
+            return PromotionDecision(
+                "review",
+                "external_evidence_provenance",
+                "External evidence may support detection but is not authorized "
+                "for automatic confirmation: "
+                + external_evidence.reason,
+            )
     provenance = item.metadata.get("_mapping_provenance") if item is not None else None
     if isinstance(provenance, dict):
         if (failure := mapping_failure()) is not None:
@@ -1450,6 +1472,7 @@ def enforce_promotion_policy(
     violation: Violation,
     item: BenchmarkItem | None = None,
     items: list[BenchmarkItem] | None = None,
+    external_evidence_verifier: ExternalEvidenceVerifier | None = None,
 ) -> Violation:
     if not hasattr(violation, "_originating_review_only"):
         setattr(violation, "_originating_review_only", bool(violation.review_only))
@@ -1458,7 +1481,12 @@ def enforce_promotion_policy(
     ) and not bool(
         getattr(violation, "_pending_dataset_replay", False)
     )
-    decision = decide_promotion(violation, item, items)
+    decision = decide_promotion(
+        violation,
+        item,
+        items,
+        external_evidence_verifier,
+    )
     if decision.tier not in EVIDENCE_TIERS:  # defensive invariant
         raise ValueError(f"invalid evidence tier: {decision.tier}")
     violation.evidence_tier = decision.tier
@@ -1484,6 +1512,7 @@ def enforce_promotion_policy(
 def enforce_all(
     violations: list[Violation],
     items: list[BenchmarkItem] | None = None,
+    external_evidence_verifier: ExternalEvidenceVerifier | None = None,
 ) -> list[Violation]:
     all_items = list(items or [])
     by_row_uid = {
@@ -1505,6 +1534,7 @@ def enforce_all(
             by_row_uid.get(row.row_uid) if row.row_uid is not None
             else unique_by_id.get(row.item_id),
             all_items,
+            external_evidence_verifier,
         )
         for row in violations
     ]
