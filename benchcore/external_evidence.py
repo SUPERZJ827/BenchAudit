@@ -269,6 +269,12 @@ def _bindings_valid(
         or verification.source_path != receipt.source_path
     ):
         return False, "verification references different Git objects or path"
+    if (
+        verification.source_is_ancestor_of_cutoff
+        and verification.cutoff_is_ancestor_of_source
+        and receipt.source_commit != receipt.cutoff_commit
+    ):
+        return False, "bidirectional ancestry requires identical commits"
     if verification.source_tree_content_sha256 != receipt.content_sha256:
         return False, "source tree content hash differs from the receipt"
     relation = _derived_relation(verification)

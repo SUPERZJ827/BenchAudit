@@ -177,6 +177,18 @@ def test_strict_ancestor_normative_pre_cutoff_receipt_allows_all_uses() -> None:
     }
 
 
+def test_bidirectional_ancestry_with_distinct_commits_is_rejected() -> None:
+    receipt = _parsed_receipt()
+    verification = _verification(
+        receipt,
+        source_is_ancestor=True,
+        cutoff_is_ancestor=True,
+    )
+
+    assert receipt.source_commit != receipt.cutoff_commit
+    assert derive_allowed_uses(receipt, verification) == frozenset()
+
+
 def test_post_cutoff_correction_is_validation_only_for_substantive_work() -> None:
     receipt = _parsed_receipt(
         role="post_cutoff_correction",
