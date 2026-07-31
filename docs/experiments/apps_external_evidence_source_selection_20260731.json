@@ -1,0 +1,47 @@
+{
+  "receipt_schema": "benchaudit-apps-external-evidence-source-selection-v1",
+  "protocol_sha256": "01798c8264b985a8a0044362230e20819891f3144f64286b2b42238eba63daaa",
+  "network_api_llm": {
+    "git_https_fetches": 1,
+    "http_api_calls": 0,
+    "llm_calls": 0
+  },
+  "official_remote": "https://huggingface.co/datasets/codeparrot/apps",
+  "git_version": "git version 2.34.1",
+  "fetch": {
+    "fresh_bare_repository": true,
+    "existing_clone_used": false,
+    "checkout_created": false,
+    "shallow_repository": false,
+    "redirects_allowed": false,
+    "credentials_used": false,
+    "alternates_present": false,
+    "grafts_present": false,
+    "replacement_refs_present": false,
+    "cutoff_fetch_succeeded": true
+  },
+  "cutoff": {
+    "commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+    "tree": "ed2c8491f8814cfde47c10aec96407485dfc233b",
+    "readme_blob": "6053317a3ea13af4b2490691aff725e21a40268f",
+    "readme_content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846"
+  },
+  "selected_strict_ancestor": {
+    "commit": "370e6cb6919462bcabf8f00718b4099c8096e719",
+    "tree": "f8478c7484c7927f11cd9ba5c6208325d04bacd0",
+    "readme_blob": "c75ca05bfca04a68edb8d9f229d69aafcdd452b2",
+    "readme_content_sha256": "3e80910ad5a35b5a3c9f2e21d296905ed41d03726937d7746ea59e127731fe7a",
+    "source_is_ancestor_of_cutoff": true,
+    "cutoff_is_ancestor_of_source": false
+  },
+  "history_scan": {
+    "strict_ancestor_commits_scanned": 30,
+    "strict_ancestors_with_cutoff_readme_blob": 0,
+    "cutoff_commit_modifies_readme": true
+  },
+  "decision": "NOT_IDENTIFIABLE_PRODUCTION_VERIFIER",
+  "reason_code": "no_strict_ancestor_with_matching_normative_blob",
+  "phase_2a_verifier_implemented": false,
+  "equal_commit_fallback_used": false,
+  "alternate_path_substitution_used": false
+}
