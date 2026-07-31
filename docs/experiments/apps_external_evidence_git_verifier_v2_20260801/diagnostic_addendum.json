@@ -1,0 +1,51 @@
+{
+  "addendum_schema": "benchaudit-external-evidence-git-verifier-v2-diagnostic-v1",
+  "admissible_result": {
+    "decision": "NOT_IDENTIFIABLE_PRODUCTION_VERIFIER",
+    "execution_receipt_sha256": "a5c0edbfcc478edab8b6d8b5141e53f0ac382bc8fef97535cf53ada224c9a75e",
+    "first_replay_completed": false,
+    "reason_code": "pinned_allowlist_proxy_cannot_reach_environment_egress",
+    "stable_replay_count": 0
+  },
+  "diagnostics_not_accepted_as_evidence": {
+    "direct_host_replay": {
+      "completed": true,
+      "expected_blob_id_observed": "6053317a3ea13af4b2490691aff725e21a40268f",
+      "expected_content_sha256_observed": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846",
+      "stable_summary_sha256": "034ff5f501c4a1db2704a37dafce38e242029efe8fbecdd628be38c299322355",
+      "use_for_pass": false
+    },
+    "isolated_replay_probe": {
+      "connect_response": 502,
+      "container_direct_socket_error": "network_unreachable",
+      "git_error_class": "connect_tunnel_failed",
+      "official_remote_dns_resolved": true,
+      "use_for_pass": false
+    },
+    "environment": {
+      "host_egress_requires_loopback_proxy": true,
+      "loopback_proxy_reachable_from_pinned_container": false
+    }
+  },
+  "frozen_inputs": {
+    "implementation_commit": "e08c70b3437040275bd4945be62ddef0c91a1d57",
+    "manifest_file_sha256": "70f6d2a81f7fbbd11576077b87fe6f2d58b2dd842110b647b580cf7c5c27304a",
+    "protocol_v2_sha256": "68c3a72835f7919c2c2df1a12f9a5e3fe0c25da91e986bfddb57ef7db6063461",
+    "proxy_source_sha256": "7be71ea1c255f6c4bd182cca83a4710e2ff0e76153dacf810b6571e96b1eae65",
+    "runner_source_sha256": "5bc85a48aa5306607432b9fa64f260597a899117ca088bb1f15bcf95146fd99d",
+    "test_source_sha256": "62a30ef7ce220ec2cbddeed1c5609394585a31bd065dc0d763c8d31bb29f7d80",
+    "verifier_source_sha256": "3e87880cac65d878dedf6f1452fb964e4e78135f9ce96a2afba28c6dde50e9e2"
+  },
+  "integrity": {
+    "host_policy_widened": false,
+    "implementation_modified_after_result": false,
+    "local_clone_or_v1_objects_used_for_admissible_result": false,
+    "phase_2b_activated": false,
+    "protocol_v3_started": false,
+    "result_reclassified_from_diagnostic": false
+  },
+  "tests_before_execution": {
+    "full": "775 passed",
+    "targeted_after_final_runner_test": "48 passed"
+  }
+}
