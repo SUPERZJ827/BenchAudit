@@ -1,0 +1,20 @@
+{
+  "manifest_schema": "benchaudit-external-evidence-trusted-sources-v1",
+  "payload": {
+    "manifests": [
+      {
+        "benchmark_id": "codeparrot/apps",
+        "canonical_remote_url": "https://huggingface.co/datasets/codeparrot/apps",
+        "cutoff_commit": "21e74ddf8de1a21436da12e3e653065c5213e9d1",
+        "host_kind": "huggingface_dataset",
+        "manifest_id": "apps-normative-cutoff-v1",
+        "normative_paths": [
+          "README.md"
+        ],
+        "policy_version": "external-evidence-policy-v1",
+        "receipt_version": "1"
+      }
+    ]
+  },
+  "payload_sha256": "28a8501dce3194c767362db2bcdb1aeac3e977aa064c2cbba9521ddf481c9acc"
+}
