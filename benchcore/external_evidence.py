@@ -193,7 +193,6 @@ class ExternalEvidenceVerifier(Protocol):
 
 @dataclass(frozen=True)
 class ExternalEvidencePolicyDecision:
-    present: bool
     allowed_uses: frozenset[str]
     reason: str
 
@@ -276,6 +275,9 @@ def _bindings_valid(
     if relation == "pre_cutoff":
         if verification.cutoff_tree_content_sha256 != receipt.content_sha256:
             return False, "cutoff tree content hash differs from the receipt"
+    elif relation == "post_cutoff":
+        if verification.cutoff_tree_content_sha256 is not None:
+            return False, "post-cutoff verification must not supply an unused cutoff blob hash"
     return True, relation
 
 
@@ -310,12 +312,12 @@ def evaluate_external_evidence(
 
     if not isinstance(receipt_values, list) or not receipt_values:
         return ExternalEvidencePolicyDecision(
-            True, frozenset(),
+            frozenset(),
             "external evidence receipts are absent or not a non-empty list",
         )
     if verifier is None:
         return ExternalEvidencePolicyDecision(
-            True, frozenset(),
+            frozenset(),
             "no independent external-evidence verifier is configured",
         )
 
@@ -326,7 +328,7 @@ def evaluate_external_evidence(
             verification = verifier.verify(receipt)
         except Exception:
             return ExternalEvidencePolicyDecision(
-                True, frozenset(),
+                frozenset(),
                 f"external evidence receipt {index} failed verification",
             )
         allowed = derive_allowed_uses(
@@ -336,12 +338,11 @@ def evaluate_external_evidence(
         )
         if not allowed:
             return ExternalEvidencePolicyDecision(
-                True, frozenset(),
+                frozenset(),
                 f"external evidence receipt {index} is unverifiable or disallowed",
             )
         aggregate = frozenset(aggregate & allowed)
     return ExternalEvidencePolicyDecision(
-        True,
         frozenset(aggregate),
         "external evidence uses were independently re-derived under the active policy",
     )
