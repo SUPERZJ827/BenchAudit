@@ -1,0 +1,626 @@
+{
+  "manifest_version": 1,
+  "source_path": "/home/zhoujun/llmdata/datasets/svamp_platinum/svamp_platinum_all.jsonl",
+  "source_sha256": "f27f8ebf56b33fbeea4b6430f63f24c66adb37bd38a1a8b2bbe62960f588063e",
+  "source_items": 300,
+  "sample_items": 100,
+  "seed": 42,
+  "id_field": "id",
+  "stratify_fields": [],
+  "label_field": "metadata.audit_label",
+  "clean_values": [
+    "clean"
+  ],
+  "defect_fraction": 0.38,
+  "excluded_source_indices": 0,
+  "sample_label_distribution": {
+    "clean": 62,
+    "bad_question": 35,
+    "wrong_gold": 3
+  },
+  "sample_stratum_distribution": {
+    "all": 100
+  },
+  "selected": [
+    {
+      "source_index": 33,
+      "item_id": "svamp-platinum-chal-835",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 225,
+      "item_id": "svamp-platinum-chal-705",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 209,
+      "item_id": "svamp-platinum-chal-676",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 273,
+      "item_id": "svamp-platinum-chal-234",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 68,
+      "item_id": "svamp-platinum-chal-651",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 156,
+      "item_id": "svamp-platinum-chal-699",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 154,
+      "item_id": "svamp-platinum-chal-417",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 103,
+      "item_id": "svamp-platinum-chal-657",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 119,
+      "item_id": "svamp-platinum-chal-70",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 172,
+      "item_id": "svamp-platinum-chal-842",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 100,
+      "item_id": "svamp-platinum-chal-297",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 240,
+      "item_id": "svamp-platinum-chal-765",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 3,
+      "item_id": "svamp-platinum-chal-390",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 231,
+      "item_id": "svamp-platinum-chal-58",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 28,
+      "item_id": "svamp-platinum-chal-1000",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 235,
+      "item_id": "svamp-platinum-chal-160",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 124,
+      "item_id": "svamp-platinum-chal-465",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 202,
+      "item_id": "svamp-platinum-chal-875",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 211,
+      "item_id": "svamp-platinum-chal-315",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 183,
+      "item_id": "svamp-platinum-chal-286",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 157,
+      "item_id": "svamp-platinum-chal-760",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 184,
+      "item_id": "svamp-platinum-chal-28",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 75,
+      "item_id": "svamp-platinum-chal-333",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 88,
+      "item_id": "svamp-platinum-chal-614",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 230,
+      "item_id": "svamp-platinum-chal-258",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 221,
+      "item_id": "svamp-platinum-chal-672",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 39,
+      "item_id": "svamp-platinum-chal-68",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 104,
+      "item_id": "svamp-platinum-chal-693",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 78,
+      "item_id": "svamp-platinum-chal-831",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 288,
+      "item_id": "svamp-platinum-chal-100",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 166,
+      "item_id": "svamp-platinum-chal-347",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 40,
+      "item_id": "svamp-platinum-chal-734",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 94,
+      "item_id": "svamp-platinum-chal-566",
+      "stratum": {},
+      "label": "wrong_gold"
+    },
+    {
+      "source_index": 95,
+      "item_id": "svamp-platinum-chal-167",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 146,
+      "item_id": "svamp-platinum-chal-826",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 222,
+      "item_id": "svamp-platinum-chal-926",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 294,
+      "item_id": "svamp-platinum-chal-568",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 155,
+      "item_id": "svamp-platinum-chal-442",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 265,
+      "item_id": "svamp-platinum-chal-937",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 107,
+      "item_id": "svamp-platinum-chal-470",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 245,
+      "item_id": "svamp-platinum-chal-81",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 246,
+      "item_id": "svamp-platinum-chal-368",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 188,
+      "item_id": "svamp-platinum-chal-647",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 13,
+      "item_id": "svamp-platinum-chal-666",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 19,
+      "item_id": "svamp-platinum-chal-47",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 287,
+      "item_id": "svamp-platinum-chal-617",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 64,
+      "item_id": "svamp-platinum-chal-60",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 170,
+      "item_id": "svamp-platinum-chal-449",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 98,
+      "item_id": "svamp-platinum-chal-157",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 93,
+      "item_id": "svamp-platinum-chal-530",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 249,
+      "item_id": "svamp-platinum-chal-729",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 58,
+      "item_id": "svamp-platinum-chal-983",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 266,
+      "item_id": "svamp-platinum-chal-383",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 179,
+      "item_id": "svamp-platinum-chal-591",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 181,
+      "item_id": "svamp-platinum-chal-506",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 268,
+      "item_id": "svamp-platinum-chal-275",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 83,
+      "item_id": "svamp-platinum-chal-768",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 258,
+      "item_id": "svamp-platinum-chal-306",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 254,
+      "item_id": "svamp-platinum-chal-972",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 85,
+      "item_id": "svamp-platinum-chal-553",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 57,
+      "item_id": "svamp-platinum-chal-94",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 87,
+      "item_id": "svamp-platinum-chal-487",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 207,
+      "item_id": "svamp-platinum-chal-272",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 223,
+      "item_id": "svamp-platinum-chal-463",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 89,
+      "item_id": "svamp-platinum-chal-603",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 200,
+      "item_id": "svamp-platinum-chal-907",
+      "stratum": {},
+      "label": "wrong_gold"
+    },
+    {
+      "source_index": 252,
+      "item_id": "svamp-platinum-chal-501",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 182,
+      "item_id": "svamp-platinum-chal-797",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 6,
+      "item_id": "svamp-platinum-chal-599",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 204,
+      "item_id": "svamp-platinum-chal-845",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 278,
+      "item_id": "svamp-platinum-chal-512",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 217,
+      "item_id": "svamp-platinum-chal-364",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 127,
+      "item_id": "svamp-platinum-chal-395",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 197,
+      "item_id": "svamp-platinum-chal-778",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 232,
+      "item_id": "svamp-platinum-chal-498",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 50,
+      "item_id": "svamp-platinum-chal-251",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 274,
+      "item_id": "svamp-platinum-chal-253",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 97,
+      "item_id": "svamp-platinum-chal-105",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 126,
+      "item_id": "svamp-platinum-chal-345",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 110,
+      "item_id": "svamp-platinum-chal-747",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 150,
+      "item_id": "svamp-platinum-chal-934",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 24,
+      "item_id": "svamp-platinum-chal-697",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 26,
+      "item_id": "svamp-platinum-chal-974",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 275,
+      "item_id": "svamp-platinum-chal-867",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 46,
+      "item_id": "svamp-platinum-chal-88",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 84,
+      "item_id": "svamp-platinum-chal-750",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 255,
+      "item_id": "svamp-platinum-chal-513",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 91,
+      "item_id": "svamp-platinum-chal-731",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 113,
+      "item_id": "svamp-platinum-chal-136",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 291,
+      "item_id": "svamp-platinum-chal-433",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 5,
+      "item_id": "svamp-platinum-chal-575",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 282,
+      "item_id": "svamp-platinum-chal-722",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 190,
+      "item_id": "svamp-platinum-chal-687",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 36,
+      "item_id": "svamp-platinum-chal-908",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 54,
+      "item_id": "svamp-platinum-chal-700",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 1,
+      "item_id": "svamp-platinum-chal-162",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 34,
+      "item_id": "svamp-platinum-chal-850",
+      "stratum": {},
+      "label": "wrong_gold"
+    },
+    {
+      "source_index": 77,
+      "item_id": "svamp-platinum-chal-755",
+      "stratum": {},
+      "label": "clean"
+    },
+    {
+      "source_index": 138,
+      "item_id": "svamp-platinum-chal-204",
+      "stratum": {},
+      "label": "bad_question"
+    },
+    {
+      "source_index": 140,
+      "item_id": "svamp-platinum-chal-964",
+      "stratum": {},
+      "label": "clean"
+    }
+  ]
+}

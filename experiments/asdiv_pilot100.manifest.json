@@ -1,0 +1,846 @@
+{
+  "manifest_version": 1,
+  "source_path": "/home/zhoujun/llmdata/datasets/asdiv/asdiv_normalized_all.jsonl",
+  "source_sha256": "434e74b91bf459ca5bb387dc6a2f3a354d5ad021cf3f6d491129e0da1e93ecb8",
+  "source_items": 2305,
+  "sample_items": 100,
+  "seed": 42,
+  "id_field": "id",
+  "stratify_fields": [
+    "metadata.solution_type"
+  ],
+  "label_field": null,
+  "clean_values": [],
+  "defect_fraction": null,
+  "excluded_source_indices": 0,
+  "sample_label_distribution": {},
+  "sample_stratum_distribution": {
+    "metadata.solution_type=Sequential-Operation": 4,
+    "metadata.solution_type=Surplus": 5,
+    "metadata.solution_type=Geometry": 4,
+    "metadata.solution_type=Difference": 4,
+    "metadata.solution_type=TVQ-Change": 5,
+    "metadata.solution_type=LCM": 5,
+    "metadata.solution_type=Subtraction": 5,
+    "metadata.solution_type=Addition": 5,
+    "metadata.solution_type=Ceil-Division": 4,
+    "metadata.solution_type=Common-Division": 5,
+    "metadata.solution_type=Algebra-1": 4,
+    "metadata.solution_type=TVQ-Initial": 5,
+    "metadata.solution_type=TVQ-Final": 4,
+    "metadata.solution_type=UnitTrans": 4,
+    "metadata.solution_type=Ratio": 4,
+    "metadata.solution_type=Comparison": 5,
+    "metadata.solution_type=Floor-Division": 4,
+    "metadata.solution_type=Algebra-2": 4,
+    "metadata.solution_type=Multiplication": 4,
+    "metadata.solution_type=GCD": 4,
+    "metadata.solution_type=Number-Operation": 2,
+    "metadata.solution_type=Number-Pattern": 1,
+    "metadata.solution_type=Set-Operation": 4,
+    "metadata.solution_type=Substraction": 1,
+    "metadata.solution_type=Sum": 4
+  },
+  "selected": [
+    {
+      "source_index": 1064,
+      "item_id": "asdiv-validation-1064",
+      "stratum": {
+        "metadata.solution_type": "Sequential-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 766,
+      "item_id": "asdiv-validation-766",
+      "stratum": {
+        "metadata.solution_type": "Surplus"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1515,
+      "item_id": "asdiv-validation-1515",
+      "stratum": {
+        "metadata.solution_type": "Geometry"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1267,
+      "item_id": "asdiv-validation-1267",
+      "stratum": {
+        "metadata.solution_type": "Difference"
+      },
+      "label": null
+    },
+    {
+      "source_index": 707,
+      "item_id": "asdiv-validation-707",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Change"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2014,
+      "item_id": "asdiv-validation-2014",
+      "stratum": {
+        "metadata.solution_type": "LCM"
+      },
+      "label": null
+    },
+    {
+      "source_index": 945,
+      "item_id": "asdiv-validation-945",
+      "stratum": {
+        "metadata.solution_type": "Subtraction"
+      },
+      "label": null
+    },
+    {
+      "source_index": 597,
+      "item_id": "asdiv-validation-597",
+      "stratum": {
+        "metadata.solution_type": "Addition"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1576,
+      "item_id": "asdiv-validation-1576",
+      "stratum": {
+        "metadata.solution_type": "Ceil-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2201,
+      "item_id": "asdiv-validation-2201",
+      "stratum": {
+        "metadata.solution_type": "Common-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1534,
+      "item_id": "asdiv-validation-1534",
+      "stratum": {
+        "metadata.solution_type": "Surplus"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1398,
+      "item_id": "asdiv-validation-1398",
+      "stratum": {
+        "metadata.solution_type": "Algebra-1"
+      },
+      "label": null
+    },
+    {
+      "source_index": 758,
+      "item_id": "asdiv-validation-758",
+      "stratum": {
+        "metadata.solution_type": "Surplus"
+      },
+      "label": null
+    },
+    {
+      "source_index": 693,
+      "item_id": "asdiv-validation-693",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Initial"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2182,
+      "item_id": "asdiv-validation-2182",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Final"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1070,
+      "item_id": "asdiv-validation-1070",
+      "stratum": {
+        "metadata.solution_type": "Sequential-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 684,
+      "item_id": "asdiv-validation-684",
+      "stratum": {
+        "metadata.solution_type": "UnitTrans"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2285,
+      "item_id": "asdiv-validation-2285",
+      "stratum": {
+        "metadata.solution_type": "Common-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1250,
+      "item_id": "asdiv-validation-1250",
+      "stratum": {
+        "metadata.solution_type": "Difference"
+      },
+      "label": null
+    },
+    {
+      "source_index": 246,
+      "item_id": "asdiv-validation-246",
+      "stratum": {
+        "metadata.solution_type": "Addition"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1119,
+      "item_id": "asdiv-validation-1119",
+      "stratum": {
+        "metadata.solution_type": "Ratio"
+      },
+      "label": null
+    },
+    {
+      "source_index": 950,
+      "item_id": "asdiv-validation-950",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Final"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1161,
+      "item_id": "asdiv-validation-1161",
+      "stratum": {
+        "metadata.solution_type": "Comparison"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1141,
+      "item_id": "asdiv-validation-1141",
+      "stratum": {
+        "metadata.solution_type": "Ratio"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1542,
+      "item_id": "asdiv-validation-1542",
+      "stratum": {
+        "metadata.solution_type": "Ceil-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2023,
+      "item_id": "asdiv-validation-2023",
+      "stratum": {
+        "metadata.solution_type": "LCM"
+      },
+      "label": null
+    },
+    {
+      "source_index": 508,
+      "item_id": "asdiv-validation-508",
+      "stratum": {
+        "metadata.solution_type": "Floor-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1698,
+      "item_id": "asdiv-validation-1698",
+      "stratum": {
+        "metadata.solution_type": "Comparison"
+      },
+      "label": null
+    },
+    {
+      "source_index": 295,
+      "item_id": "asdiv-validation-295",
+      "stratum": {
+        "metadata.solution_type": "Subtraction"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1176,
+      "item_id": "asdiv-validation-1176",
+      "stratum": {
+        "metadata.solution_type": "Sequential-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 750,
+      "item_id": "asdiv-validation-750",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Initial"
+      },
+      "label": null
+    },
+    {
+      "source_index": 633,
+      "item_id": "asdiv-validation-633",
+      "stratum": {
+        "metadata.solution_type": "Geometry"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1491,
+      "item_id": "asdiv-validation-1491",
+      "stratum": {
+        "metadata.solution_type": "Geometry"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1348,
+      "item_id": "asdiv-validation-1348",
+      "stratum": {
+        "metadata.solution_type": "Algebra-2"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1471,
+      "item_id": "asdiv-validation-1471",
+      "stratum": {
+        "metadata.solution_type": "Algebra-2"
+      },
+      "label": null
+    },
+    {
+      "source_index": 145,
+      "item_id": "asdiv-validation-145",
+      "stratum": {
+        "metadata.solution_type": "Addition"
+      },
+      "label": null
+    },
+    {
+      "source_index": 987,
+      "item_id": "asdiv-validation-987",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Initial"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1500,
+      "item_id": "asdiv-validation-1500",
+      "stratum": {
+        "metadata.solution_type": "Geometry"
+      },
+      "label": null
+    },
+    {
+      "source_index": 856,
+      "item_id": "asdiv-validation-856",
+      "stratum": {
+        "metadata.solution_type": "Ratio"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1271,
+      "item_id": "asdiv-validation-1271",
+      "stratum": {
+        "metadata.solution_type": "Difference"
+      },
+      "label": null
+    },
+    {
+      "source_index": 636,
+      "item_id": "asdiv-validation-636",
+      "stratum": {
+        "metadata.solution_type": "UnitTrans"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1243,
+      "item_id": "asdiv-validation-1243",
+      "stratum": {
+        "metadata.solution_type": "Surplus"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2121,
+      "item_id": "asdiv-validation-2121",
+      "stratum": {
+        "metadata.solution_type": "Addition"
+      },
+      "label": null
+    },
+    {
+      "source_index": 359,
+      "item_id": "asdiv-validation-359",
+      "stratum": {
+        "metadata.solution_type": "Subtraction"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1773,
+      "item_id": "asdiv-validation-1773",
+      "stratum": {
+        "metadata.solution_type": "Common-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 726,
+      "item_id": "asdiv-validation-726",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Final"
+      },
+      "label": null
+    },
+    {
+      "source_index": 604,
+      "item_id": "asdiv-validation-604",
+      "stratum": {
+        "metadata.solution_type": "Multiplication"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1048,
+      "item_id": "asdiv-validation-1048",
+      "stratum": {
+        "metadata.solution_type": "Comparison"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1199,
+      "item_id": "asdiv-validation-1199",
+      "stratum": {
+        "metadata.solution_type": "GCD"
+      },
+      "label": null
+    },
+    {
+      "source_index": 383,
+      "item_id": "asdiv-validation-383",
+      "stratum": {
+        "metadata.solution_type": "Multiplication"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1041,
+      "item_id": "asdiv-validation-1041",
+      "stratum": {
+        "metadata.solution_type": "Subtraction"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1075,
+      "item_id": "asdiv-validation-1075",
+      "stratum": {
+        "metadata.solution_type": "Sequential-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 882,
+      "item_id": "asdiv-validation-882",
+      "stratum": {
+        "metadata.solution_type": "Number-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1380,
+      "item_id": "asdiv-validation-1380",
+      "stratum": {
+        "metadata.solution_type": "Subtraction"
+      },
+      "label": null
+    },
+    {
+      "source_index": 896,
+      "item_id": "asdiv-validation-896",
+      "stratum": {
+        "metadata.solution_type": "Number-Pattern"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2200,
+      "item_id": "asdiv-validation-2200",
+      "stratum": {
+        "metadata.solution_type": "Common-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1203,
+      "item_id": "asdiv-validation-1203",
+      "stratum": {
+        "metadata.solution_type": "GCD"
+      },
+      "label": null
+    },
+    {
+      "source_index": 454,
+      "item_id": "asdiv-validation-454",
+      "stratum": {
+        "metadata.solution_type": "Multiplication"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1155,
+      "item_id": "asdiv-validation-1155",
+      "stratum": {
+        "metadata.solution_type": "Common-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 795,
+      "item_id": "asdiv-validation-795",
+      "stratum": {
+        "metadata.solution_type": "Floor-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1980,
+      "item_id": "asdiv-validation-1980",
+      "stratum": {
+        "metadata.solution_type": "Set-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1040,
+      "item_id": "asdiv-validation-1040",
+      "stratum": {
+        "metadata.solution_type": "Addition"
+      },
+      "label": null
+    },
+    {
+      "source_index": 996,
+      "item_id": "asdiv-validation-996",
+      "stratum": {
+        "metadata.solution_type": "Substraction"
+      },
+      "label": null
+    },
+    {
+      "source_index": 754,
+      "item_id": "asdiv-validation-754",
+      "stratum": {
+        "metadata.solution_type": "Surplus"
+      },
+      "label": null
+    },
+    {
+      "source_index": 872,
+      "item_id": "asdiv-validation-872",
+      "stratum": {
+        "metadata.solution_type": "GCD"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1605,
+      "item_id": "asdiv-validation-1605",
+      "stratum": {
+        "metadata.solution_type": "Ceil-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 873,
+      "item_id": "asdiv-validation-873",
+      "stratum": {
+        "metadata.solution_type": "LCM"
+      },
+      "label": null
+    },
+    {
+      "source_index": 983,
+      "item_id": "asdiv-validation-983",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Initial"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1715,
+      "item_id": "asdiv-validation-1715",
+      "stratum": {
+        "metadata.solution_type": "UnitTrans"
+      },
+      "label": null
+    },
+    {
+      "source_index": 886,
+      "item_id": "asdiv-validation-886",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Initial"
+      },
+      "label": null
+    },
+    {
+      "source_index": 164,
+      "item_id": "asdiv-validation-164",
+      "stratum": {
+        "metadata.solution_type": "Number-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1569,
+      "item_id": "asdiv-validation-1569",
+      "stratum": {
+        "metadata.solution_type": "Ceil-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 2050,
+      "item_id": "asdiv-validation-2050",
+      "stratum": {
+        "metadata.solution_type": "LCM"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1270,
+      "item_id": "asdiv-validation-1270",
+      "stratum": {
+        "metadata.solution_type": "Difference"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1975,
+      "item_id": "asdiv-validation-1975",
+      "stratum": {
+        "metadata.solution_type": "Sum"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1403,
+      "item_id": "asdiv-validation-1403",
+      "stratum": {
+        "metadata.solution_type": "Algebra-2"
+      },
+      "label": null
+    },
+    {
+      "source_index": 345,
+      "item_id": "asdiv-validation-345",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Change"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1167,
+      "item_id": "asdiv-validation-1167",
+      "stratum": {
+        "metadata.solution_type": "Comparison"
+      },
+      "label": null
+    },
+    {
+      "source_index": 221,
+      "item_id": "asdiv-validation-221",
+      "stratum": {
+        "metadata.solution_type": "Sum"
+      },
+      "label": null
+    },
+    {
+      "source_index": 946,
+      "item_id": "asdiv-validation-946",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Change"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1987,
+      "item_id": "asdiv-validation-1987",
+      "stratum": {
+        "metadata.solution_type": "Set-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1646,
+      "item_id": "asdiv-validation-1646",
+      "stratum": {
+        "metadata.solution_type": "Ratio"
+      },
+      "label": null
+    },
+    {
+      "source_index": 994,
+      "item_id": "asdiv-validation-994",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Change"
+      },
+      "label": null
+    },
+    {
+      "source_index": 210,
+      "item_id": "asdiv-validation-210",
+      "stratum": {
+        "metadata.solution_type": "Sum"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1316,
+      "item_id": "asdiv-validation-1316",
+      "stratum": {
+        "metadata.solution_type": "Algebra-1"
+      },
+      "label": null
+    },
+    {
+      "source_index": 969,
+      "item_id": "asdiv-validation-969",
+      "stratum": {
+        "metadata.solution_type": "LCM"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1567,
+      "item_id": "asdiv-validation-1567",
+      "stratum": {
+        "metadata.solution_type": "Floor-Division"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1440,
+      "item_id": "asdiv-validation-1440",
+      "stratum": {
+        "metadata.solution_type": "Algebra-2"
+      },
+      "label": null
+    },
+    {
+      "source_index": 944,
+      "item_id": "asdiv-validation-944",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Change"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1296,
+      "item_id": "asdiv-validation-1296",
+      "stratum": {
+        "metadata.solution_type": "Algebra-1"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1982,
+      "item_id": "asdiv-validation-1982",
+      "stratum": {
+        "metadata.solution_type": "Set-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1057,
+      "item_id": "asdiv-validation-1057",
+      "stratum": {
+        "metadata.solution_type": "Comparison"
+      },
+      "label": null
+    },
+    {
+      "source_index": 725,
+      "item_id": "asdiv-validation-725",
+      "stratum": {
+        "metadata.solution_type": "TVQ-Final"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1981,
+      "item_id": "asdiv-validation-1981",
+      "stratum": {
+        "metadata.solution_type": "Set-Operation"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1466,
+      "item_id": "asdiv-validation-1466",
+      "stratum": {
+        "metadata.solution_type": "Algebra-1"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1716,
+      "item_id": "asdiv-validation-1716",
+      "stratum": {
+        "metadata.solution_type": "UnitTrans"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1948,
+      "item_id": "asdiv-validation-1948",
+      "stratum": {
+        "metadata.solution_type": "Sum"
+      },
+      "label": null
+    },
+    {
+      "source_index": 575,
+      "item_id": "asdiv-validation-575",
+      "stratum": {
+        "metadata.solution_type": "Multiplication"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1190,
+      "item_id": "asdiv-validation-1190",
+      "stratum": {
+        "metadata.solution_type": "GCD"
+      },
+      "label": null
+    },
+    {
+      "source_index": 1558,
+      "item_id": "asdiv-validation-1558",
+      "stratum": {
+        "metadata.solution_type": "Floor-Division"
+      },
+      "label": null
+    }
+  ]
+}

@@ -1,0 +1,1220 @@
+{
+  "manifest_version": 1,
+  "source_path": "/home/zhoujun/llmdata/datasets/arc_challenge/arc_challenge_normalized_all.jsonl",
+  "source_sha256": "93248eba214a197f0e9915824579e64c1227c3666a4b592e2e6c71c4fecdcb00",
+  "source_items": 1172,
+  "sample_items": 200,
+  "seed": 42,
+  "id_field": "id",
+  "stratify_fields": [],
+  "label_field": null,
+  "clean_values": [],
+  "defect_fraction": null,
+  "excluded_source_indices": 0,
+  "sample_label_distribution": {},
+  "sample_stratum_distribution": {
+    "all": 200
+  },
+  "selected": [
+    {
+      "source_index": 588,
+      "item_id": "arc-challenge-test-NYSEDREGENTS_2012_4_29",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 959,
+      "item_id": "arc-challenge-test-MCAS_2013_5_29411",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 702,
+      "item_id": "arc-challenge-test-MDSA_2007_8_30",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 891,
+      "item_id": "arc-challenge-test-Mercury_417593",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 46,
+      "item_id": "arc-challenge-test-Mercury_SC_401290",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 485,
+      "item_id": "arc-challenge-test-Mercury_SC_409245",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 822,
+      "item_id": "arc-challenge-test-Mercury_407019",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 858,
+      "item_id": "arc-challenge-test-Mercury_7090790",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 595,
+      "item_id": "arc-challenge-test-Mercury_SC_410971",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 345,
+      "item_id": "arc-challenge-test-Mercury_SC_401295",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1158,
+      "item_id": "arc-challenge-test-MCAS_2003_8_7",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 767,
+      "item_id": "arc-challenge-test-Mercury_412605",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 147,
+      "item_id": "arc-challenge-test-Mercury_7009993",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 381,
+      "item_id": "arc-challenge-test-Mercury_SC_400579",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 479,
+      "item_id": "arc-challenge-test-MCAS_1998_8_26",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1117,
+      "item_id": "arc-challenge-test-Mercury_SC_LBS10265",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 962,
+      "item_id": "arc-challenge-test-MCAS_2003_8_21",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 668,
+      "item_id": "arc-challenge-test-OHAT_2008_5_34",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1132,
+      "item_id": "arc-challenge-test-Mercury_SC_415534",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 857,
+      "item_id": "arc-challenge-test-NYSEDREGENTS_2012_8_28",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1081,
+      "item_id": "arc-challenge-test-Mercury_7239628",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 214,
+      "item_id": "arc-challenge-test-AKDE&ED_2008_8_7",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 604,
+      "item_id": "arc-challenge-test-MDSA_2013_8_23",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 320,
+      "item_id": "arc-challenge-test-Mercury_416379",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 692,
+      "item_id": "arc-challenge-test-LEAP__7_10339",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 439,
+      "item_id": "arc-challenge-test-Mercury_7007420",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 968,
+      "item_id": "arc-challenge-test-Mercury_417118",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 906,
+      "item_id": "arc-challenge-test-Mercury_7009555",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 671,
+      "item_id": "arc-challenge-test-Mercury_SC_414156",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 282,
+      "item_id": "arc-challenge-test-OHAT_2007_8_24",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 231,
+      "item_id": "arc-challenge-test-MSA_2012_8_30",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 56,
+      "item_id": "arc-challenge-test-Mercury_178325",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1038,
+      "item_id": "arc-challenge-test-Mercury_SC_405885",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 445,
+      "item_id": "arc-challenge-test-Mercury_SC_400661",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 348,
+      "item_id": "arc-challenge-test-Mercury_SC_402629",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 195,
+      "item_id": "arc-challenge-test-Mercury_SC_400701",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 650,
+      "item_id": "arc-challenge-test-Mercury_SC_405130",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 976,
+      "item_id": "arc-challenge-test-NAEP_2000_8_S11+11",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 92,
+      "item_id": "arc-challenge-test-Mercury_SC_414041",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 930,
+      "item_id": "arc-challenge-test-Mercury_7205608",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 651,
+      "item_id": "arc-challenge-test-Mercury_SC_408631",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 606,
+      "item_id": "arc-challenge-test-ACTAAP_2009_5_12",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 670,
+      "item_id": "arc-challenge-test-NYSEDREGENTS_2008_8_36",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 628,
+      "item_id": "arc-challenge-test-Mercury_SC_400233",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 304,
+      "item_id": "arc-challenge-test-Mercury_SC_401605",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1031,
+      "item_id": "arc-challenge-test-ACTAAP_2010_7_3",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 560,
+      "item_id": "arc-challenge-test-AIMS_2009_4_4",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 711,
+      "item_id": "arc-challenge-test-Mercury_SC_400392",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 728,
+      "item_id": "arc-challenge-test-Mercury_7024798",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 860,
+      "item_id": "arc-challenge-test-Mercury_SC_407382",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 370,
+      "item_id": "arc-challenge-test-Mercury_SC_408030",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 87,
+      "item_id": "arc-challenge-test-ACTAAP_2009_7_8",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 836,
+      "item_id": "arc-challenge-test-TIMSS_1995_8_J7",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 377,
+      "item_id": "arc-challenge-test-Mercury_SC_416459",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 914,
+      "item_id": "arc-challenge-test-Mercury_405387",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 766,
+      "item_id": "arc-challenge-test-LEAP__7_10352",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 812,
+      "item_id": "arc-challenge-test-MCAS_2009_5_6519",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 694,
+      "item_id": "arc-challenge-test-Mercury_7034808",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 800,
+      "item_id": "arc-challenge-test-Mercury_7264093",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 256,
+      "item_id": "arc-challenge-test-Mercury_7004743",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11,
+      "item_id": "arc-challenge-test-Mercury_7012740",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 295,
+      "item_id": "arc-challenge-test-TIMSS_2011_4_pg5",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 387,
+      "item_id": "arc-challenge-test-MEAP_2005_8_45",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 761,
+      "item_id": "arc-challenge-test-Mercury_SC_410630",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 599,
+      "item_id": "arc-challenge-test-MCAS_1998_8_24",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 981,
+      "item_id": "arc-challenge-test-MEA_2013_8_8",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1114,
+      "item_id": "arc-challenge-test-MCAS_1998_4_13",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 832,
+      "item_id": "arc-challenge-test-LEAP__4_10225",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 66,
+      "item_id": "arc-challenge-test-Mercury_LBS11018",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 645,
+      "item_id": "arc-challenge-test-ACTAAP_2013_5_17",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 622,
+      "item_id": "arc-challenge-test-Mercury_SC_401142",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 983,
+      "item_id": "arc-challenge-test-Mercury_SC_LBS10664",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1074,
+      "item_id": "arc-challenge-test-TIMSS_1995_8_L6",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 716,
+      "item_id": "arc-challenge-test-Mercury_SC_414274",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 956,
+      "item_id": "arc-challenge-test-Mercury_7005005",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1111,
+      "item_id": "arc-challenge-test-VASoL_2009_5_37",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 970,
+      "item_id": "arc-challenge-test-Mercury_SC_401801",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 411,
+      "item_id": "arc-challenge-test-Mercury_SC_402171",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1076,
+      "item_id": "arc-challenge-test-Mercury_407664",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 838,
+      "item_id": "arc-challenge-test-Mercury_SC_406855",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 648,
+      "item_id": "arc-challenge-test-Mercury_SC_416168",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 280,
+      "item_id": "arc-challenge-test-CSZ_2009_8_CSZ20740",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 900,
+      "item_id": "arc-challenge-test-Mercury_7185343",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 806,
+      "item_id": "arc-challenge-test-Mercury_7222600",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 531,
+      "item_id": "arc-challenge-test-TAKS_2009_8_27",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 842,
+      "item_id": "arc-challenge-test-MDSA_2008_4_19",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 298,
+      "item_id": "arc-challenge-test-Mercury_7138390",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 200,
+      "item_id": "arc-challenge-test-Mercury_SC_400708",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12,
+      "item_id": "arc-challenge-test-Mercury_LBS10610",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1136,
+      "item_id": "arc-challenge-test-Mercury_7268258",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 22,
+      "item_id": "arc-challenge-test-Mercury_404894",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 337,
+      "item_id": "arc-challenge-test-Mercury_7206378",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 591,
+      "item_id": "arc-challenge-test-Mercury_SC_407417",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 287,
+      "item_id": "arc-challenge-test-MCAS_2004_9_5",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 851,
+      "item_id": "arc-challenge-test-MCAS_2004_5_33",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 352,
+      "item_id": "arc-challenge-test-Mercury_404609",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 239,
+      "item_id": "arc-challenge-test-TIMSS_2011_4_pg27",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 896,
+      "item_id": "arc-challenge-test-Mercury_SC_400400",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 887,
+      "item_id": "arc-challenge-test-NAEP_2005_8_S11+1",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 454,
+      "item_id": "arc-challenge-test-MCAS_2010_8_12005",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 705,
+      "item_id": "arc-challenge-test-Mercury_7094308",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 796,
+      "item_id": "arc-challenge-test-Mercury_SC_LBS10027",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 818,
+      "item_id": "arc-challenge-test-MCAS_2006_9_34",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 423,
+      "item_id": "arc-challenge-test-Mercury_178255",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 718,
+      "item_id": "arc-challenge-test-MCAS_1998_4_23",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 868,
+      "item_id": "arc-challenge-test-TIMSS_2007_8_pg53",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 148,
+      "item_id": "arc-challenge-test-Mercury_401699",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 714,
+      "item_id": "arc-challenge-test-MCAS_2004_9_10-v1",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 431,
+      "item_id": "arc-challenge-test-ACTAAP_2010_7_12",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 829,
+      "item_id": "arc-challenge-test-Mercury_416633",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 48,
+      "item_id": "arc-challenge-test-Mercury_184975",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 455,
+      "item_id": "arc-challenge-test-Mercury_7218505",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 684,
+      "item_id": "arc-challenge-test-Mercury_SC_409266",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 171,
+      "item_id": "arc-challenge-test-LEAP_2005_8_10404",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 322,
+      "item_id": "arc-challenge-test-AKDE&ED_2008_8_1",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 263,
+      "item_id": "arc-challenge-test-Mercury_400828",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 107,
+      "item_id": "arc-challenge-test-Mercury_406550",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1134,
+      "item_id": "arc-challenge-test-Mercury_7068635",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17,
+      "item_id": "arc-challenge-test-Mercury_7166425",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1008,
+      "item_id": "arc-challenge-test-Mercury_7189000",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 513,
+      "item_id": "arc-challenge-test-NYSEDREGENTS_2013_4_17",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 34,
+      "item_id": "arc-challenge-test-Mercury_SC_400402",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 966,
+      "item_id": "arc-challenge-test-Mercury_7173583",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 710,
+      "item_id": "arc-challenge-test-MCAS_2014_5_13",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1107,
+      "item_id": "arc-challenge-test-Mercury_SC_416181",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1156,
+      "item_id": "arc-challenge-test-Mercury_7004725",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 948,
+      "item_id": "arc-challenge-test-Mercury_SC_LBS10273",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 545,
+      "item_id": "arc-challenge-test-Mercury_400780",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 508,
+      "item_id": "arc-challenge-test-Mercury_7159250",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 443,
+      "item_id": "arc-challenge-test-Mercury_SC_408358",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 774,
+      "item_id": "arc-challenge-test-TIMSS_2003_8_pg16",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 920,
+      "item_id": "arc-challenge-test-Mercury_7116235",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16,
+      "item_id": "arc-challenge-test-Mercury_7186358",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 950,
+      "item_id": "arc-challenge-test-Mercury_401865",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 697,
+      "item_id": "arc-challenge-test-Mercury_7188528",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 547,
+      "item_id": "arc-challenge-test-Mercury_SC_416104",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 368,
+      "item_id": "arc-challenge-test-Mercury_7057680",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 579,
+      "item_id": "arc-challenge-test-MDSA_2013_8_20",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 655,
+      "item_id": "arc-challenge-test-MDSA_2012_8_6",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 299,
+      "item_id": "arc-challenge-test-MEAP_2005_5_12",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 662,
+      "item_id": "arc-challenge-test-Mercury_7001295",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 965,
+      "item_id": "arc-challenge-test-TIMSS_2007_8_pg113",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4,
+      "item_id": "arc-challenge-test-MCAS_2006_9_44",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 873,
+      "item_id": "arc-challenge-test-Mercury_7004953",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 580,
+      "item_id": "arc-challenge-test-Mercury_7114100",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 117,
+      "item_id": "arc-challenge-test-Mercury_405136",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 376,
+      "item_id": "arc-challenge-test-Mercury_SC_405937",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 404,
+      "item_id": "arc-challenge-test-Mercury_7081725",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 157,
+      "item_id": "arc-challenge-test-Mercury_407260",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 690,
+      "item_id": "arc-challenge-test-MCAS_2004_5_11",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 721,
+      "item_id": "arc-challenge-test-Mercury_SC_400133",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 494,
+      "item_id": "arc-challenge-test-Mercury_SC_405481",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 49,
+      "item_id": "arc-challenge-test-Mercury_SC_400578",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 153,
+      "item_id": "arc-challenge-test-Mercury_400699",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 164,
+      "item_id": "arc-challenge-test-Mercury_SC_413299",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 980,
+      "item_id": "arc-challenge-test-Mercury_SC_409030",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 562,
+      "item_id": "arc-challenge-test-Mercury_400884",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 355,
+      "item_id": "arc-challenge-test-MDSA_2009_4_1",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 212,
+      "item_id": "arc-challenge-test-MEAP_2005_8_39",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 511,
+      "item_id": "arc-challenge-test-Mercury_7214498",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 480,
+      "item_id": "arc-challenge-test-Mercury_7230318",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1050,
+      "item_id": "arc-challenge-test-Mercury_400750",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 916,
+      "item_id": "arc-challenge-test-Mercury_7213430",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 210,
+      "item_id": "arc-challenge-test-Mercury_175385",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 624,
+      "item_id": "arc-challenge-test-Mercury_179025",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 585,
+      "item_id": "arc-challenge-test-Mercury_7234605",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 557,
+      "item_id": "arc-challenge-test-Mercury_SC_405827",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 193,
+      "item_id": "arc-challenge-test-Mercury_7102323",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 361,
+      "item_id": "arc-challenge-test-MCAS_1999_8_1",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 286,
+      "item_id": "arc-challenge-test-Mercury_405950",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 898,
+      "item_id": "arc-challenge-test-MCAS_8_2014_8",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 84,
+      "item_id": "arc-challenge-test-Mercury_7103600",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 820,
+      "item_id": "arc-challenge-test-Mercury_SC_413089",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 371,
+      "item_id": "arc-challenge-test-Mercury_415083",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 831,
+      "item_id": "arc-challenge-test-Mercury_7085225",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 666,
+      "item_id": "arc-challenge-test-VASoL_2010_3_39",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 623,
+      "item_id": "arc-challenge-test-Mercury_7206395",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 954,
+      "item_id": "arc-challenge-test-Mercury_7038833",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1011,
+      "item_id": "arc-challenge-test-Mercury_SC_415719",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 625,
+      "item_id": "arc-challenge-test-Mercury_7130620",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 872,
+      "item_id": "arc-challenge-test-Mercury_7221078",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 515,
+      "item_id": "arc-challenge-test-Mercury_7081480",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 627,
+      "item_id": "arc-challenge-test-Mercury_7282083",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 53,
+      "item_id": "arc-challenge-test-AKDE&ED_2008_4_26",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 642,
+      "item_id": "arc-challenge-test-Mercury_LBS10302",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 428,
+      "item_id": "arc-challenge-test-Mercury_7159810",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 614,
+      "item_id": "arc-challenge-test-Mercury_SC_416169",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 354,
+      "item_id": "arc-challenge-test-Mercury_7057488",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 314,
+      "item_id": "arc-challenge-test-VASoL_2007_5_22",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 121,
+      "item_id": "arc-challenge-test-NYSEDREGENTS_2010_4_4",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1016,
+      "item_id": "arc-challenge-test-Mercury_SC_407080",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 830,
+      "item_id": "arc-challenge-test-Mercury_7038518",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 81,
+      "item_id": "arc-challenge-test-Mercury_SC_401277",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 811,
+      "item_id": "arc-challenge-test-Mercury_7210123",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 328,
+      "item_id": "arc-challenge-test-Mercury_SC_407138",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 363,
+      "item_id": "arc-challenge-test-Mercury_7122640",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 89,
+      "item_id": "arc-challenge-test-Mercury_7252088",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 483,
+      "item_id": "arc-challenge-test-LEAP__5_10312",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 605,
+      "item_id": "arc-challenge-test-Mercury_SC_405880",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 258,
+      "item_id": "arc-challenge-test-MEA_2014_5_11",
+      "stratum": {},
+      "label": null
+    }
+  ]
+}
