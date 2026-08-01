@@ -1,0 +1,625 @@
+{
+  "manifest_version": 1,
+  "source_path": "/home/zhoujun/llmdata/datasets/gsm8k_platinum/gsm8k_platinum_aligned_all.jsonl",
+  "source_sha256": "9ac7e9b626b3708022533c87ed8c90f82cc4f804ac52bb468d7bd5232ca87087",
+  "source_items": 1209,
+  "sample_items": 100,
+  "seed": 42,
+  "id_field": "id",
+  "stratify_fields": [],
+  "label_field": "metadata.gold_verified_disagree",
+  "clean_values": [
+    "false"
+  ],
+  "defect_fraction": 0.1,
+  "excluded_source_indices": 0,
+  "sample_label_distribution": {
+    "False": 90,
+    "True": 10
+  },
+  "sample_stratum_distribution": {
+    "all": 100
+  },
+  "selected": [
+    {
+      "source_index": 167,
+      "item_id": "gsm8k-platinum-test-167",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 713,
+      "item_id": "gsm8k-platinum-test-713",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1015,
+      "item_id": "gsm8k-platinum-test-1015",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 32,
+      "item_id": "gsm8k-platinum-test-32",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 445,
+      "item_id": "gsm8k-platinum-test-445",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 997,
+      "item_id": "gsm8k-platinum-test-997",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 707,
+      "item_id": "gsm8k-platinum-test-707",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 991,
+      "item_id": "gsm8k-platinum-test-991",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 662,
+      "item_id": "gsm8k-platinum-test-662",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 622,
+      "item_id": "gsm8k-platinum-test-622",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 643,
+      "item_id": "gsm8k-platinum-test-643",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 947,
+      "item_id": "gsm8k-platinum-test-947",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 906,
+      "item_id": "gsm8k-platinum-test-906",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 67,
+      "item_id": "gsm8k-platinum-test-67",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 822,
+      "item_id": "gsm8k-platinum-test-822",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 716,
+      "item_id": "gsm8k-platinum-test-716",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 461,
+      "item_id": "gsm8k-platinum-test-461",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 685,
+      "item_id": "gsm8k-platinum-test-685",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 754,
+      "item_id": "gsm8k-platinum-test-754",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 300,
+      "item_id": "gsm8k-platinum-test-300",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 389,
+      "item_id": "gsm8k-platinum-test-389",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 978,
+      "item_id": "gsm8k-platinum-test-978",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 557,
+      "item_id": "gsm8k-platinum-test-557",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 698,
+      "item_id": "gsm8k-platinum-test-698",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 815,
+      "item_id": "gsm8k-platinum-test-815",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 56,
+      "item_id": "gsm8k-platinum-test-56",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 514,
+      "item_id": "gsm8k-platinum-test-514",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 281,
+      "item_id": "gsm8k-platinum-test-281",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 446,
+      "item_id": "gsm8k-platinum-test-446",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 785,
+      "item_id": "gsm8k-platinum-test-785",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 12,
+      "item_id": "gsm8k-platinum-test-12",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 975,
+      "item_id": "gsm8k-platinum-test-975",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 513,
+      "item_id": "gsm8k-platinum-test-513",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 964,
+      "item_id": "gsm8k-platinum-test-964",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 607,
+      "item_id": "gsm8k-platinum-test-607",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 511,
+      "item_id": "gsm8k-platinum-test-511",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 812,
+      "item_id": "gsm8k-platinum-test-812",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 894,
+      "item_id": "gsm8k-platinum-test-894",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 246,
+      "item_id": "gsm8k-platinum-test-246",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 547,
+      "item_id": "gsm8k-platinum-test-547",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 442,
+      "item_id": "gsm8k-platinum-test-442",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 872,
+      "item_id": "gsm8k-platinum-test-872",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 121,
+      "item_id": "gsm8k-platinum-test-121",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1181,
+      "item_id": "gsm8k-platinum-test-1181",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 385,
+      "item_id": "gsm8k-platinum-test-385",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 829,
+      "item_id": "gsm8k-platinum-test-829",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 81,
+      "item_id": "gsm8k-platinum-test-81",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1123,
+      "item_id": "gsm8k-platinum-test-1123",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1057,
+      "item_id": "gsm8k-platinum-test-1057",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1161,
+      "item_id": "gsm8k-platinum-test-1161",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1066,
+      "item_id": "gsm8k-platinum-test-1066",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 305,
+      "item_id": "gsm8k-platinum-test-305",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 388,
+      "item_id": "gsm8k-platinum-test-388",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 258,
+      "item_id": "gsm8k-platinum-test-258",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 618,
+      "item_id": "gsm8k-platinum-test-618",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 87,
+      "item_id": "gsm8k-platinum-test-87",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 262,
+      "item_id": "gsm8k-platinum-test-262",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 315,
+      "item_id": "gsm8k-platinum-test-315",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 778,
+      "item_id": "gsm8k-platinum-test-778",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 18,
+      "item_id": "gsm8k-platinum-test-18",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 426,
+      "item_id": "gsm8k-platinum-test-426",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 817,
+      "item_id": "gsm8k-platinum-test-817",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1087,
+      "item_id": "gsm8k-platinum-test-1087",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1059,
+      "item_id": "gsm8k-platinum-test-1059",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 943,
+      "item_id": "gsm8k-platinum-test-943",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 779,
+      "item_id": "gsm8k-platinum-test-779",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 148,
+      "item_id": "gsm8k-platinum-test-148",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 919,
+      "item_id": "gsm8k-platinum-test-919",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 543,
+      "item_id": "gsm8k-platinum-test-543",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1199,
+      "item_id": "gsm8k-platinum-test-1199",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 593,
+      "item_id": "gsm8k-platinum-test-593",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 11,
+      "item_id": "gsm8k-platinum-test-11",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 847,
+      "item_id": "gsm8k-platinum-test-847",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 409,
+      "item_id": "gsm8k-platinum-test-409",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 584,
+      "item_id": "gsm8k-platinum-test-584",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 788,
+      "item_id": "gsm8k-platinum-test-788",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1039,
+      "item_id": "gsm8k-platinum-test-1039",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1144,
+      "item_id": "gsm8k-platinum-test-1144",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 719,
+      "item_id": "gsm8k-platinum-test-719",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 583,
+      "item_id": "gsm8k-platinum-test-583",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 248,
+      "item_id": "gsm8k-platinum-test-248",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 264,
+      "item_id": "gsm8k-platinum-test-264",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 378,
+      "item_id": "gsm8k-platinum-test-378",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 512,
+      "item_id": "gsm8k-platinum-test-512",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1010,
+      "item_id": "gsm8k-platinum-test-1010",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 4,
+      "item_id": "gsm8k-platinum-test-4",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 715,
+      "item_id": "gsm8k-platinum-test-715",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1197,
+      "item_id": "gsm8k-platinum-test-1197",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 505,
+      "item_id": "gsm8k-platinum-test-505",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 932,
+      "item_id": "gsm8k-platinum-test-932",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 591,
+      "item_id": "gsm8k-platinum-test-591",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1142,
+      "item_id": "gsm8k-platinum-test-1142",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 742,
+      "item_id": "gsm8k-platinum-test-742",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 465,
+      "item_id": "gsm8k-platinum-test-465",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 363,
+      "item_id": "gsm8k-platinum-test-363",
+      "stratum": {},
+      "label": "True"
+    },
+    {
+      "source_index": 1119,
+      "item_id": "gsm8k-platinum-test-1119",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 1028,
+      "item_id": "gsm8k-platinum-test-1028",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 924,
+      "item_id": "gsm8k-platinum-test-924",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 66,
+      "item_id": "gsm8k-platinum-test-66",
+      "stratum": {},
+      "label": "False"
+    },
+    {
+      "source_index": 722,
+      "item_id": "gsm8k-platinum-test-722",
+      "stratum": {},
+      "label": "False"
+    }
+  ]
+}

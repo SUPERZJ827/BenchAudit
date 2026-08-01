@@ -1,0 +1,620 @@
+{
+  "manifest_version": 1,
+  "source_path": "/home/zhoujun/llmdata/datasets/wikitablequestions/wikitablequestions_normalized_all.jsonl",
+  "source_sha256": "28b7b88e298bc51dff1280bbc3c79255a6c951d4850444f487ccd724218c0537",
+  "source_items": 18486,
+  "sample_items": 100,
+  "seed": 42,
+  "id_field": "id",
+  "stratify_fields": [],
+  "label_field": null,
+  "clean_values": [],
+  "defect_fraction": null,
+  "excluded_source_indices": 0,
+  "sample_label_distribution": {},
+  "sample_stratum_distribution": {
+    "all": 100
+  },
+  "selected": [
+    {
+      "source_index": 4980,
+      "item_id": "wtq-test-nt-6263",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14826,
+      "item_id": "wtq-test-nu-684",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10068,
+      "item_id": "wtq-test-nt-12598",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 8414,
+      "item_id": "wtq-test-nt-10516",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 18397,
+      "item_id": "wtq-test-nu-4255",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 7100,
+      "item_id": "wtq-test-nt-8905",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 13846,
+      "item_id": "wtq-test-nt-12679",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 2145,
+      "item_id": "wtq-test-nt-2714",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 3752,
+      "item_id": "wtq-test-nt-4733",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 957,
+      "item_id": "wtq-test-nt-1226",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 6061,
+      "item_id": "wtq-test-nt-7606",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10897,
+      "item_id": "wtq-test-nt-13629",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 6962,
+      "item_id": "wtq-test-nt-8731",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 2186,
+      "item_id": "wtq-test-nt-2763",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 18177,
+      "item_id": "wtq-test-nu-4035",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 5746,
+      "item_id": "wtq-test-nt-7205",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17814,
+      "item_id": "wtq-test-nu-3672",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 5776,
+      "item_id": "wtq-test-nt-7250",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9862,
+      "item_id": "wtq-test-nt-12338",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10620,
+      "item_id": "wtq-test-nt-13273",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11731,
+      "item_id": "wtq-test-nt-1904",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 7873,
+      "item_id": "wtq-test-nt-9862",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 2665,
+      "item_id": "wtq-test-nt-3355",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17745,
+      "item_id": "wtq-test-nu-3603",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17016,
+      "item_id": "wtq-test-nu-2874",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 219,
+      "item_id": "wtq-test-nt-287",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9271,
+      "item_id": "wtq-test-nt-11583",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14795,
+      "item_id": "wtq-test-nu-653",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17701,
+      "item_id": "wtq-test-nu-3559",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10563,
+      "item_id": "wtq-test-nt-13204",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 817,
+      "item_id": "wtq-test-nt-1049",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 450,
+      "item_id": "wtq-test-nt-584",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9652,
+      "item_id": "wtq-test-nt-12072",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 8875,
+      "item_id": "wtq-test-nt-11094",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 3375,
+      "item_id": "wtq-test-nt-4234",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14579,
+      "item_id": "wtq-test-nu-437",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9575,
+      "item_id": "wtq-test-nt-11972",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1585,
+      "item_id": "wtq-test-nt-2042",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14866,
+      "item_id": "wtq-test-nu-724",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10984,
+      "item_id": "wtq-test-nt-13737",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 3841,
+      "item_id": "wtq-test-nt-4846",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14756,
+      "item_id": "wtq-test-nu-614",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 46,
+      "item_id": "wtq-test-nt-72",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11347,
+      "item_id": "wtq-test-nt-178",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4598,
+      "item_id": "wtq-test-nt-5789",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17052,
+      "item_id": "wtq-test-nu-2910",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16284,
+      "item_id": "wtq-test-nu-2142",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 7376,
+      "item_id": "wtq-test-nt-9234",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 5645,
+      "item_id": "wtq-test-nt-7078",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4987,
+      "item_id": "wtq-test-nt-6275",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11393,
+      "item_id": "wtq-test-nt-395",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16607,
+      "item_id": "wtq-test-nu-2465",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9709,
+      "item_id": "wtq-test-nt-12142",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 13351,
+      "item_id": "wtq-test-nt-10202",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12294,
+      "item_id": "wtq-test-nt-4795",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1058,
+      "item_id": "wtq-test-nt-1352",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 13925,
+      "item_id": "wtq-test-nt-13127",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4611,
+      "item_id": "wtq-test-nt-5806",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 13165,
+      "item_id": "wtq-test-nt-9261",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12738,
+      "item_id": "wtq-test-nt-7116",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4804,
+      "item_id": "wtq-test-nt-6048",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17696,
+      "item_id": "wtq-test-nu-3554",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11201,
+      "item_id": "wtq-test-nt-14016",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 15648,
+      "item_id": "wtq-test-nu-1506",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17163,
+      "item_id": "wtq-test-nu-3021",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9564,
+      "item_id": "wtq-test-nt-11960",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 407,
+      "item_id": "wtq-test-nt-533",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4426,
+      "item_id": "wtq-test-nt-5579",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11437,
+      "item_id": "wtq-test-nt-614",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16518,
+      "item_id": "wtq-test-nu-2376",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 420,
+      "item_id": "wtq-test-nt-549",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16265,
+      "item_id": "wtq-test-nu-2123",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14879,
+      "item_id": "wtq-test-nu-737",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12542,
+      "item_id": "wtq-test-nt-6034",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 5305,
+      "item_id": "wtq-test-nt-6657",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 2718,
+      "item_id": "wtq-test-nt-3423",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14423,
+      "item_id": "wtq-test-nu-281",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4703,
+      "item_id": "wtq-test-nt-5920",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11159,
+      "item_id": "wtq-test-nt-13964",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 6293,
+      "item_id": "wtq-test-nt-7895",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16305,
+      "item_id": "wtq-test-nu-2163",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10687,
+      "item_id": "wtq-test-nt-13359",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 11344,
+      "item_id": "wtq-test-nt-169",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 3920,
+      "item_id": "wtq-test-nt-4940",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 18086,
+      "item_id": "wtq-test-nu-3944",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 6034,
+      "item_id": "wtq-test-nt-7572",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 17094,
+      "item_id": "wtq-test-nu-2952",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12966,
+      "item_id": "wtq-test-nt-8210",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 4352,
+      "item_id": "wtq-test-nt-5487",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 16278,
+      "item_id": "wtq-test-nu-2136",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 9384,
+      "item_id": "wtq-test-nt-11738",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 14027,
+      "item_id": "wtq-test-nt-13594",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 13834,
+      "item_id": "wtq-test-nt-12617",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 10193,
+      "item_id": "wtq-test-nt-12745",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12182,
+      "item_id": "wtq-test-nt-4331",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 8623,
+      "item_id": "wtq-test-nt-10775",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1050,
+      "item_id": "wtq-test-nt-1342",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 1305,
+      "item_id": "wtq-test-nt-1690",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 13999,
+      "item_id": "wtq-test-nt-13486",
+      "stratum": {},
+      "label": null
+    },
+    {
+      "source_index": 12652,
+      "item_id": "wtq-test-nt-6639",
+      "stratum": {},
+      "label": null
+    }
+  ]
+}

@@ -24,6 +24,7 @@ local_notes/
 experiments/*.jsonl
 experiments/*.json
 experiments/*.manifest.json
+!experiments/*.manifest.json
 experiments/**/outputs/
 experiments/**/cache/
 
