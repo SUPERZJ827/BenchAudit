@@ -1,0 +1,17 @@
+{
+  "addendum_schema": "benchaudit-external-evidence-git-verifier-v2-reason-addendum-v1",
+  "original_execution_receipt": {
+    "path": "docs/experiments/apps_external_evidence_git_verifier_v2_20260801/execution_receipt.json",
+    "sha256": "a5c0edbfcc478edab8b6d8b5141e53f0ac382bc8fef97535cf53ada224c9a75e",
+    "decision": "NOT_IDENTIFIABLE_PRODUCTION_VERIFIER"
+  },
+  "reason_code": "pinned_allowlist_proxy_cannot_reach_environment_egress",
+  "reason": "The pinned allowlist proxy was not reachable from the isolated verifier execution environment, so neither preregistered production replay could complete.",
+  "amendment_scope": "Records the non-empty normalized failure reason without modifying the original receipt, protocol, evidence policy, or decision.",
+  "decision_changed": false,
+  "protocol_changed": false,
+  "new_evidence_introduced": false,
+  "diagnostic_result_promoted": false,
+  "phase_2b_activated": false,
+  "protocol_v3_started": false
+}
