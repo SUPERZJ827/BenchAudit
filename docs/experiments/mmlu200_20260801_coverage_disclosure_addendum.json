@@ -1,0 +1,30 @@
+{
+  "schema_version": "mmlu200-historical-coverage-disclosure-v1",
+  "date": "2026-08-02",
+  "original_artifacts_immutable": true,
+  "original_report": {
+    "path": "reports/deepseek_v4_flash_rerun_20260801/mmlu200_report.json",
+    "sha256": "e6aaafff1fb5061ce2e1e74113e59d4f831070746770d4fd6fe017455ccd30dd"
+  },
+  "original_comparison": {
+    "path": "reports/deepseek_v4_flash_rerun_20260801/mmlu200_comparison.json",
+    "sha256": "863eea4c8633f7e509bfe5b766479449fe21c2c5cb043f21b4757dc324918611"
+  },
+  "disclosure": {
+    "methods_run": 21,
+    "api_attempts": 1400,
+    "max_api_attempts": 1400,
+    "api_budget_saturated": true,
+    "operational_failed": 312,
+    "operational_attempted": 3637,
+    "operational_failure_rate": 0.08578498762716524,
+    "coverage_unknown": 1067,
+    "provider_tokens": 2991832,
+    "interpretation": "The published mmlu200 report is coverage-truncated by its API-attempt cap. Candidate metrics derived from it must be accompanied by this coverage disclosure and must not be described as a complete 21-method run."
+  },
+  "independent_reproduction": {
+    "path": "docs/experiments/mmlu200_replication_pair_stop_receipt_20260802.json",
+    "result": "303/3645 operational failures after saturating 1400/1400 attempts",
+    "relationship": "near-exact reproduction of the historical truncation mechanism, not a stability replicate"
+  }
+}
