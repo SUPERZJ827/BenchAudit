@@ -17,7 +17,10 @@ from scripts.https_connect_allowlist_proxy import (
     DISPOSITIONS,
     normalize_listen_address,
 )
-from scripts.run_verifier_topology_preflight import _summary_gate
+from scripts.run_verifier_topology_preflight import (
+    _derive_internal_network,
+    _summary_gate,
+)
 
 
 class _UpstreamHandler(socketserver.BaseRequestHandler):
@@ -306,3 +309,33 @@ def test_preflight_gate_rejects_unparsed_or_second_authority_events():
     )
     assert decision["authority_set_exact"] is False
     assert decision["no_unparsed_events"] is False
+
+
+def test_podman_cni_internal_network_derivation_is_fail_closed():
+    internal = {
+        "plugins": [
+            {"type": "bridge", "isGateway": False},
+            {"type": "portmap"},
+            {"type": "firewall"},
+        ]
+    }
+    assert _derive_internal_network(internal) == (
+        True,
+        "podman_cni_no_gateway_no_masquerade_no_dnsname",
+    )
+
+    egress = {
+        "plugins": [
+            {"type": "bridge", "isGateway": True, "ipMasq": True},
+            {"type": "dnsname"},
+        ]
+    }
+    assert _derive_internal_network(egress) == (
+        False,
+        "podman_cni_gateway_with_masquerade",
+    )
+
+    assert _derive_internal_network({"plugins": [{"type": "bridge"}]}) == (
+        None,
+        "podman_cni_ambiguous",
+    )
