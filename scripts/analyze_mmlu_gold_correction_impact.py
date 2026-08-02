@@ -25,14 +25,14 @@ import scipy
 from scipy.stats import spearmanr
 
 
-PROTOCOL = Path("docs/research/MMLU_GOLD_CORRECTION_IMPACT_PROTOCOL_20260803.md")
+PROTOCOL = Path("docs/research/MMLU_GOLD_CORRECTION_IMPACT_PROTOCOL_V2_20260803.md")
 EXPECTED_DATASET_SHA256 = "0c8ccf09cbb422e4cd999524aa581e3bd3040c9dcd75f1c0b2408a49ef66b3d4"
 EXPECTED_PILOT_SHA256 = "70cc9ee184db4017b323bda03061f7c3d56e57ad1ab4b1a3415263fd664072b8"
 EXPECTED_ANSWER_SHA256 = {
     "amazon__nova-pro-v1.jsonl": "75c8f1239ac93b248594799beea47f9642743db0b30b07c1fb929a60420186e7",
     "cohere__command-r-08-2024.jsonl": "a550b7dd005294267c769f860297b84dbcc9607bbc52fbbebd7918e71f4cf4be",
     "deepseek.jsonl": "fa7acdf241df1a01eee1eda1a00e645c605aee503b0416edd726d089527b6101",
-    "google__gemini-2.5-flash.jsonl": "2bc96f33b908d22b4703f91e33c598eafa03b6be6a3516ca9c92fdd8fb400ec9",
+    "google__gemini-2.5-flash.jsonl": "2bc96f33b908d22b4703f91e33c598eafa03b3be6a3516ca9c92fdd8fb400ec9",
     "meta-llama__llama-3.1-70b-instruct.jsonl": "c19b0936c1ea6723f2f7169a0793d622eb7a43a14bd816d90c9c221d83efa72a",
     "meta-llama__llama-3.1-8b-instruct.jsonl": "afc4ad5b9f76a08ee5929771880d35019e2b98055a30711200addf5500ccaf19",
     "meta-llama__llama-3.3-70b-instruct.jsonl": "2d9ee021748d2501754cac714faafb09b7159b419a6ef11eaded46c86e5edf44",
