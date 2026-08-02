@@ -1,0 +1,57 @@
+{
+  "receipt_schema": "benchaudit-trusted-adjudicator-phase2a-implementation-v1",
+  "date": "2026-08-02",
+  "decision": "IMPLEMENTED_NOT_ACTIVATED",
+  "implementation_commit": "2ada09de90cb6bdd08b8baeaef32225fd0f78a06",
+  "parent_protocols": {
+    "v2_sha256": "57092a96c6b47d0ff23a9be4dad3f7829aade5a39e7f5f8e002deae4a570cd7e",
+    "v3_sha256": "70ea07afeae0ec34673441eba882c5a2e0b94fa31ef2d825317eeacb51048e92"
+  },
+  "implementation": {
+    "path": "benchcore/trusted_adjudicator.py",
+    "sha256": "aa85091fde4601a1533cfbcf16c565b6a98d661ae9271224e8446341076118f4",
+    "test_path": "tests/test_trusted_adjudicator.py",
+    "test_sha256": "ad160ed2247a576a4aa20e27a02a5e4e6b2108f1af78409478f58bfd7d7ce900"
+  },
+  "implemented_capabilities": [
+    "raw stdout and stderr byte capture without text decoding",
+    "hard timeout and separate stdout/stderr byte ceilings",
+    "whole POSIX process-group termination after leader exit",
+    "complete/timeout/overflow/EOF/exit-status typed observations",
+    "pure non_adaptive_pre_cutoff derivation for equal and strict-ancestor relations",
+    "explicit BenchAudit cutoff-binding ancestry requirement",
+    "code-owned APPS stdin comparator executed after raw hashing",
+    "internal HMAC-SHA256 transcript integrity binding",
+    "cross-item, cross-session, wrong-key, and transcript-tamper rejection",
+    "four-observation MR-4 weak-pass/strong-fail proof-candidate derivation"
+  ],
+  "activation_state": {
+    "production_manifest_count": 0,
+    "cli_integration": false,
+    "producer_integration": false,
+    "promotion_integration": false,
+    "evaluator_execution_modified": false,
+    "disabled_unattested_proofs_modified": false,
+    "can_change_existing_findings": false
+  },
+  "tests": {
+    "trusted_adjudicator": "21 passed",
+    "execution_family_targeted": "72 passed",
+    "full_worktree": "805 passed",
+    "fresh_clone_commit": "2ada09de90cb6bdd08b8baeaef32225fd0f78a06",
+    "fresh_clone_full": "805 passed"
+  },
+  "api_used": false,
+  "network_used": false,
+  "historical_reports_modified": false,
+  "historical_caches_modified": false,
+  "known_unimplemented_or_unverified_boundaries": [
+    "no production code-owned runtime or APPS manifest is registered",
+    "no pinned container engine/image execution has been run through this core",
+    "no production canonical-remote Git provenance verifier is connected",
+    "the two frozen APPS positive items have not been rerun under V2/V3",
+    "OS-visible file-artifact capture is not implemented in this phase",
+    "the module returns a proof candidate and never emits or promotes a Violation"
+  ],
+  "claim_boundary": "Phase 2A establishes a tested, fail-closed stream-capture and local-adjudication core. It does not establish PASS_TRUSTED_ADJUDICATOR_OS_VISIBLE and does not authorize activation."
+}
