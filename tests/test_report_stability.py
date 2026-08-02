@@ -65,6 +65,16 @@ def _build(tmp_path: Path, *, elapsed: float, started: str) -> dict:
 def test_stable_payload_hash_excludes_volatile_run_metadata(tmp_path: Path) -> None:
     first = _build(tmp_path, elapsed=1.25, started="2026-08-02T00:00:00+00:00")
     second = _build(tmp_path, elapsed=9.75, started="2026-08-02T01:00:00+00:00")
+    first["source_identity"].update({
+        "declared_input_path": "/host-a/source.jsonl",
+        "audited_snapshot_path": "/tmp/run-a/source.jsonl",
+    })
+    second["source_identity"].update({
+        "declared_input_path": "/host-b/source.jsonl",
+        "audited_snapshot_path": "/tmp/run-b/source.jsonl",
+    })
+    first["stable_payload_sha256"] = stable_payload_sha256(first)
+    second["stable_payload_sha256"] = stable_payload_sha256(second)
 
     assert first["schema_version"] == REPORT_SCHEMA_VERSION
     assert first["stable_payload_schema_version"] == STABLE_PAYLOAD_SCHEMA_VERSION
