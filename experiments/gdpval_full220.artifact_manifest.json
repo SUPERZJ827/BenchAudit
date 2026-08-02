@@ -1,6 +1,6 @@
 {
   "schema_version": "benchaudit-gdpval-artifact-manifest-v1",
-  "status": "artifact_recovered_before_rerun",
+  "status": "all_observed_checker_dependencies_frozen_before_second_recovery",
   "purpose": "Bind every reference artifact selected by gdpval_workbook_replay before any attempt to locate, fetch, inspect, or restore missing bytes.",
   "dataset": {
     "repository": "openai/gdpval",
@@ -18,6 +18,8 @@
     "planned_item_checker_pairs": 220,
     "eligible_item_checker_pairs": 1,
     "selected_reference_artifacts": 1,
+    "selected_deliverable_artifacts": 1,
+    "selected_artifacts_total": 2,
     "target_outcome_known_at_freeze": true,
     "target_outcome_disclosure": "The clean rerun recorded 5 confirmed findings plus one operationally failed workbook replay whose two historical findings are coverage unknown. This manifest does not claim blindness or pre-outcome selection."
   },
@@ -36,6 +38,22 @@
       "observed_size_bytes": 61470,
       "observation_status": "pinned_revision_fetch_completed_after_freeze",
       "resolver_receipt_sha256": "a8613f92b01e06c1d45cffc4c58a96758851c3b301b139309ae60f6c6aa27c2d"
+    },
+    {
+      "artifact_role": "deliverable",
+      "task_id": "83d10b06-26d1-4636-a32c-23f92c57f30b",
+      "row_uid": "source-row-00000000",
+      "source_row_index": 0,
+      "declared_path": "deliverable_files/2837faa0a7a6a95f40dfbe45bf66c7fb/Sample v2.xlsx",
+      "file_extension": ".xlsx",
+      "expected_sha256": null,
+      "expected_size_bytes": null,
+      "unknown_at_freeze": true,
+      "observed_sha256": null,
+      "observed_size_bytes": null,
+      "observation_status": "not_attempted_after_dependency_discovery",
+      "discovered_after_reference_recovery": true,
+      "discovery_disclosure": "The first post-reference recovery rerun reached this previously masked dependency and stopped with GDPvalArtifactNotCached. This entry is frozen before any attempt to locate, fetch, inspect, or restore its bytes."
     }
   ],
   "recovery_policy": {
@@ -55,6 +73,8 @@
     "pre_recovery_manifest_commit": "9231580",
     "pre_recovery_manifest_sha256": "c364ca15d935c2bbf8bfcf2577d00767cae4d885e5bbee2523890a49c0808fbe",
     "recovery_source": "the exact declared path in openai/gdpval at revision 11e7900cdcac61bc4daf59e65feb238acda98fbf",
-    "recovery_expected_sha256_was_supplied": false
+    "recovery_expected_sha256_was_supplied": false,
+    "second_dependency_freeze_preimage_sha256": "2016d99ba5dfa1f17f6267fbdfe581a4193cdbf27448782100568c123c386c53",
+    "second_dependency_was_known_at_initial_freeze": false
   }
 }
