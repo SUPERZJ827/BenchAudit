@@ -1,0 +1,55 @@
+{
+  "schema_version": "benchaudit-gdpval-artifact-manifest-v1",
+  "status": "frozen_before_artifact_recovery",
+  "purpose": "Bind every reference artifact selected by gdpval_workbook_replay before any attempt to locate, fetch, inspect, or restore missing bytes.",
+  "dataset": {
+    "repository": "openai/gdpval",
+    "revision": "11e7900cdcac61bc4daf59e65feb238acda98fbf",
+    "input_snapshot_basename": "source-f8422fab9b21d90c0ee5f0659842ab666d418cb8940842918f9f4b0df7ae0202.parquet",
+    "input_sha256": "f8422fab9b21d90c0ee5f0659842ab666d418cb8940842918f9f4b0df7ae0202",
+    "rows": 220
+  },
+  "audit_selection": {
+    "runner": "scripts/run_gdpval_objective_audit.py",
+    "checker": "gdpval_workbook_replay",
+    "predicate_version": "benchcore-gdpval-objective/1.0",
+    "mode": "deep_all_applicable",
+    "selection_source": "the committed clean-rerun coverage ledger plus the frozen parquet declarations",
+    "planned_item_checker_pairs": 220,
+    "eligible_item_checker_pairs": 1,
+    "selected_reference_artifacts": 1,
+    "target_outcome_known_at_freeze": true,
+    "target_outcome_disclosure": "The clean rerun recorded 5 confirmed findings plus one operationally failed workbook replay whose two historical findings are coverage unknown. This manifest does not claim blindness or pre-outcome selection."
+  },
+  "artifacts": [
+    {
+      "artifact_role": "reference",
+      "task_id": "83d10b06-26d1-4636-a32c-23f92c57f30b",
+      "row_uid": "source-row-00000000",
+      "source_row_index": 0,
+      "declared_path": "reference_files/cc781e4dc0985c8eb327a53ec03b5900/Population v2.xlsx",
+      "file_extension": ".xlsx",
+      "expected_sha256": null,
+      "expected_size_bytes": null,
+      "unknown_at_freeze": true,
+      "observed_sha256": null,
+      "observed_size_bytes": null,
+      "observation_status": "not_attempted_at_freeze"
+    }
+  ],
+  "recovery_policy": {
+    "allowed_sources": [
+      "the exact declared path in openai/gdpval at revision 11e7900cdcac61bc4daf59e65feb238acda98fbf",
+      "an existing frozen content-addressed object with a verifiable receipt binding the same repository, revision, and declared path"
+    ],
+    "forbidden_sources": [
+      "branches or tags such as main",
+      "unofficial mirrors",
+      "search-engine or web-cache copies",
+      "same-named local workbooks without an immutable path/revision receipt",
+      "bytes chosen because they restore the historical finding count"
+    ],
+    "expected_hash_was_unknown_at_freeze": true,
+    "interpretation_if_recovered": "Any restored finding must disclose that the expected content hash was unknown when this manifest was frozen."
+  }
+}
