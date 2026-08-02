@@ -1,0 +1,68 @@
+{
+  "schema_version": "mmlu200-replication-pair-stop-receipt-v1",
+  "protocol_status": "frozen_before_paid_api",
+  "decision": "STOP_AFTER_RUN1_OPERATIONAL_FAILURE_GATE",
+  "execution_commit": "94b1e66b91ad2c5cc4a2c3e44d0a617ec6a27960",
+  "execution_checkout": {
+    "path": "/home/zhoujun/llmdata/after623_worktrees/mmlu200-replication-pair-20260802",
+    "detached_head": true,
+    "fresh_clone": true
+  },
+  "frozen_inputs": {
+    "dataset_sha256": "0c8ccf09cbb422e4cd999524aa581e3bd3040c9dcd75f1c0b2408a49ef66b3d4",
+    "manifest_sha256": "f60757deeb3f8ba6a682575fd7a87573999b8f0004894729f4904c189f6d77e1",
+    "config_sha256": "0bb50a1316370c39541e2d3e7d9cffd21bddc2eaab4bfc48de905a8f64695e6c",
+    "protocol_sha256": "c3448706e40a2757bcf62b69c135f059f125722979892144b6a340e879ad39fe",
+    "runner_sha256": "1f1ecd6875ffdf079a30ed435f3f5a30f1a93ee1aac7c5054efa956e3df2348a"
+  },
+  "run1": {
+    "items_completed": 200,
+    "started_at_utc": "2026-08-02T14:03:00.364978+00:00",
+    "finished_at_utc": "2026-08-02T14:09:39.918698+00:00",
+    "elapsed_seconds": 399.554,
+    "workers": 8,
+    "methods_match_frozen_list": true,
+    "api_attempts": 1400,
+    "api_successes": 1400,
+    "api_failures": 0,
+    "cache_hits": 0,
+    "cache_entries": 1400,
+    "provider_tokens": 2992586,
+    "llm_derived_confirmed": 0,
+    "operational_attempted": 3645,
+    "operational_failed": 303,
+    "operational_failure_rate": 0.0831275720164609,
+    "operational_failure_limit": 0.05,
+    "gate_passed": false,
+    "gate_failures": [
+      "operational_failure_rate_exceeded"
+    ],
+    "failure_cause": {
+      "reason_code": "llm_api_attempt_budget_exhausted_before_provider_call",
+      "budget": 1400,
+      "affected_findings": 303,
+      "transport_failure": false,
+      "provider_api_failure": false
+    }
+  },
+  "run2": {
+    "started": false,
+    "reason": "run1 failed the preregistered integrity gate"
+  },
+  "pair_metrics_produced": false,
+  "comparison_produced": false,
+  "artifacts": {
+    "execution_receipt_sha256": "5fa8acca2e5e5286ff6dff878a12685e668c517fafc2e4667213fd1c84a90270",
+    "run1_cache_sha256": "a916f01848b29876c78beebc5d8cfbb6df38a52d47e2167cd5a2018bfb643b57",
+    "run1_report_sha256": "fd1f92329b1d9a9db6888c81379e833eedb402a908222d2e34ba5e7a795e7111",
+    "run1_report_md_sha256": "2f5896c10b12f1faf7c0ff467f8dcf7d7939ce32cd6bcbf09be4b4dd0c8efcfe",
+    "run1_integrity_gate_sha256": "bf66a19f572bfa98fc41b5ad7b9484007330efc4f795093015ac95f5d560c2b2"
+  },
+  "discipline": {
+    "run2_not_started": true,
+    "threshold_not_changed": true,
+    "api_budget_not_raised_after_result": true,
+    "cache_not_reused": true,
+    "extra_run_not_added": true
+  }
+}
