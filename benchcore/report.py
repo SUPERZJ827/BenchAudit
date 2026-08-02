@@ -20,6 +20,14 @@ _STABLE_OPTIONAL_FIELDS = (
     "benchmark_package",
     "audit_plan",
 )
+_STABLE_SOURCE_IDENTITY_FIELDS = (
+    "schema_version",
+    "row_uid_scheme",
+    "input_sha256",
+    "input_size_bytes",
+    "audited_rows",
+    "audited_row_manifest_sha256",
+)
 
 
 def build_stable_payload(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -33,7 +41,11 @@ def build_stable_payload(report: Mapping[str, Any]) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "schema_version": STABLE_PAYLOAD_SCHEMA_VERSION,
         "report_schema_version": report.get("schema_version", REPORT_SCHEMA_VERSION),
-        "source_identity": report["source_identity"],
+        "source_identity": {
+            field: report["source_identity"].get(field)
+            for field in _STABLE_SOURCE_IDENTITY_FIELDS
+            if field in report["source_identity"]
+        },
         "summary": report["summary"],
         "field_mapping": report["field_mapping"],
         "methods_run": report.get("methods_run", []),
