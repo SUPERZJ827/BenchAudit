@@ -224,19 +224,42 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
     lines.append(f"- Unknown-tier findings: `{summary.get('unknown_count', 0)}`")
     lines.append(f"- Affected items: `{summary['affected_items']}`")
     lines.append(
-        f"- Operationally affected items: "
+        f"- Operationally affected items (finding records): "
         f"`{summary.get('operational_affected_items', 0)}`"
     )
+    coverage = summary.get("audit_coverage") or {}
+    if coverage:
+        lines.append(
+            f"- Coverage-unknown item×checker checks: `{coverage['unknown']}`"
+        )
+        lines.append(
+            f"- Item×checker checks incomplete due operational failure: "
+            f"`{coverage['operational_failed']}`"
+        )
+        if coverage["operational_failed"]:
+            failure_count = coverage["operational_failed"]
+            check_phrase = (
+                "item×checker check was"
+                if failure_count == 1
+                else "item×checker checks were"
+            )
+            lines.append(
+                f"- **Coverage warning:** `{failure_count}` {check_phrase} "
+                "incomplete due operational failure; "
+                "these are coverage unknowns, not clean results or unknown-tier findings."
+            )
     if report.get("methods_run"):
         lines.append(f"- Methods run: `{', '.join(report['methods_run'])}`")
-    coverage = summary.get("audit_coverage") or {}
     if coverage:
         lines.append(f"- Planned item×checker checks: `{coverage['planned']}`")
         lines.append(f"- Eligible checks: `{coverage['eligible']}`")
         lines.append(f"- Completed checks: `{coverage['completed']}`")
-        lines.append(f"- Coverage unknown: `{coverage['unknown']}`")
         lines.append(
-            f"- Operational failures: `{coverage['operational_failed']}`"
+            f"- Coverage-unknown item×checker checks: `{coverage['unknown']}`"
+        )
+        lines.append(
+            f"- Item×checker operational failures: "
+            f"`{coverage['operational_failed']}`"
         )
     metadata = report.get("run_metadata") or {}
     if metadata:

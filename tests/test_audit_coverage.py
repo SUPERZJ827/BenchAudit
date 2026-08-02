@@ -330,5 +330,13 @@ def test_report_serializes_and_summarizes_coverage_ledger(tmp_path) -> None:
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "## Item × Checker Coverage Ledger" in markdown
     assert "It is not a clean-benchmark verdict" in markdown
-    assert "Operational failures: `1`" in markdown
+    assert "Unknown-tier findings: `0`" in markdown
+    assert "Operationally affected items (finding records): `0`" in markdown
+    assert "Coverage-unknown item×checker checks: `2`" in markdown
+    assert "Item×checker checks incomplete due operational failure: `1`" in markdown
+    assert (
+        "these are coverage unknowns, not clean results or unknown-tier findings"
+        in markdown
+    )
+    assert "Item×checker operational failures: `1`" in markdown
     assert "`row-1` × `exploding_checker`: `operational_failed`" in markdown
