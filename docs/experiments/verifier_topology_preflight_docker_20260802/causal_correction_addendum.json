@@ -1,0 +1,53 @@
+{
+  "addendum_schema": "benchaudit-verifier-topology-causal-correction-v1",
+  "created_at_utc": "2026-08-02T10:28:09Z",
+  "applies_to_commit": "131727f88c2de8ceaac1354edc3b9690fb03b5e7",
+  "supersedes_only": [
+    "docker_failure_attribution",
+    "cross_engine_host_conclusion"
+  ],
+  "original_artifacts_modified": false,
+  "corrected_decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
+  "corrected_reason_code": "FROZEN_PROXY_HAS_NO_UPSTREAM_CHAIN_ON_HOST_WITHOUT_DIRECT_EGRESS",
+  "prior_attribution": "the Docker topology or host could not support the frozen verifier topology because the allowlisted proxy could not reach the canonical upstream",
+  "corrected_attribution": "the audited proxy used a bare socket.create_connection to the canonical host, while this host has no direct TCP egress; the run therefore stopped before testing an upstream-linked allowlist path",
+  "code_fact": {
+    "proxy_script_sha256": "cb79e5fa2b7591b30dcfa80c2aa9c47b2a837017a5f30f44a463fadeda8fa84d",
+    "upstream_operation": "socket.create_connection((host, int(port_text)), timeout=15)",
+    "upstream_proxy_support_present": false
+  },
+  "independent_host_probes": {
+    "direct": {
+      "target": "13.35.202.121:443",
+      "result": "TimeoutError",
+      "elapsed_seconds": 6.006
+    },
+    "via_host_proxy": {
+      "proxy": "http://127.0.0.1:17890",
+      "target": "https://huggingface.co/",
+      "http_status": 200,
+      "elapsed_seconds": 0.462866
+    }
+  },
+  "host_proxy_observation": {
+    "access_endpoint": "127.0.0.1:17890",
+    "listener_socket": "*:17890",
+    "listener_inode": 2095371633,
+    "listener_cgroup": "/system.slice/mihomo.service",
+    "service_main_pid": 1480383,
+    "service_active_enter_timestamp_monotonic": 7363036411785,
+    "service_exec_main_start_timestamp_monotonic": 7363036411213,
+    "service_exec_start": "/usr/bin/mihomo -d /etc/mihomo",
+    "binary_sha256": "82f0f824f553d5ad950611cec476b8ed94b9f9ac629388d28c322c0814b2bc12",
+    "binary_version": "Mihomo Meta v1.19.29 linux amd64 with go1.26.5 Sat Jul 18 12:22:36 UTC 2026",
+    "systemd_unit_path": "/lib/systemd/system/mihomo.service",
+    "systemd_unit_sha256": "b4b011a4b5670b09cc7d21a73cbaf47e038ff3f504deb16afab460555572f3a4",
+    "configuration_readable_by_experiment_user": false
+  },
+  "unanswered_questions": [
+    "whether an upstream-linked audited proxy can complete the canonical CONNECT",
+    "whether the exact Git fetch uses only the pre-registered CONNECT authority",
+    "whether the independent live non-allowlisted CONNECT is rejected in the same topology"
+  ],
+  "claim_boundary": "The Docker isolation negative controls remain valid observations. The two 502 records do not diagnose Docker or the dual-network isolation mechanism; they diagnose a direct-egress-only proxy design on a host without direct egress. The original run did not test an upstream-linked proxy path."
+}
