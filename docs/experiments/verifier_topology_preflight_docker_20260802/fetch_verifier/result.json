@@ -1,0 +1,126 @@
+{
+  "all_gates_passed": false,
+  "container_dns_result": {
+    "addresses": [],
+    "error": "gaierror",
+    "resolved": false
+  },
+  "direct_canonical_ip_results": [
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "13.35.202.121",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "13.35.202.34",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "13.35.202.40",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "13.35.202.97",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:1600:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:5e00:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:6e00:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:9000:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:ac00:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:ba00:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:de00:17:b174:6d00:93a1",
+      "port": 443
+    },
+    {
+      "connected": false,
+      "error": "OSError",
+      "ip": "2600:9000:2078:f200:17:b174:6d00:93a1",
+      "port": 443
+    }
+  ],
+  "direct_proxy_environment_cleared": true,
+  "direct_third_party_ip_result": {
+    "connected": false,
+    "error": "OSError",
+    "ip": "1.1.1.1",
+    "port": 443
+  },
+  "expected_blob_oid": "6053317a3ea13af4b2490691aff725e21a40268f",
+  "expected_content_sha256": "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846",
+  "gate_results": {
+    "blob_content_matches": false,
+    "blob_oid_matches": false,
+    "canonical_direct_connections_blocked": true,
+    "canonical_proxy_connect_succeeded": false,
+    "container_dns_blocked": true,
+    "exact_fetch_succeeded": false,
+    "third_party_direct_connection_blocked": true
+  },
+  "git_configuration": {
+    "askpass_disabled": true,
+    "credential_helper_cleared": true,
+    "global_config_path": "/dev/null",
+    "new_empty_bare_repository": true,
+    "ssh_disabled": true,
+    "system_config_disabled": true,
+    "terminal_prompt_disabled": true
+  },
+  "git_fetch_exit_code": 128,
+  "git_fetch_stderr_sha256": "c59874af22433dd203c30c591bb44a1cf1bed35dade025bff22a167536d14a2f",
+  "git_init_exit_code": 0,
+  "observed_blob_oid": null,
+  "observed_content_sha256": null,
+  "probe_schema": "benchaudit-verifier-topology-fetch-probe-v1",
+  "proxy_environment_restored_only_for_git": [
+    "ALL_PROXY",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "NO_PROXY",
+    "all_proxy",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy"
+  ],
+  "proxy_status_line": "HTTP/1.1 502 Bad Gateway"
+}

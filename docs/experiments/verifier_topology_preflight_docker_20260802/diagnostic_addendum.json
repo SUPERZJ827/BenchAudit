@@ -1,0 +1,101 @@
+{
+  "addendum_schema": "benchaudit-verifier-topology-docker-diagnostic-v1",
+  "date": "2026-08-02",
+  "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
+  "confirmation_eligible": false,
+  "single_run_only": true,
+  "engine_profile": {
+    "profile_id": "docker-29.4.1",
+    "executable": "/usr/bin/docker",
+    "executable_sha256": "1fc0af13dcb8070408ce2ac4051b76f76ff0c63570bdaeeb6bd5b13b993d0249",
+    "client_version": "29.4.1",
+    "server_version": "29.4.1",
+    "version_output_sha256": "7728e85580e079e17edb6b02fe937fe85727034c12a8d017a9efab6567e2733b",
+    "invocation_schema": "docker-cli-29.4-v1",
+    "code_owned_profile_commit": "2bcc137"
+  },
+  "artifact_bindings": {
+    "terminal_receipt": {
+      "path": "docs/experiments/verifier_topology_preflight_docker_20260802/topology_preflight_receipt.json",
+      "sha256": "da5b617c33da90ea842fe1f013f659a3403aaa31e035579e860fe6e41c0a1d4c"
+    },
+    "fetch_proxy_raw_log": {
+      "path": "docs/experiments/verifier_topology_preflight_docker_20260802/fetch_proxy/raw.jsonl",
+      "sha256": "520f4df485216bae9fa06fa617a2760d17da5275fcaaa16c0e5b347eb13a126a"
+    },
+    "fetch_proxy_stable_summary": {
+      "path": "docs/experiments/verifier_topology_preflight_docker_20260802/fetch_proxy/stable.json",
+      "sha256": "841dd2a44113ac069e1a47a34a7c35cca7dbccddfaa6d06e13534aa017cf6083"
+    },
+    "fetch_verifier_result": {
+      "path": "docs/experiments/verifier_topology_preflight_docker_20260802/fetch_verifier/result.json",
+      "sha256": "ec67f1324d98f64f936dc9fb7bb9eb267c44b4cff91dc9cd340552c17b0a3108"
+    },
+    "preflight_runner_sha256": "9ea97edd8846faa04309ab0176874961e30b88f75f90d09a4cf4eef08ddab1fb"
+  },
+  "terminal_receipt_interpretation": {
+    "first_failing_gate": "unexpected_preflight_error",
+    "reason": "PermissionError",
+    "cause": "proxy artifacts were intentionally mode 0600 and owned by container UID 65534, so the host runner could not read stable.json",
+    "post_run_permission_adjustment": "a network-disabled pinned-image container running as the artifact owner changed only file modes to permit preservation; content hashes were computed afterward",
+    "rerun_performed": false
+  },
+  "observed_live_results": {
+    "canonical_proxy_connect": {
+      "passed": false,
+      "status_line": "HTTP/1.1 502 Bad Gateway"
+    },
+    "canonical_direct_connections_blocked": {
+      "passed": true,
+      "address_count": 12,
+      "interpretation": "corroboration_only"
+    },
+    "third_party_direct_connection_blocked": {
+      "passed": true,
+      "address": "1.1.1.1:443",
+      "interpretation": "corroboration_only"
+    },
+    "container_dns_blocked": {
+      "passed": true,
+      "interpretation": "corroboration_only"
+    },
+    "exact_git_fetch": {
+      "passed": false,
+      "exit_code": 128
+    },
+    "blob_oid_match": false,
+    "blob_content_match": false,
+    "live_non_allowlisted_connect_403": "not_run_after_fetch_session_failure"
+  },
+  "proxy_observation": {
+    "parsed_authorities": [
+      "huggingface.co:443"
+    ],
+    "accepted_connection_count": 2,
+    "allowed": 0,
+    "upstream_failed": 2,
+    "all_other_dispositions": 0,
+    "upstream_connected": false
+  },
+  "cross_engine_final_result": {
+    "podman_3_4_4": "NOT_IDENTIFIABLE: frozen dual-network static-IP topology could not be instantiated",
+    "docker_29_4_1": "NOT_IDENTIFIABLE: network isolation probes passed but the proxy could not reach the canonical upstream and exact fetch failed",
+    "host_conclusion": "the frozen verifier topology is not identifiable on either code-owned engine available on this host"
+  },
+  "fallbacks_not_used": {
+    "host_network": false,
+    "wildcard_listen": false,
+    "host_git_fetch": false,
+    "authority_allowlist_widened": false,
+    "probe_removed_or_weakened": false,
+    "second_docker_run": false,
+    "new_runtime_installed": false,
+    "candidate_network_enabled": false
+  },
+  "claim_boundary": "Docker instantiated enough of the frozen topology to run the fetch-session probes. Direct-IP and DNS negative controls passed, but the allowlisted proxy produced two upstream_failed observations, so canonical CONNECT and Git fetch failed. The independent live-403 session did not run. This is not evidence that the verifier topology is safe or production ready.",
+  "provenance_receipt_produced": false,
+  "attestation_produced": false,
+  "finding_produced": false,
+  "candidate_code_executed": false,
+  "api_used": false
+}
