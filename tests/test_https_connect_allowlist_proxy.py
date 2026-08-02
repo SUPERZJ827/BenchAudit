@@ -18,6 +18,7 @@ from scripts.https_connect_allowlist_proxy import (
     normalize_listen_address,
 )
 from scripts.run_verifier_topology_preflight import (
+    ENGINE_PROFILES,
     _derive_internal_network,
     _summary_gate,
 )
@@ -339,3 +340,17 @@ def test_podman_cni_internal_network_derivation_is_fail_closed():
         None,
         "podman_cni_ambiguous",
     )
+
+
+def test_verifier_engine_profiles_are_code_owned_and_not_free_form():
+    assert set(ENGINE_PROFILES) == {"podman-3.4.4", "docker-29.4.1"}
+    docker = ENGINE_PROFILES["docker-29.4.1"]
+    assert docker == {
+        "executable": "/usr/bin/docker",
+        "engine_name": "docker",
+        "client_version": "29.4.1",
+        "server_version": "29.4.1",
+        "executable_sha256": "1fc0af13dcb8070408ce2ac4051b76f76ff0c63570bdaeeb6bd5b13b993d0249",
+        "version_output_sha256": "7728e85580e079e17edb6b02fe937fe85727034c12a8d017a9efab6567e2733b",
+        "invocation_schema": "docker-cli-29.4-v1",
+    }
