@@ -1,0 +1,104 @@
+{
+  "receipt_schema": "benchaudit-gdpval-artifact-recovery-v1",
+  "decision": "RECOVERED_WITH_UNKNOWN_AT_FREEZE_ARTIFACTS",
+  "git_commit": "af685b919342818d6a10817bb978014b83d0b26d",
+  "git_worktree_clean_before_final_runs": true,
+  "api_used": false,
+  "historical_report_artifacts_modified": false,
+  "dataset": {
+    "repository": "openai/gdpval",
+    "revision": "11e7900cdcac61bc4daf59e65feb238acda98fbf",
+    "input_sha256": "f8422fab9b21d90c0ee5f0659842ab666d418cb8940842918f9f4b0df7ae0202",
+    "items": 220
+  },
+  "manifest_sequence": [
+    {
+      "stage": "before_any_recovery",
+      "commit": "9231580",
+      "sha256": "c364ca15d935c2bbf8bfcf2577d00767cae4d885e5bbee2523890a49c0808fbe",
+      "expected_hashes_unknown": true
+    },
+    {
+      "stage": "reference_observed_before_first_rerun",
+      "commit": "6f58d33",
+      "sha256": "2016d99ba5dfa1f17f6267fbdfe581a4193cdbf27448782100568c123c386c53",
+      "expected_hashes_unknown": true
+    },
+    {
+      "stage": "masked_deliverable_dependency_frozen_before_fetch",
+      "commit": "8ff05f8",
+      "sha256": "ab513e40c2b24c4e167f74c1c7ea10354585bf8172ede80a8b2863f3b29b2397",
+      "expected_hashes_unknown": true
+    },
+    {
+      "stage": "all_observed_dependencies_bound_before_final_rerun",
+      "commit": "af685b9",
+      "sha256": "286053be53f0dd7ca6033b0bd1a6c0e4900ac05bb51402b13c475f727ab752dd",
+      "expected_hashes_unknown": true
+    }
+  ],
+  "artifacts": [
+    {
+      "role": "reference",
+      "declared_path": "reference_files/cc781e4dc0985c8eb327a53ec03b5900/Population v2.xlsx",
+      "expected_sha256_at_freeze": null,
+      "unknown_at_freeze": true,
+      "observed_sha256": "e64a9d3ba60bbaecef0e6685a57b618e9b321bcd813c79e4460be36bf8c79fb7",
+      "observed_size_bytes": 61470,
+      "resolver_receipt_sha256": "a8613f92b01e06c1d45cffc4c58a96758851c3b301b139309ae60f6c6aa27c2d",
+      "source": "exact path at pinned dataset revision"
+    },
+    {
+      "role": "deliverable",
+      "declared_path": "deliverable_files/2837faa0a7a6a95f40dfbe45bf66c7fb/Sample v2.xlsx",
+      "expected_sha256_at_freeze": null,
+      "unknown_at_freeze": true,
+      "discovered_after_reference_recovery": true,
+      "frozen_before_its_fetch": true,
+      "observed_sha256": "72b74484e2eeb6bd1a5b5391220a6dea142f3b7fbd6c218490b1aa633dbafcbb",
+      "observed_size_bytes": 79328,
+      "resolver_receipt_sha256": "b8880edddbc3ff4e3e8abf7f04c1c1796deec4e6ab8b017e51389a54b9659029",
+      "source": "exact path at pinned dataset revision"
+    }
+  ],
+  "final_run_1": {
+    "audit_json_sha256": "66df8e414adfc766e18f60728536f14b05561bb36005b67c5a3dbaffbfa4641c",
+    "stable_payload_sha256": "1ef7d44c197ba73de8a0bcfb4844ee33356ce74dc89575c1f906bf47fe268815",
+    "items": 220,
+    "violations": 18,
+    "confirmed": 7,
+    "review": 11,
+    "unknown_findings": 0,
+    "coverage_unknown": 0,
+    "operational_failed": 0
+  },
+  "final_run_2": {
+    "audit_json_sha256": "858b1b6e230f137831ae4c5290631d9ecaed753febc28ad33acfde1b7cec8962",
+    "stable_payload_sha256": "1ef7d44c197ba73de8a0bcfb4844ee33356ce74dc89575c1f906bf47fe268815",
+    "items": 220,
+    "violations": 18,
+    "confirmed": 7,
+    "review": 11,
+    "unknown_findings": 0,
+    "coverage_unknown": 0,
+    "operational_failed": 0
+  },
+  "determinism": {
+    "raw_audit_json_equal": false,
+    "raw_difference_expected_from_run_metadata": true,
+    "stable_payload_equal": true,
+    "violation_payload_equal": true,
+    "coverage_ledger_equal": true
+  },
+  "observed_confirmed_breakdown": {
+    "task_artifact_contract_mismatch": 4,
+    "rubric_artifact_contract_mismatch": 2,
+    "rubric_reference_contract_mismatch": 1
+  },
+  "claim_boundary": {
+    "externally_reportable_headline": "GDPVal 220: 5 confirmed + 2 coverage unknown",
+    "recovery_observation": "The checker emits 7 confirmed evidence records after both pinned-revision artifacts are restored.",
+    "mandatory_limitation": "The two restored records depend on artifacts whose expected SHA-256 values were unknown when recovery was frozen; the deliverable dependency was also discovered only after the reference recovery exposed it.",
+    "historical_dirty_result_reinstated": false
+  }
+}
