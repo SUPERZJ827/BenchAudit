@@ -17,6 +17,7 @@ from benchcore.trusted_adjudicator import (
     TrustedExecutionManifest,
     capture_raw_process,
     adjudicate_weak_strong_pair,
+    attestation_allows_external_proof,
     derive_adversary_model,
     production_manifest_ids,
     verify_supervisor_attestation,
@@ -162,6 +163,7 @@ def test_raw_capture_preserves_non_utf8_and_separates_stderr():
         max_stderr_bytes=100,
     )
     assert capture.complete is True
+    assert capture.incomplete_reason is None
     assert capture.stdout == b"\xffout"
     assert capture.stderr == b"err\xfe"
 
@@ -179,6 +181,7 @@ def test_timeout_and_partial_output_never_become_complete():
     )
     assert capture.stdout == b"partial"
     assert capture.timed_out is True
+    assert capture.incomplete_reason == "timeout"
     assert capture.complete is False
 
 
@@ -199,6 +202,7 @@ def test_descendant_retaining_stdout_cannot_create_complete_observation():
     )
     assert capture.stdout == b"leader-exited\n"
     assert capture.timed_out is True
+    assert capture.incomplete_reason == "descendant_retained_pipe"
     assert capture.complete is False
 
 
@@ -214,6 +218,7 @@ def test_output_overflow_is_bounded_and_incomplete():
     )
     assert len(capture.stdout) == 64
     assert capture.stdout_overflow is True
+    assert capture.incomplete_reason == "stdout_overflow"
     assert capture.complete is False
 
 
@@ -228,7 +233,39 @@ def test_supervisor_ignores_caller_model_and_signs_its_own_capture(monkeypatch):
     assert verify_supervisor_attestation(
         result.transcript, result.attestation, verification_key=KEY
     )
+    assert result.attestation.attestation_class == "internal_integrity_symmetric"
+    assert result.attestation.verification_implies_forgery_capability is True
+    assert attestation_allows_external_proof(result.attestation) is False
     assert "key" not in result.attestation.as_dict()
+
+
+def test_attestation_limitations_are_signed_and_cannot_be_external_proof(monkeypatch):
+    result = _execute(monkeypatch, _manifest("print('ok')"))
+    changed_class = replace(
+        result.attestation,
+        attestation_class="third_party_verifiable",
+    )
+    assert not verify_supervisor_attestation(
+        result.transcript, changed_class, verification_key=KEY
+    )
+    assert attestation_allows_external_proof(changed_class) is False
+
+    changed_capability = replace(
+        result.attestation,
+        verification_implies_forgery_capability=False,
+    )
+    assert not verify_supervisor_attestation(
+        result.transcript, changed_capability, verification_key=KEY
+    )
+    assert attestation_allows_external_proof(changed_capability) is False
+
+
+def test_key_identifier_is_domain_separated_from_bare_key_hash(monkeypatch):
+    result = _execute(monkeypatch, _manifest("print('ok')"))
+    assert result.attestation.key_id != hashlib.sha256(KEY).hexdigest()
+    assert result.attestation.key_id == hashlib.sha256(
+        b"benchaudit-adjudicator-keyid-v1" + KEY
+    ).hexdigest()
 
 
 def test_attestation_rejects_wrong_key_and_cross_item_replay(monkeypatch):

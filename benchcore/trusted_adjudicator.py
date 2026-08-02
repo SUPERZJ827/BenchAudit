@@ -23,11 +23,16 @@ import time
 from typing import Any, Mapping, Protocol
 
 
-TRUSTED_ADJUDICATOR_PROTOCOL = "benchaudit-trusted-adjudicator-os-visible-v3"
+TRUSTED_ADJUDICATOR_PROTOCOL = "benchaudit-trusted-adjudicator-os-visible-v4"
 SIGNATURE_SCHEME = "hmac-sha256-internal-integrity-v1"
+ATTESTATION_CLASS = "internal_integrity_symmetric"
+VERIFICATION_IMPLIES_FORGERY_CAPABILITY = True
+KEY_ID_DOMAIN = b"benchaudit-adjudicator-keyid-v1"
+_EXTERNAL_PROOF_ATTESTATION_CLASSES: frozenset[str] = frozenset()
 NON_ADAPTIVE_MODEL = "non_adaptive_pre_cutoff"
 TRUST_DOMAIN = "trusted_os_capture_supervisor_v3"
 V3_PROTOCOL_COMMIT = "388d2e389720b30328a4b9d3267a1afb220c9474"
+V4_PROTOCOL_COMMIT = "75edb37f8ae8061631503b17465129c449972a09"
 
 
 def _sha256(value: bytes) -> str:
@@ -239,6 +244,7 @@ class RawProcessCapture:
     stderr_overflow: bool
     stdout_eof: bool
     stderr_eof: bool
+    incomplete_reason: str | None
 
     @property
     def complete(self) -> bool:
@@ -249,6 +255,7 @@ class RawProcessCapture:
             and self.stdout_eof
             and self.stderr_eof
             and self.exit_code is not None
+            and self.incomplete_reason is None
         )
 
     def stable_observation(self) -> dict[str, Any]:
@@ -263,6 +270,7 @@ class RawProcessCapture:
             "stderr_overflow": self.stderr_overflow,
             "stdout_eof": self.stdout_eof,
             "stderr_eof": self.stderr_eof,
+            "incomplete_reason": self.incomplete_reason,
             "complete": self.complete,
         }
 
@@ -321,12 +329,18 @@ def capture_raw_process(
     stdout_overflow = False
     stderr_overflow = False
     timed_out = False
+    incomplete_reason = None
     deadline = time.monotonic() + timeout_seconds
     try:
         while not (stdout_eof and stderr_eof and process.poll() is not None):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True
+                incomplete_reason = (
+                    "descendant_retained_pipe"
+                    if process.poll() is not None and not (stdout_eof and stderr_eof)
+                    else "timeout"
+                )
                 _kill_group(process)
                 break
             events = selector.select(timeout=min(remaining, 0.05))
@@ -366,6 +380,9 @@ def capture_raw_process(
                         stderr_overflow = True
                     _kill_group(process)
             if stdout_overflow or stderr_overflow:
+                incomplete_reason = (
+                    "stdout_overflow" if stdout_overflow else "stderr_overflow"
+                )
                 break
     finally:
         if timed_out or stdout_overflow or stderr_overflow:
@@ -388,6 +405,7 @@ def capture_raw_process(
         stderr_overflow=stderr_overflow,
         stdout_eof=stdout_eof,
         stderr_eof=stderr_eof,
+        incomplete_reason=incomplete_reason,
     )
 
 
@@ -409,6 +427,7 @@ class SupervisorTranscript:
     adversary_relation: str
     provenance_reason: str
     v3_protocol_commit: str = V3_PROTOCOL_COMMIT
+    v4_protocol_commit: str = V4_PROTOCOL_COMMIT
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -429,6 +448,7 @@ class SupervisorTranscript:
             "adversary_relation": self.adversary_relation,
             "provenance_reason": self.provenance_reason,
             "v3_protocol_commit": self.v3_protocol_commit,
+            "v4_protocol_commit": self.v4_protocol_commit,
         }
 
     @property
@@ -440,18 +460,58 @@ class SupervisorTranscript:
 class SupervisorAttestation:
     protocol: str
     signature_scheme: str
+    attestation_class: str
+    verification_implies_forgery_capability: bool
     key_id: str
     payload_sha256: str
     signature: str
 
-    def as_dict(self) -> dict[str, str]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "protocol": self.protocol,
             "signature_scheme": self.signature_scheme,
+            "attestation_class": self.attestation_class,
+            "verification_implies_forgery_capability": (
+                self.verification_implies_forgery_capability
+            ),
             "key_id": self.key_id,
             "payload_sha256": self.payload_sha256,
             "signature": self.signature,
         }
+
+
+def _key_id(key: bytes) -> str:
+    return _sha256(KEY_ID_DOMAIN + key)
+
+
+def _attestation_signing_bytes(
+    *,
+    protocol: str,
+    signature_scheme: str,
+    attestation_class: str,
+    verification_implies_forgery_capability: bool,
+    key_id: str,
+    payload_sha256: str,
+) -> bytes:
+    return _canonical_bytes({
+        "protocol": protocol,
+        "signature_scheme": signature_scheme,
+        "attestation_class": attestation_class,
+        "verification_implies_forgery_capability": (
+            verification_implies_forgery_capability
+        ),
+        "key_id": key_id,
+        "payload_sha256": payload_sha256,
+    })
+
+
+def attestation_allows_external_proof(attestation: SupervisorAttestation) -> bool:
+    """Apply the V4 external-proof ceiling without granting proof authority."""
+
+    return (
+        attestation.attestation_class in _EXTERNAL_PROOF_ATTESTATION_CLASSES
+        and attestation.verification_implies_forgery_capability is False
+    )
 
 
 class _InternalHmacSigner:
@@ -459,19 +519,34 @@ class _InternalHmacSigner:
         if len(key) < 32:
             raise ValueError("trusted adjudicator key must contain at least 32 bytes")
         self.__key = bytes(key)
-        self.key_id = _sha256(self.__key)
+        self.key_id = _key_id(self.__key)
 
     def attest(self, transcript: SupervisorTranscript) -> SupervisorAttestation:
         payload_sha256 = transcript.payload_sha256
         signature = hmac.new(
-            self.__key, payload_sha256.encode("ascii"), hashlib.sha256
+            self.__key,
+            _attestation_signing_bytes(
+                protocol=TRUSTED_ADJUDICATOR_PROTOCOL,
+                signature_scheme=SIGNATURE_SCHEME,
+                attestation_class=ATTESTATION_CLASS,
+                verification_implies_forgery_capability=(
+                    VERIFICATION_IMPLIES_FORGERY_CAPABILITY
+                ),
+                key_id=self.key_id,
+                payload_sha256=payload_sha256,
+            ),
+            hashlib.sha256,
         ).hexdigest()
         return SupervisorAttestation(
-            TRUSTED_ADJUDICATOR_PROTOCOL,
-            SIGNATURE_SCHEME,
-            self.key_id,
-            payload_sha256,
-            signature,
+            protocol=TRUSTED_ADJUDICATOR_PROTOCOL,
+            signature_scheme=SIGNATURE_SCHEME,
+            attestation_class=ATTESTATION_CLASS,
+            verification_implies_forgery_capability=(
+                VERIFICATION_IMPLIES_FORGERY_CAPABILITY
+            ),
+            key_id=self.key_id,
+            payload_sha256=payload_sha256,
+            signature=signature,
         )
 
 
@@ -486,14 +561,26 @@ def verify_supervisor_attestation(
     if (
         attestation.protocol != TRUSTED_ADJUDICATOR_PROTOCOL
         or attestation.signature_scheme != SIGNATURE_SCHEME
-        or attestation.key_id != _sha256(verification_key)
+        or attestation.attestation_class != ATTESTATION_CLASS
+        or attestation.verification_implies_forgery_capability
+        is not VERIFICATION_IMPLIES_FORGERY_CAPABILITY
+        or attestation.key_id != _key_id(verification_key)
         or attestation.payload_sha256 != transcript.payload_sha256
         or not _hex(attestation.signature, 64)
     ):
         return False
     expected = hmac.new(
         verification_key,
-        transcript.payload_sha256.encode("ascii"),
+        _attestation_signing_bytes(
+            protocol=attestation.protocol,
+            signature_scheme=attestation.signature_scheme,
+            attestation_class=attestation.attestation_class,
+            verification_implies_forgery_capability=(
+                attestation.verification_implies_forgery_capability
+            ),
+            key_id=attestation.key_id,
+            payload_sha256=attestation.payload_sha256,
+        ),
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected, attestation.signature)
@@ -569,7 +656,7 @@ class TrustedCaptureSupervisor:
             and comparison.accepted is not None
         )
         if not capture.complete:
-            reason = "capture incomplete due timeout, overflow, missing EOF, or missing exit"
+            reason = f"capture incomplete: {capture.incomplete_reason or 'unknown'}"
         elif not manifest.runtime_confirmation_eligible:
             reason = "runtime manifest is not confirmation eligible"
         elif not adversary.confirmation_eligible:
