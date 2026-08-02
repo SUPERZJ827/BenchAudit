@@ -1,6 +1,6 @@
 {
   "schema_version": "benchaudit-gdpval-artifact-manifest-v1",
-  "status": "all_observed_checker_dependencies_frozen_before_second_recovery",
+  "status": "all_observed_checker_dependencies_recovered_before_final_rerun",
   "purpose": "Bind every reference artifact selected by gdpval_workbook_replay before any attempt to locate, fetch, inspect, or restore missing bytes.",
   "dataset": {
     "repository": "openai/gdpval",
@@ -49,9 +49,10 @@
       "expected_sha256": null,
       "expected_size_bytes": null,
       "unknown_at_freeze": true,
-      "observed_sha256": null,
-      "observed_size_bytes": null,
-      "observation_status": "not_attempted_after_dependency_discovery",
+      "observed_sha256": "72b74484e2eeb6bd1a5b5391220a6dea142f3b7fbd6c218490b1aa633dbafcbb",
+      "observed_size_bytes": 79328,
+      "observation_status": "pinned_revision_fetch_completed_after_dependency_freeze",
+      "resolver_receipt_sha256": "b8880edddbc3ff4e3e8abf7f04c1c1796deec4e6ab8b017e51389a54b9659029",
       "discovered_after_reference_recovery": true,
       "discovery_disclosure": "The first post-reference recovery rerun reached this previously masked dependency and stopped with GDPvalArtifactNotCached. This entry is frozen before any attempt to locate, fetch, inspect, or restore its bytes."
     }
@@ -75,6 +76,9 @@
     "recovery_source": "the exact declared path in openai/gdpval at revision 11e7900cdcac61bc4daf59e65feb238acda98fbf",
     "recovery_expected_sha256_was_supplied": false,
     "second_dependency_freeze_preimage_sha256": "2016d99ba5dfa1f17f6267fbdfe581a4193cdbf27448782100568c123c386c53",
-    "second_dependency_was_known_at_initial_freeze": false
+    "second_dependency_was_known_at_initial_freeze": false,
+    "second_dependency_freeze_commit": "8ff05f8",
+    "second_dependency_freeze_manifest_sha256": "ab513e40c2b24c4e167f74c1c7ea10354585bf8172ede80a8b2863f3b29b2397",
+    "second_recovery_expected_sha256_was_supplied": false
   }
 }
