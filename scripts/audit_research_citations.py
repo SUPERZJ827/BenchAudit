@@ -2,9 +2,9 @@
 """Resolve Markdown citations without validating their numerical claims.
 
 The extraction, title-matching, and verdict rules in this file are intentionally
-frozen before any cited URL is fetched.  The script uses direct HTTP(S) only,
-does not call a model API, and does not consult search engines or substitute
-sources.
+frozen before the proxy-transport rerun.  The script can use either explicit
+direct HTTP(S) or one explicitly supplied HTTP CONNECT proxy, does not call a
+model API, and does not consult search engines or substitute sources.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ import sys
 import time
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import OrderedDict
 from pathlib import Path
@@ -55,6 +56,10 @@ SPACE_RE = re.compile(r"\s+")
 
 NOT_FOUND_STATUSES = {404, 410}
 USER_AGENT = "BenchAudit-CitationReceipt/1.0 (+offline-verification; no model API)"
+TERMINAL_VERDICTS = frozenset(
+    {"resolved", "title_mismatch", "not_found", "unreachable", "blocked_by_anti_bot"}
+)
+ANTI_BOT_NORMALIZED_TITLES = frozenset({"verifying your browser"})
 
 
 def _sha256(data: bytes) -> str:
@@ -177,14 +182,45 @@ def extract_citations(markdown: str) -> list[dict[str, Any]]:
     return extracted
 
 
-def fetch_direct(url: str, timeout_seconds: float, max_bytes: int) -> dict[str, Any]:
-    # An empty ProxyHandler deliberately disables environment proxies.  The
-    # audit either reaches the cited host directly or reports unreachable.
-    opener = urllib.request.build_opener(
-        urllib.request.ProxyHandler({}),
+def _validated_proxy_url(value: str) -> str:
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme != "http" or not parsed.hostname or parsed.path not in {"", "/"}:
+        raise ValueError("proxy URL must be an explicit http://host:port endpoint")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.port is None:
+        raise ValueError("proxy URL must not contain credentials, query, or fragment and must include a port")
+    return value
+
+
+def build_opener(*, transport: str, proxy_url: str | None) -> urllib.request.OpenerDirector:
+    if transport == "direct":
+        if proxy_url:
+            raise ValueError("direct transport cannot carry a proxy URL")
+        proxy_handler = urllib.request.ProxyHandler({})
+    elif transport == "proxy":
+        if not proxy_url:
+            raise ValueError("proxy transport requires --proxy-url")
+        checked = _validated_proxy_url(proxy_url)
+        proxy_handler = urllib.request.ProxyHandler({"http": checked, "https": checked})
+    else:
+        raise ValueError(f"unknown transport: {transport}")
+    return urllib.request.build_opener(
+        proxy_handler,
         urllib.request.HTTPRedirectHandler(),
         urllib.request.HTTPSHandler(context=ssl.create_default_context()),
     )
+
+
+def fetch_url(
+    url: str,
+    timeout_seconds: float,
+    max_bytes: int,
+    *,
+    transport: str,
+    proxy_url: str | None,
+) -> dict[str, Any]:
+    # Proxy selection is explicit. Environment proxy variables never select
+    # the transport or proxy endpoint for this audit.
+    opener = build_opener(transport=transport, proxy_url=proxy_url)
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/pdf;q=0.9,*/*;q=0.1"})
     try:
         with opener.open(request, timeout=timeout_seconds) as response:
@@ -231,7 +267,12 @@ def adjudicate(citation: dict[str, Any], fetched: dict[str, Any]) -> dict[str, A
         title_match = _title_matches(citation["claimed_title"], resolved_title)
         title_check_reason = "frozen_containment_or_jaccard_rule"
 
-    if status in NOT_FOUND_STATUSES:
+    anti_bot = status == 200 and _normalize_title(resolved_title) in ANTI_BOT_NORMALIZED_TITLES
+    if anti_bot:
+        verdict = "blocked_by_anti_bot"
+        title_match = None
+        title_check_reason = "anti_bot_interstitial_not_cited_content"
+    elif status in NOT_FOUND_STATUSES:
         verdict = "not_found"
     elif status is None or (status is not None and status >= 500) or status in {401, 403, 408, 429}:
         verdict = "unreachable"
@@ -260,6 +301,20 @@ def adjudicate(citation: dict[str, Any], fetched: dict[str, Any]) -> dict[str, A
     }
 
 
+def terminal_counts(receipts: list[dict[str, Any]], *, expected: int) -> dict[str, int]:
+    counts = {verdict: 0 for verdict in sorted(TERMINAL_VERDICTS)}
+    if len(receipts) != expected:
+        raise RuntimeError(f"citation receipt count mismatch: {len(receipts)} != {expected}")
+    for receipt in receipts:
+        verdict = receipt.get("verdict")
+        if verdict not in TERMINAL_VERDICTS:
+            raise RuntimeError(f"non-terminal or unknown citation verdict: {verdict!r}")
+        counts[str(verdict)] += 1
+    if sum(counts.values()) != expected:
+        raise RuntimeError("terminal citation verdicts are not mutually exhaustive")
+    return counts
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("survey", type=Path)
@@ -267,7 +322,12 @@ def main() -> int:
     parser.add_argument("--timeout-seconds", type=float, default=20.0)
     parser.add_argument("--max-bytes", type=int, default=4_000_000)
     parser.add_argument("--delay-seconds", type=float, default=0.15)
+    parser.add_argument("--transport", choices=("direct", "proxy"), default="direct")
+    parser.add_argument("--proxy-url")
     args = parser.parse_args()
+
+    # Validate transport before creating an output file.
+    build_opener(transport=args.transport, proxy_url=args.proxy_url)
 
     survey_bytes = args.survey.read_bytes()
     markdown = survey_bytes.decode("utf-8")
@@ -276,18 +336,42 @@ def main() -> int:
         raise SystemExit("no Markdown citations found")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    with args.out.open("w", encoding="utf-8") as output:
+    receipts: list[dict[str, Any]] = []
+    with args.out.open("x", encoding="utf-8") as output:
         for index, citation in enumerate(citations, start=1):
-            fetched = fetch_direct(citation["url"], args.timeout_seconds, args.max_bytes)
+            fetched = fetch_url(
+                citation["url"],
+                args.timeout_seconds,
+                args.max_bytes,
+                transport=args.transport,
+                proxy_url=args.proxy_url,
+            )
             receipt = adjudicate(citation, fetched)
-            receipt["receipt_schema"] = "benchaudit-citation-resolution-v1"
+            receipt["receipt_schema"] = "benchaudit-citation-resolution-v2"
             receipt["survey_sha256"] = _sha256(survey_bytes)
+            receipt["transport"] = args.transport
+            receipt["proxy_url"] = args.proxy_url if args.transport == "proxy" else None
+            receipts.append(receipt)
             output.write(json.dumps(receipt, ensure_ascii=False, sort_keys=True) + "\n")
             print(f"[{index}/{len(citations)}] {receipt['verdict']:14s} {citation['url']}", flush=True)
             if index != len(citations):
                 time.sleep(args.delay_seconds)
 
-    print(json.dumps({"citations": len(citations), "out": str(args.out), "survey_sha256": _sha256(survey_bytes)}, sort_keys=True))
+    counts = terminal_counts(receipts, expected=len(citations))
+    print(
+        json.dumps(
+            {
+                "citations": len(citations),
+                "out": str(args.out),
+                "survey_sha256": _sha256(survey_bytes),
+                "transport": args.transport,
+                "proxy_url": args.proxy_url if args.transport == "proxy" else None,
+                "terminal_counts": counts,
+                "terminal_count_sum": sum(counts.values()),
+            },
+            sort_keys=True,
+        )
+    )
     return 0
 
 
