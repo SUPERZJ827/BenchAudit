@@ -28,7 +28,7 @@ from benchcore.execution import (  # noqa: E402
 )
 
 
-PLAN = REPO_ROOT / "docs" / "VERIFIER_TOPOLOGY_PREFLIGHT_PLAN_V2_20260802.md"
+PLAN = REPO_ROOT / "docs" / "VERIFIER_TOPOLOGY_PREFLIGHT_PLAN_V3_20260802.md"
 PROXY_SCRIPT = REPO_ROOT / "scripts" / "https_connect_allowlist_proxy.py"
 PROBE_SCRIPT = REPO_ROOT / "scripts" / "verifier_topology_probe.py"
 PINNED_IMAGE = (
@@ -269,7 +269,6 @@ def _start_proxy(
     internal_network: str,
     egress_network: str,
     internal_ip: str,
-    egress_ip: str,
     bundle: Path,
     output: Path,
     session_id: str,
@@ -292,9 +291,7 @@ def _start_proxy(
         "--stable-summary-out", "/output/stable.json",
         "--session-id", session_id,
     ])
-    _run([
-        engine, "network", "connect", "--ip", egress_ip, egress_network, name
-    ])
+    _run([engine, "network", "connect", egress_network, name])
     networks, inspect = _container_networks(engine, name)
     if networks != {internal_network, egress_network}:
         raise PreflightFailure("proxy_network_set", repr(sorted(networks)))
@@ -408,7 +405,7 @@ def run_preflight(output_dir: Path) -> dict[str, Any]:
     for path in (bundle / "scripts").iterdir():
         os.chmod(path, 0o644)
     result: dict[str, Any] = {
-        "receipt_schema": "benchaudit-verifier-topology-preflight-v2",
+        "receipt_schema": "benchaudit-verifier-topology-preflight-v3",
         "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
         "claim_boundary": {
             "topology_only": True,
@@ -465,7 +462,6 @@ def run_preflight(output_dir: Path) -> dict[str, Any]:
             internal_network=internal,
             egress_network=egress,
             internal_ip=internal_prefix + ".2",
-            egress_ip=egress_prefix + ".2",
             bundle=bundle,
             output=output_dir / "fetch_proxy",
             session_id="fetch-session",
@@ -518,7 +514,6 @@ def run_preflight(output_dir: Path) -> dict[str, Any]:
             internal_network=internal,
             egress_network=egress,
             internal_ip=internal_prefix + ".2",
-            egress_ip=egress_prefix + ".2",
             bundle=bundle,
             output=output_dir / "reject_proxy",
             session_id="reject-session",
@@ -613,7 +608,7 @@ def main() -> int:
     except PreflightFailure as exc:
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
-            "receipt_schema": "benchaudit-verifier-topology-preflight-v2",
+            "receipt_schema": "benchaudit-verifier-topology-preflight-v3",
             "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
             "first_failing_gate": exc.gate,
             "reason": exc.detail,
@@ -628,7 +623,7 @@ def main() -> int:
     except Exception as exc:  # an operational surprise is a fail-closed result
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
-            "receipt_schema": "benchaudit-verifier-topology-preflight-v2",
+            "receipt_schema": "benchaudit-verifier-topology-preflight-v3",
             "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
             "first_failing_gate": "unexpected_preflight_error",
             "reason": type(exc).__name__,
