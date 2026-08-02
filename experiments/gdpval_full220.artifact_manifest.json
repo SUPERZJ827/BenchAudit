@@ -1,6 +1,6 @@
 {
   "schema_version": "benchaudit-gdpval-artifact-manifest-v1",
-  "status": "frozen_before_artifact_recovery",
+  "status": "artifact_recovered_before_rerun",
   "purpose": "Bind every reference artifact selected by gdpval_workbook_replay before any attempt to locate, fetch, inspect, or restore missing bytes.",
   "dataset": {
     "repository": "openai/gdpval",
@@ -32,9 +32,10 @@
       "expected_sha256": null,
       "expected_size_bytes": null,
       "unknown_at_freeze": true,
-      "observed_sha256": null,
-      "observed_size_bytes": null,
-      "observation_status": "not_attempted_at_freeze"
+      "observed_sha256": "e64a9d3ba60bbaecef0e6685a57b618e9b321bcd813c79e4460be36bf8c79fb7",
+      "observed_size_bytes": 61470,
+      "observation_status": "pinned_revision_fetch_completed_after_freeze",
+      "resolver_receipt_sha256": "a8613f92b01e06c1d45cffc4c58a96758851c3b301b139309ae60f6c6aa27c2d"
     }
   ],
   "recovery_policy": {
@@ -50,6 +51,10 @@
       "bytes chosen because they restore the historical finding count"
     ],
     "expected_hash_was_unknown_at_freeze": true,
-    "interpretation_if_recovered": "Any restored finding must disclose that the expected content hash was unknown when this manifest was frozen."
+    "interpretation_if_recovered": "Any restored finding must disclose that the expected content hash was unknown when this manifest was frozen.",
+    "pre_recovery_manifest_commit": "9231580",
+    "pre_recovery_manifest_sha256": "c364ca15d935c2bbf8bfcf2577d00767cae4d885e5bbee2523890a49c0808fbe",
+    "recovery_source": "the exact declared path in openai/gdpval at revision 11e7900cdcac61bc4daf59e65feb238acda98fbf",
+    "recovery_expected_sha256_was_supplied": false
   }
 }
