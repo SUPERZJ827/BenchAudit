@@ -149,6 +149,11 @@ def run_replays(receipt: Path, output_dir: Path, runs: int) -> dict[str, Any]:
         if path.is_file()
     }
     token = uuid.uuid4().hex[:12]
+    subnet_octet = 32 + (int(token[:2], 16) % 160)
+    internal_subnet = f"10.247.{subnet_octet}"
+    egress_subnet = f"10.248.{subnet_octet}"
+    proxy_internal_ip = internal_subnet + ".2"
+    proxy_egress_ip = egress_subnet + ".2"
     internal = f"benchaudit-ee-internal-{token}"
     egress = f"benchaudit-ee-egress-{token}"
     proxy = f"benchaudit-ee-proxy-{token}"
@@ -157,21 +162,35 @@ def run_replays(receipt: Path, output_dir: Path, runs: int) -> dict[str, Any]:
     image = _image_identity()
     run_receipts: list[dict[str, Any]] = []
     try:
-        _run(["docker", "network", "create", "--internal", internal])
+        _run([
+            "docker", "network", "create", "--internal",
+            "--subnet", internal_subnet + ".0/24", internal,
+        ])
         created_networks.append(internal)
-        _run(["docker", "network", "create", egress])
+        _run([
+            "docker", "network", "create",
+            "--subnet", egress_subnet + ".0/24", egress,
+        ])
         created_networks.append(egress)
         _run([
             "docker", "create", "--name", proxy,
-            "--network", egress,
+            "--network", internal,
+            "--ip", proxy_internal_ip,
             *_container_security_args(),
             "--mount", f"type=bind,src={bundle},dst=/workspace,readonly",
             PINNED_IMAGE,
             "python3", "/workspace/scripts/https_connect_allowlist_proxy.py",
+            "--listen", proxy_internal_ip,
             "--allow-authority", ALLOWED_AUTHORITY,
+            "--audit-log", "/tmp/connect-audit.jsonl",
+            "--stable-summary-out", "/tmp/connect-stable.json",
+            "--session-id", "external-evidence-v2-" + token,
         ])
         created_containers.append(proxy)
-        _run(["docker", "network", "connect", internal, proxy])
+        _run([
+            "docker", "network", "connect", "--ip", proxy_egress_ip,
+            egress, proxy,
+        ])
         _run(["docker", "start", proxy])
         time.sleep(0.5)
         proxy_inspect = _inspect_container(
@@ -186,8 +205,8 @@ def run_replays(receipt: Path, output_dir: Path, runs: int) -> dict[str, Any]:
                 "docker", "create", "--name", name,
                 "--network", internal,
                 *_container_security_args(),
-                "--env", "HTTPS_PROXY=http://" + proxy + ":8080",
-                "--env", "https_proxy=http://" + proxy + ":8080",
+                "--env", "HTTPS_PROXY=http://" + proxy_internal_ip + ":8080",
+                "--env", "https_proxy=http://" + proxy_internal_ip + ":8080",
                 "--env", "NO_PROXY=",
                 "--env", "no_proxy=",
                 "--mount", f"type=bind,src={bundle},dst=/workspace,readonly",

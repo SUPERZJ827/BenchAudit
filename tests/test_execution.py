@@ -117,6 +117,8 @@ def test_container_command_has_security_controls(tmp_path: Path):
     joined = " ".join(argv)
 
     assert "--network none" in joined
+    network_index = argv.index("--network")
+    assert argv[network_index : network_index + 2] == ("--network", "none")
     assert "--read-only" in argv
     assert "--cap-drop=ALL" in argv
     assert "--security-opt=no-new-privileges" in argv
