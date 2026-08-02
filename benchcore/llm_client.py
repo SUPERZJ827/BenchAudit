@@ -52,6 +52,70 @@ class _InFlight:
 
 _CACHE_MISS = object()
 
+CACHE_KEY_SCHEMA_VERSION = "v1"
+_CACHE_KEY_SCHEMA_FIELDS_BY_KIND = {
+    "chat": (
+        "cache_key_schema_version",
+        "cache_key_kind",
+        "model",
+        "base_url",
+        "temperature",
+        "max_tokens",
+        "dry_run",
+        "response_format",
+        "thinking",
+        "system",
+        "user",
+    ),
+    "vote": (
+        "cache_key_schema_version",
+        "cache_key_kind",
+        "model",
+        "base_url",
+        "temperature",
+        "max_tokens",
+        "dry_run",
+        "response_format",
+        "thinking",
+        "vote_index",
+        "system",
+        "user",
+    ),
+}
+_CACHE_KEY_SCHEMA_FINGERPRINTS = {
+    "v1": "c5c875661725c62292b13598e8172456ccdc9f0db6d6d92bc4b61ee48ee31006",
+}
+
+
+def cache_key_schema_fingerprint() -> str:
+    canonical = json.dumps(
+        _CACHE_KEY_SCHEMA_FIELDS_BY_KIND,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _validate_cache_key_payload(kind: str, payload: dict[str, Any]) -> None:
+    expected_fingerprint = _CACHE_KEY_SCHEMA_FINGERPRINTS.get(
+        CACHE_KEY_SCHEMA_VERSION
+    )
+    if expected_fingerprint is None:
+        raise RuntimeError(
+            "unknown cache-key schema version; register the new version and "
+            "its field-manifest fingerprint"
+        )
+    if cache_key_schema_fingerprint() != expected_fingerprint:
+        raise RuntimeError(
+            "cache-key composition changed without incrementing "
+            "CACHE_KEY_SCHEMA_VERSION"
+        )
+    expected_fields = _CACHE_KEY_SCHEMA_FIELDS_BY_KIND.get(kind)
+    if expected_fields is None or set(payload) != set(expected_fields):
+        raise RuntimeError(
+            "cache-key payload fields do not match the registered schema"
+        )
+
 
 def _close_connection_async(conn: http.client.HTTPConnection) -> None:
     """Request connection teardown without letting a broken TLS close block us."""
@@ -161,12 +225,19 @@ class LLMClient:
             "truncated_responses": 0,
         }
         self.cache_path = Path(config.cache_path) if config.cache_path else None
+        self._cache_schema_versions: dict[str, str] = {}
         if self.cache_path and self.cache_path.exists():
             for line in self.cache_path.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
                 row = json.loads(line)
                 self.cache[row["key"]] = row["response"]
+                # Historical rows predate an explicit key schema.  They remain
+                # auditable as v0 but cannot satisfy an exact replay under v1.
+                row_version = row.get("cache_key_schema_version", "v0")
+                if not isinstance(row_version, str):
+                    row_version = "invalid"
+                self._cache_schema_versions[row["key"]] = row_version
 
     def chat_json(self, system: str, user: str) -> dict[str, Any]:
         key = self._cache_key(system, user)
@@ -415,7 +486,11 @@ class LLMClient:
         thread_id = threading.get_ident()
         cached: Any = _CACHE_MISS
         with self._cache_lock:
-            if key in self.cache:
+            if (
+                key in self.cache
+                and self._cache_schema_versions.get(key, "v0")
+                == CACHE_KEY_SCHEMA_VERSION
+            ):
                 cached = self.cache[key]
                 flight = None
                 leader = False
@@ -482,37 +557,45 @@ class LLMClient:
                 del self._inflight[key]
 
     def _cache_key(self, system: str, user: str) -> str:
+        fields = {
+            "cache_key_schema_version": CACHE_KEY_SCHEMA_VERSION,
+            "cache_key_kind": "chat",
+            "model": self.config.model,
+            "base_url": self.config.base_url.rstrip("/"),
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+            "dry_run": self.config.dry_run,
+            "response_format": "json_object",
+            "thinking": self.config.thinking,
+            "system": system,
+            "user": user,
+        }
+        _validate_cache_key_payload("chat", fields)
         payload = json.dumps(
-            {
-                "model": self.config.model,
-                "base_url": self.config.base_url.rstrip("/"),
-                "temperature": self.config.temperature,
-                "max_tokens": self.config.max_tokens,
-                "dry_run": self.config.dry_run,
-                "response_format": "json_object",
-                "thinking": self.config.thinking,
-                "system": system,
-                "user": user,
-            },
+            fields,
             sort_keys=True,
             ensure_ascii=False,
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _vote_cache_key(self, system: str, user: str, vote_index: int) -> str:
+        fields = {
+            "cache_key_schema_version": CACHE_KEY_SCHEMA_VERSION,
+            "cache_key_kind": "vote",
+            "model": self.config.model,
+            "base_url": self.config.base_url.rstrip("/"),
+            "temperature": self.config.vote_temperature,
+            "max_tokens": self.config.max_tokens,
+            "dry_run": self.config.dry_run,
+            "response_format": "json_object",
+            "thinking": self.config.thinking,
+            "vote_index": vote_index,
+            "system": system,
+            "user": user,
+        }
+        _validate_cache_key_payload("vote", fields)
         payload = json.dumps(
-            {
-                "model": self.config.model,
-                "base_url": self.config.base_url.rstrip("/"),
-                "temperature": self.config.vote_temperature,
-                "max_tokens": self.config.max_tokens,
-                "dry_run": self.config.dry_run,
-                "response_format": "json_object",
-                "thinking": self.config.thinking,
-                "vote_index": vote_index,
-                "system": system,
-                "user": user,
-            },
+            fields,
             sort_keys=True,
             ensure_ascii=False,
         )
@@ -530,12 +613,17 @@ class LLMClient:
                 with self.cache_path.open("a", encoding="utf-8") as f:
                     f.write(
                         json.dumps(
-                            {"key": key, "response": response},
+                            {
+                                "cache_key_schema_version": CACHE_KEY_SCHEMA_VERSION,
+                                "key": key,
+                                "response": response,
+                            },
                             ensure_ascii=False,
                         )
                         + "\n"
                     )
             self.cache[key] = dict(response)
+            self._cache_schema_versions[key] = CACHE_KEY_SCHEMA_VERSION
 
     def _increment_stat(self, key: str, value: int = 1) -> None:
         with self._stats_lock:
@@ -592,6 +680,11 @@ class LLMClient:
             counters = dict(self._stats)
         with self._cache_lock:
             cache_entries = len(self.cache)
+            cache_entries_by_schema_version: dict[str, int] = {}
+            for version in self._cache_schema_versions.values():
+                cache_entries_by_schema_version[version] = (
+                    cache_entries_by_schema_version.get(version, 0) + 1
+                )
         return {
             "model": self.config.model,
             "base_url": self.config.base_url,
@@ -600,6 +693,8 @@ class LLMClient:
             "max_tokens": self.config.max_tokens,
             "configured_votes": self.config.n_votes,
             "thinking": self.config.thinking,
+            "cache_key_schema_version": CACHE_KEY_SCHEMA_VERSION,
+            "cache_key_schema_fingerprint": cache_key_schema_fingerprint(),
             "max_api_attempts": self.config.max_api_attempts,
             "observed_token_stop": self.config.observed_token_stop,
             "observed_token_stop_semantics": (
@@ -607,6 +702,9 @@ class LLMClient:
             ),
             "cache_path": str(self.cache_path) if self.cache_path else None,
             "cache_entries": cache_entries,
+            "cache_entries_by_schema_version": dict(
+                sorted(cache_entries_by_schema_version.items())
+            ),
             **counters,
         }
 

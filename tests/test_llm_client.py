@@ -4,10 +4,14 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
+import benchcore.llm_client as llm_client_module
+from benchcore.cli import collect_run_metadata
 from benchcore.llm_client import (
+    CACHE_KEY_SCHEMA_VERSION,
     LLMClient,
     LLMConfig,
     _extract_json_result,
@@ -133,6 +137,7 @@ class LLMClientTest(unittest.TestCase):
             self.assertFalse(client.transport_called)
             cache_path.write_text(
                 json.dumps({
+                    "cache_key_schema_version": CACHE_KEY_SCHEMA_VERSION,
                     "key": client._cache_key("system", "cached"),
                     "response": {"status": "cached"},
                 }) + "\n",
@@ -141,6 +146,51 @@ class LLMClientTest(unittest.TestCase):
             cached = CacheOnlyProbeClient(cache_path)
             self.assertEqual(cached.chat_json("system", "cached"), {"status": "cached"})
             self.assertFalse(cached.transport_called)
+
+    def test_legacy_cache_row_is_v0_and_cannot_masquerade_as_current_schema(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_path = Path(tmp) / "legacy.jsonl"
+            key_client = CacheOnlyProbeClient(cache_path)
+            cache_path.write_text(
+                json.dumps({
+                    "key": key_client._cache_key("system", "legacy"),
+                    "response": {"status": "legacy"},
+                }) + "\n",
+                encoding="utf-8",
+            )
+            legacy = CacheOnlyProbeClient(cache_path)
+            with self.assertRaisesRegex(RuntimeError, "cache-only replay missed"):
+                legacy.chat_json("system", "legacy")
+            self.assertFalse(legacy.transport_called)
+            self.assertEqual(
+                legacy.run_stats()["cache_entries_by_schema_version"],
+                {"v0": 1},
+            )
+
+    def test_cache_key_schema_change_requires_version_increment(self):
+        client = StubLLMClient([])
+        original = llm_client_module._CACHE_KEY_SCHEMA_FIELDS_BY_KIND["chat"]
+        with mock.patch.dict(
+            llm_client_module._CACHE_KEY_SCHEMA_FIELDS_BY_KIND,
+            {"chat": original + ("unversioned_new_component",)},
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "composition changed without incrementing",
+            ):
+                client._cache_key("system", "user")
+
+    def test_run_metadata_records_cache_key_schema_version(self):
+        client = StubLLMClient([])
+        metadata = collect_run_metadata(
+            run_started=time.monotonic(),
+            started_at=datetime.now(timezone.utc),
+            primary_client=client,
+        )
+        self.assertEqual(
+            metadata["llm"]["cache_key_schema_version"],
+            CACHE_KEY_SCHEMA_VERSION,
+        )
 
     def test_transaction_deadline_covers_stalled_first_byte(self):
         entered = threading.Event()
@@ -217,6 +267,10 @@ class LLMClientTest(unittest.TestCase):
 
         self.assertEqual(client.bodies[0]["thinking"], {"type": "disabled"})
         self.assertEqual(client.run_stats()["thinking"], "disabled")
+        self.assertEqual(
+            client.run_stats()["cache_key_schema_version"],
+            CACHE_KEY_SCHEMA_VERSION,
+        )
 
     def test_truncated_json_fails_fast_without_identical_provider_retry(self):
         client = StubLLMClient([
@@ -399,6 +453,10 @@ class LLMClientTest(unittest.TestCase):
                 if line.strip()
             ]
             self.assertEqual(len(records), 1)
+            self.assertEqual(
+                records[0]["cache_key_schema_version"],
+                CACHE_KEY_SCHEMA_VERSION,
+            )
             stats = client.run_stats()
             self.assertEqual(stats["singleflight_waits"], workers - 1)
             self.assertEqual(stats["singleflight_shared_results"], workers - 1)
