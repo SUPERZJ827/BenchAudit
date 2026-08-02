@@ -1,0 +1,78 @@
+{
+  "addendum_schema": "benchaudit-verifier-topology-preflight-diagnostic-v1",
+  "date": "2026-08-02",
+  "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
+  "confirmation_eligible": false,
+  "selected_engine": {
+    "selection_function": "benchcore.execution.find_container_engine",
+    "executable": "/usr/bin/podman",
+    "name": "podman",
+    "version": "3.4.4",
+    "rootless": true,
+    "version_output_sha256": "6e512fbb1aec411a5f0335731f6409dda03e0a5908f59801c010da04a761cf06"
+  },
+  "pinned_image": {
+    "configured_reference": "docker.io/alexgshaw/fix-git@sha256:61e431c00c58df652287aadce5457634d9f9330cfdd153ebdf2802df0d540119",
+    "image_id": "b041e51b3fd55da33dc43648fcfb28f4887374a8676c77b0836923422e7fde29",
+    "expected_repository_digest_present": true,
+    "supply_preparation": [
+      "the already pinned Docker-local image was first imported offline into Podman",
+      "an exact-digest Podman pull was then used to restore a verifiable repository-digest binding",
+      "image acquisition is environment preparation and is not benchmark evidence"
+    ]
+  },
+  "attempts": [
+    {
+      "version": "v1",
+      "plan_sha256": "7363368ab55ff870b435d88b4598564edd5e83dd00b625851cdf8478917dbb38",
+      "receipt_sha256": "6c0e25f53e87155e5e4ec38ebdda4a672dad595669651cdb63573845c451e542",
+      "first_failing_gate": "network_internal_flag",
+      "classification": "inspect parser did not recognize Podman 3.4.4 CNI internal-network representation",
+      "fetch_started": false
+    },
+    {
+      "version": "v2",
+      "plan_sha256": "1188621464c012be99779cd34aef17786b560aebb535c58dbc35920cbfa58b84",
+      "receipt_sha256": "45619ced7f98342f4b7d9077c31431bc41174be1d3498e71af28edd5b5e4d437",
+      "first_failing_gate": "command_failed",
+      "classification": "Podman 3.4.4 network connect does not implement the --ip option",
+      "fetch_started": false
+    },
+    {
+      "version": "v3",
+      "plan_sha256": "2302180fca8843ba86a9c7da9346a89303532ac9ea0ef7dca63e5139056c3147",
+      "receipt_sha256": "12df598bb51f64d8bddc5f794beaa689a357159a2318a9eaacbc3e9f53409c18",
+      "first_failing_gate": "command_failed",
+      "classification": "Podman CNI propagated the proxy internal static IP to the second egress network and failed cross-subnet allocation",
+      "fetch_started": false
+    }
+  ],
+  "code_bindings": {
+    "proxy_script_sha256": "cb79e5fa2b7591b30dcfa80c2aa9c47b2a837017a5f30f44a463fadeda8fa84d",
+    "preflight_runner_sha256": "b16dccd637b31bf1e242ee8e444bdc04954e3b87b19b9e4b964e25a091a64883",
+    "container_probe_sha256": "02bcc4d92e95c93bb23224f0d4f3da6c2b9c95fec48dd30cf812a1bcfaf62a50",
+    "proxy_tests_sha256": "7c219981e06cb545b3d13557d3315477f7787b04909b948747d31f5d87eb8896",
+    "candidate_execution_sha256": "279e0fa7e2d88bfa99bc64d551812d57b7dd0d1b4c7ab6c266f3e74210bd3e79"
+  },
+  "probe_coverage": {
+    "canonical_connect_via_proxy": "not_run",
+    "canonical_ip_direct_block": "not_run",
+    "third_party_ip_direct_block": "not_run",
+    "container_dns_block": "not_run",
+    "live_non_allowlisted_connect_403": "not_run",
+    "candidate_network_none": "covered_by_regression_test_only"
+  },
+  "claim_boundary": "The selected Podman 3.4.4 environment could not instantiate the frozen dual-network proxy with an explicit literal internal listen IP. This does not show that the topology is insecure or impossible on other runtimes. It does show that this environment cannot support the pre-registered topology without a new design or runtime change.",
+  "fallbacks_not_used": {
+    "docker_selected_instead": false,
+    "host_git_fetch": false,
+    "host_network": false,
+    "wildcard_proxy_listen": false,
+    "authority_allowlist_widened": false,
+    "candidate_network_enabled": false
+  },
+  "provenance_receipt_produced": false,
+  "attestation_produced": false,
+  "finding_produced": false,
+  "candidate_code_executed": false
+}
