@@ -24,7 +24,6 @@ from benchcore.execution import (  # noqa: E402
     CommandSpec,
     ContainerRunner,
     ExecutionPolicy,
-    find_container_engine,
 )
 
 
@@ -44,6 +43,26 @@ BLOB_PATH = "README.md"
 EXPECTED_BLOB_OID = "6053317a3ea13af4b2490691aff725e21a40268f"
 EXPECTED_CONTENT_SHA256 = "bc954bda94e94e9ce92d80ec16d69607444fcdff240cae89df6ca84ff497e846"
 THIRD_PARTY_IP = "1.1.1.1"
+ENGINE_PROFILES: dict[str, dict[str, str]] = {
+    "podman-3.4.4": {
+        "executable": "/usr/bin/podman",
+        "engine_name": "podman",
+        "client_version": "3.4.4",
+        "server_version": "3.4.4",
+        "executable_sha256": "02a390253e13563c04bcfe0046f915c10198a5b76c80f9a7bb5b7e880c37255d",
+        "version_output_sha256": "6e512fbb1aec411a5f0335731f6409dda03e0a5908f59801c010da04a761cf06",
+        "invocation_schema": "podman-cli-3.4-cni-v1",
+    },
+    "docker-29.4.1": {
+        "executable": "/usr/bin/docker",
+        "engine_name": "docker",
+        "client_version": "29.4.1",
+        "server_version": "29.4.1",
+        "executable_sha256": "1fc0af13dcb8070408ce2ac4051b76f76ff0c63570bdaeeb6bd5b13b993d0249",
+        "version_output_sha256": "7728e85580e079e17edb6b02fe937fe85727034c12a8d017a9efab6567e2733b",
+        "invocation_schema": "docker-cli-29.4-v1",
+    },
+}
 
 
 class PreflightFailure(RuntimeError):
@@ -85,11 +104,25 @@ def _run(
     return process
 
 
-def _engine_identity(engine: str) -> dict[str, Any]:
-    name = Path(engine).name
-    version = _run([engine, "version", "--format", "json"], check=False)
-    if version.returncode != 0:
-        version = _run([engine, "version"], check=False)
+def _engine_identity(profile_id: str) -> dict[str, Any]:
+    try:
+        profile = ENGINE_PROFILES[profile_id]
+    except KeyError as exc:
+        raise PreflightFailure("engine_profile", "engine profile is not code-owned") from exc
+    engine = profile["executable"]
+    path = Path(engine)
+    if not path.is_file() or _sha256(path) != profile["executable_sha256"]:
+        raise PreflightFailure("engine_executable", "engine executable hash mismatch")
+    if profile["engine_name"] == "docker":
+        version = _run([engine, "version", "--format", "{{json .}}"], check=False)
+    else:
+        version = _run([engine, "version", "--format", "json"], check=False)
+    if (
+        version.returncode != 0
+        or hashlib.sha256(version.stdout.encode()).hexdigest()
+        != profile["version_output_sha256"]
+    ):
+        raise PreflightFailure("engine_version", "engine version output mismatch")
     info = _run([engine, "info", "--format", "json"], check=False)
     info_value: dict[str, Any] = {}
     if info.returncode == 0:
@@ -104,12 +137,17 @@ def _engine_identity(engine: str) -> dict[str, Any]:
         except (TypeError, ValueError):
             info_value = {"parse_error": True}
     return {
+        "profile_id": profile_id,
         "selected_executable": engine,
-        "engine_name": name,
+        "engine_name": profile["engine_name"],
+        "client_version": profile["client_version"],
+        "server_version": profile["server_version"],
+        "executable_sha256": profile["executable_sha256"],
+        "invocation_schema": profile["invocation_schema"],
         "version_output_sha256": hashlib.sha256(version.stdout.encode()).hexdigest(),
         "version_output": version.stdout.strip(),
         "info_subset": info_value,
-        "selection_order": ["podman", "docker"],
+        "code_owned_profile": True,
     }
 
 
@@ -371,12 +409,10 @@ def _candidate_network_regression(engine: str, scratch: Path) -> dict[str, Any]:
     }
 
 
-def run_preflight(output_dir: Path) -> dict[str, Any]:
+def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=False)
-    engine = find_container_engine()
-    if engine is None:
-        raise PreflightFailure("container_engine", "no Podman or Docker executable")
-    engine_identity = _engine_identity(engine)
+    engine_identity = _engine_identity(engine_profile)
+    engine = engine_identity["selected_executable"]
     image_identity = _image_identity(engine)
     canonical_ips = sorted({
         value[4][0] for value in socket.getaddrinfo("huggingface.co", 443)
@@ -601,10 +637,15 @@ def run_preflight(output_dir: Path) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--engine-profile",
+        choices=tuple(sorted(ENGINE_PROFILES)),
+        required=True,
+    )
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
     try:
-        result = run_preflight(output_dir)
+        result = run_preflight(output_dir, engine_profile=args.engine_profile)
     except PreflightFailure as exc:
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
