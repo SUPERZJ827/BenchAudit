@@ -16,3 +16,11 @@ experiments/*.manifest.json
 resume.tex
 *.zip
 IEEE-conference-template-062824/
+
+# Local benchmark materializations and personal/raw source attachments.
+# These are not reproducibility receipts; experiments must bind their source
+# bytes through committed manifests and hashes instead of committing the data.
+.benchaudit_workspace_*/
+data/
+dataagnet/
+图片和附件/
