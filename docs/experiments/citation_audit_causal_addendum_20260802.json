@@ -1,0 +1,63 @@
+{
+  "addendum_schema": "benchaudit-citation-audit-causal-addendum-v1",
+  "frozen_at_utc": "2026-08-02T13:53:12Z",
+  "frozen_before_complete_receipt_available": true,
+  "original_report": {
+    "path": "docs/research/晨报_20260802.md",
+    "sha256": "9bf065f55b4f4f88810fc228376a1034ca784e4534921a9a370f717e5b2c657f",
+    "modified": false,
+    "superseded_field": "E citation receipt / skipped_no_network"
+  },
+  "frozen_audit_script": {
+    "path": "scripts/audit_research_citations.py",
+    "sha256": "19df29e2384d38793c70b0fc5a8ada5e441ccd22a4bbfcde4d6ce1635306da65",
+    "existing_verdicts": [
+      "resolved",
+      "title_mismatch",
+      "not_found",
+      "unreachable"
+    ]
+  },
+  "corrected_reason_code": "direct_egress_unavailable_proxy_path_not_used",
+  "causal_evidence": {
+    "direct_probe": {
+      "target": "13.35.202.121:443",
+      "result": "TimeoutError",
+      "elapsed_seconds": 6.0
+    },
+    "proxy_probe": {
+      "proxy": "http://127.0.0.1:17890",
+      "target": "https://huggingface.co/",
+      "http_status": 200,
+      "elapsed_seconds": 0.5
+    },
+    "interpretation": "the prior run tested direct transport only; it did not establish general network unavailability"
+  },
+  "postprocessing_policy": {
+    "policy_version": "citation-verdict-v2-antibot-preregistered",
+    "mutually_exclusive_terminal_states": [
+      "resolved",
+      "title_mismatch",
+      "not_found",
+      "unreachable",
+      "blocked_by_anti_bot"
+    ],
+    "blocked_by_anti_bot_rule": {
+      "all_conditions": [
+        "http_status == 200",
+        "normalize(resolved_title) == 'verifying your browser'"
+      ],
+      "normalization": "Unicode NFKC, HTML unescape, casefold, retain word tokens, join with one ASCII space",
+      "result": "blocked_by_anti_bot",
+      "verification_status": "unverified",
+      "precedence": "apply before resolved/title_mismatch adjudication",
+      "forbidden_counts": [
+        "resolved",
+        "not_found"
+      ]
+    },
+    "completeness_gate": "every extracted citation has exactly one terminal state and terminal-state counts sum exactly to the extracted citation count",
+    "no_result_conditioned_extension": "no anti-bot signature or terminal state may be added after inspecting the completed receipt"
+  },
+  "claim_boundary": "This addendum corrects the prior transport attribution and preregisters one deterministic anti-bot interstitial state. It does not alter the frozen fetch output, validate any citation, or turn an anti-bot page into evidence about the cited work."
+}
