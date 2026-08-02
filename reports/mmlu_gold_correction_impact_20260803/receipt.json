@@ -1,0 +1,46 @@
+{
+  "api_attempts": 0,
+  "code_sha256": "f9a2139e3a2b452e70d5c8c9efda02984d9aea4ce883f1ce5c8844d5b3c72f55",
+  "environment": {
+    "numpy": "2.2.6",
+    "python": "3.10.12",
+    "scipy": "1.15.3"
+  },
+  "git_commit": "67e0dbf4b163f14bc925b663571ff83346f262ca",
+  "input_bytes_unchanged": true,
+  "input_hashes": {
+    "answer:amazon__nova-pro-v1.jsonl": "75c8f1239ac93b248594799beea47f9642743db0b30b07c1fb929a60420186e7",
+    "answer:cohere__command-r-08-2024.jsonl": "a550b7dd005294267c769f860297b84dbcc9607bbc52fbbebd7918e71f4cf4be",
+    "answer:deepseek.jsonl": "fa7acdf241df1a01eee1eda1a00e645c605aee503b0416edd726d089527b6101",
+    "answer:google__gemini-2.5-flash.jsonl": "2bc96f33b908d22b4703f91e33c598eafa03b3be6a3516ca9c92fdd8fb400ec9",
+    "answer:meta-llama__llama-3.1-70b-instruct.jsonl": "c19b0936c1ea6723f2f7169a0793d622eb7a43a14bd816d90c9c221d83efa72a",
+    "answer:meta-llama__llama-3.1-8b-instruct.jsonl": "afc4ad5b9f76a08ee5929771880d35019e2b98055a30711200addf5500ccaf19",
+    "answer:meta-llama__llama-3.3-70b-instruct.jsonl": "2d9ee021748d2501754cac714faafb09b7159b419a6ef11eaded46c86e5edf44",
+    "answer:microsoft__phi-4.jsonl": "ca82caa157fd6816368e80bfd805b50943e5063d80108375c20215c4d6710a20",
+    "answer:mistralai__mistral-nemo.jsonl": "f024d64e3c14fa07614e930906715af54f8394bb50eaade17fc4dcdfe789c6a8",
+    "answer:mistralai__mistral-small-24b-instruct-2501.jsonl": "7d28319ac1b4b45bdfb80bfb786ce1c443c75e824043959321672b2ca28760bf",
+    "answer:openai__gpt-4.1-mini.jsonl": "ad595880ab90cbe09411c96eba97f6e533101ebf293d66ae3f37c1a6fba3bf42",
+    "answer:openai__gpt-4o-mini.jsonl": "7e122b072aba7874815f75c62203b628970ad003ed86776a1ab1b9ba358cdcd4",
+    "answer:openai__gpt-4o.jsonl": "9b274b186d8e60a03ece47b032823f0d79d3bc879c30152b91f340a103515ec9",
+    "answer:qwen__qwen-2.5-72b-instruct.jsonl": "c043efc588e2166a525e42f6093c7469aa3f08a7517d5d1126be5bcefa072465",
+    "answer:qwen__qwen-2.5-7b-instruct.jsonl": "85c50927156ca133b0e09cad0d72a9fc71bd75dcbffdd495451686ccac22b04c",
+    "dataset": "0c8ccf09cbb422e4cd999524aa581e3bd3040c9dcd75f1c0b2408a49ef66b3d4",
+    "pilot": "70cc9ee184db4017b323bda03061f7c3d56e57ad1ab4b1a3415263fd664072b8"
+  },
+  "integrity_gates": {
+    "archived_correct_flags_recomputed": true,
+    "complete_id_join": true,
+    "exactly_1000_unique_items": true,
+    "exactly_15_models": true,
+    "frozen_hashes_verified": true
+  },
+  "network_attempts": 0,
+  "outcome_inspected_before_freeze": true,
+  "outputs": {
+    "analysis_sha256": "a874bb64753bc878b4f90794437e89de29d6f0ff52e3db69ea8eaeab681ace52",
+    "report_sha256": "301b21cad73697dcde80bd82d4715e8579644855d898b8315fa37783f488fd43"
+  },
+  "protocol_sha256": "805bbb3904d50f1248eb74709650b10cf30570c38181769d7f6fd636d0933c19",
+  "schema_version": "mmlu-gold-correction-impact-receipt-v1",
+  "status": "PASS_REANALYSIS"
+}

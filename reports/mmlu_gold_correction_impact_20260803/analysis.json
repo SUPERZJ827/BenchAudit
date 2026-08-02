@@ -1,0 +1,1781 @@
+{
+  "caveats": [
+    "Results were inspected before this analysis protocol was frozen.",
+    "The 15 models are related and are not an independent random sample.",
+    "Bootstrap intervals resample items and are conditional on the fixed model panel.",
+    "Pairwise intervals are exploratory and are not simultaneous family-wise intervals.",
+    "No cross-benchmark or novelty claim is supported by this analysis alone."
+  ],
+  "counts": {
+    "changed_gold_items": 101,
+    "items": 1000,
+    "model_pairs": 105,
+    "models": 15,
+    "subjects": 57
+  },
+  "fixed_panel_association": {
+    "population_p_value_reported": false,
+    "spearman_item_bootstrap_ci95": [
+      0.4669030206729825,
+      0.8998211091234346
+    ],
+    "spearman_original_accuracy_vs_correction_gain": 0.7846294464647928
+  },
+  "models": [
+    {
+      "corrected_accuracy": 0.758,
+      "corrected_correct": 758,
+      "corrected_rank": 6,
+      "correction_gain": 0.049000000000000044,
+      "correction_gain_ci95": [
+        0.03200000000000003,
+        0.06600000000000006
+      ],
+      "model": "amazon__nova-pro-v1",
+      "old_accuracy": 0.709,
+      "old_correct": 709,
+      "old_rank": 6
+    },
+    {
+      "corrected_accuracy": 0.673,
+      "corrected_correct": 673,
+      "corrected_rank": 12,
+      "correction_gain": 0.03500000000000003,
+      "correction_gain_ci95": [
+        0.019000000000000017,
+        0.051999999999999935
+      ],
+      "model": "cohere__command-r-08-2024",
+      "old_accuracy": 0.638,
+      "old_correct": 638,
+      "old_rank": 12
+    },
+    {
+      "corrected_accuracy": 0.867,
+      "corrected_correct": 867,
+      "corrected_rank": 1,
+      "correction_gain": 0.06399999999999995,
+      "correction_gain_ci95": [
+        0.04799999999999993,
+        0.07999999999999996
+      ],
+      "model": "deepseek",
+      "old_accuracy": 0.803,
+      "old_correct": 803,
+      "old_rank": 1
+    },
+    {
+      "corrected_accuracy": 0.83,
+      "corrected_correct": 830,
+      "corrected_rank": 2,
+      "correction_gain": 0.05999999999999994,
+      "correction_gain_ci95": [
+        0.04399999999999993,
+        0.07599999999999996
+      ],
+      "model": "google__gemini-2.5-flash",
+      "old_accuracy": 0.77,
+      "old_correct": 770,
+      "old_rank": 2
+    },
+    {
+      "corrected_accuracy": 0.75,
+      "corrected_correct": 750,
+      "corrected_rank": 8,
+      "correction_gain": 0.05300000000000005,
+      "correction_gain_ci95": [
+        0.03700000000000003,
+        0.06999999999999995
+      ],
+      "model": "meta-llama__llama-3.1-70b-instruct",
+      "old_accuracy": 0.697,
+      "old_correct": 697,
+      "old_rank": 8
+    },
+    {
+      "corrected_accuracy": 0.629,
+      "corrected_correct": 629,
+      "corrected_rank": 14,
+      "correction_gain": 0.03600000000000003,
+      "correction_gain_ci95": [
+        0.020000000000000018,
+        0.052000000000000046
+      ],
+      "model": "meta-llama__llama-3.1-8b-instruct",
+      "old_accuracy": 0.593,
+      "old_correct": 593,
+      "old_rank": 14
+    },
+    {
+      "corrected_accuracy": 0.744,
+      "corrected_correct": 744,
+      "corrected_rank": 9,
+      "correction_gain": 0.05500000000000005,
+      "correction_gain_ci95": [
+        0.038999999999999924,
+        0.07100000000000006
+      ],
+      "model": "meta-llama__llama-3.3-70b-instruct",
+      "old_accuracy": 0.689,
+      "old_correct": 689,
+      "old_rank": 10
+    },
+    {
+      "corrected_accuracy": 0.755,
+      "corrected_correct": 755,
+      "corrected_rank": 7,
+      "correction_gain": 0.050000000000000044,
+      "correction_gain_ci95": [
+        0.03300000000000003,
+        0.06700000000000006
+      ],
+      "model": "microsoft__phi-4",
+      "old_accuracy": 0.705,
+      "old_correct": 705,
+      "old_rank": 7
+    },
+    {
+      "corrected_accuracy": 0.616,
+      "corrected_correct": 616,
+      "corrected_rank": 15,
+      "correction_gain": 0.03400000000000003,
+      "correction_gain_ci95": [
+        0.017000000000000015,
+        0.051000000000000045
+      ],
+      "model": "mistralai__mistral-nemo",
+      "old_accuracy": 0.582,
+      "old_correct": 582,
+      "old_rank": 15
+    },
+    {
+      "corrected_accuracy": 0.743,
+      "corrected_correct": 743,
+      "corrected_rank": 10,
+      "correction_gain": 0.051000000000000045,
+      "correction_gain_ci95": [
+        0.03500000000000003,
+        0.06700000000000006
+      ],
+      "model": "mistralai__mistral-small-24b-instruct-2501",
+      "old_accuracy": 0.692,
+      "old_correct": 692,
+      "old_rank": 9
+    },
+    {
+      "corrected_accuracy": 0.769,
+      "corrected_correct": 769,
+      "corrected_rank": 5,
+      "correction_gain": 0.05400000000000005,
+      "correction_gain_ci95": [
+        0.038000000000000034,
+        0.07000000000000006
+      ],
+      "model": "openai__gpt-4.1-mini",
+      "old_accuracy": 0.715,
+      "old_correct": 715,
+      "old_rank": 5
+    },
+    {
+      "corrected_accuracy": 0.728,
+      "corrected_correct": 728,
+      "corrected_rank": 11,
+      "correction_gain": 0.04899999999999993,
+      "correction_gain_ci95": [
+        0.03299999999999992,
+        0.06599999999999995
+      ],
+      "model": "openai__gpt-4o-mini",
+      "old_accuracy": 0.679,
+      "old_correct": 679,
+      "old_rank": 11
+    },
+    {
+      "corrected_accuracy": 0.8,
+      "corrected_correct": 800,
+      "corrected_rank": 3,
+      "correction_gain": 0.05500000000000005,
+      "correction_gain_ci95": [
+        0.039000000000000035,
+        0.07199999999999995
+      ],
+      "model": "openai__gpt-4o",
+      "old_accuracy": 0.745,
+      "old_correct": 745,
+      "old_rank": 3
+    },
+    {
+      "corrected_accuracy": 0.782,
+      "corrected_correct": 782,
+      "corrected_rank": 4,
+      "correction_gain": 0.04800000000000004,
+      "correction_gain_ci95": [
+        0.031000000000000028,
+        0.06499999999999995
+      ],
+      "model": "qwen__qwen-2.5-72b-instruct",
+      "old_accuracy": 0.734,
+      "old_correct": 734,
+      "old_rank": 4
+    },
+    {
+      "corrected_accuracy": 0.667,
+      "corrected_correct": 667,
+      "corrected_rank": 13,
+      "correction_gain": 0.03300000000000003,
+      "correction_gain_ci95": [
+        0.017000000000000015,
+        0.050000000000000044
+      ],
+      "model": "qwen__qwen-2.5-7b-instruct",
+      "old_accuracy": 0.634,
+      "old_correct": 634,
+      "old_rank": 13
+    }
+  ],
+  "outcome_inspected_before_freeze": true,
+  "pairs": [
+    {
+      "corrected_oriented_gap": 0.085,
+      "gap_change": 0.014,
+      "gap_change_ci95": [
+        -0.0029999999999998942,
+        0.031000000000000028
+      ],
+      "original_gap": 0.071,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1971830985915493
+    },
+    {
+      "corrected_oriented_gap": 0.109,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        0.0029999999999998916,
+        0.027999999999999914
+      ],
+      "original_gap": 0.094,
+      "original_high_model": "deepseek",
+      "original_low_model": "amazon__nova-pro-v1",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15957446808510636
+    },
+    {
+      "corrected_oriented_gap": 0.072,
+      "gap_change": 0.011,
+      "gap_change_ci95": [
+        -0.0010250000000000836,
+        0.023000000000000024
+      ],
+      "original_gap": 0.061,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "amazon__nova-pro-v1",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.18032786885245902
+    },
+    {
+      "corrected_oriented_gap": 0.008,
+      "gap_change": -0.004,
+      "gap_change_ci95": [
+        -0.016999999999999904,
+        0.008000000000000118
+      ],
+      "original_gap": 0.012,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.3333333333333333
+    },
+    {
+      "corrected_oriented_gap": 0.129,
+      "gap_change": 0.013,
+      "gap_change_ci95": [
+        -0.0030000000000000027,
+        0.029000000000000026
+      ],
+      "original_gap": 0.116,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.11206896551724137
+    },
+    {
+      "corrected_oriented_gap": 0.014,
+      "gap_change": -0.006,
+      "gap_change_ci95": [
+        -0.019000000000000017,
+        0.007000000000000006
+      ],
+      "original_gap": 0.02,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.3
+    },
+    {
+      "corrected_oriented_gap": 0.003,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.013000000000000012,
+        0.01200000000000001
+      ],
+      "original_gap": 0.004,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "microsoft__phi-4",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.25
+    },
+    {
+      "corrected_oriented_gap": 0.142,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        0.0,
+        0.031000000000000028
+      ],
+      "original_gap": 0.127,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.11811023622047244
+    },
+    {
+      "corrected_oriented_gap": 0.015,
+      "gap_change": -0.002,
+      "gap_change_ci95": [
+        -0.017000000000000015,
+        0.013000000000000012
+      ],
+      "original_gap": 0.017,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.11764705882352941
+    },
+    {
+      "corrected_oriented_gap": 0.011,
+      "gap_change": 0.005,
+      "gap_change_ci95": [
+        -0.007000000000000006,
+        0.018000000000000016
+      ],
+      "original_gap": 0.006,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "amazon__nova-pro-v1",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.8333333333333334
+    },
+    {
+      "corrected_oriented_gap": 0.03,
+      "gap_change": 0.0,
+      "gap_change_ci95": [
+        -0.013024999999999986,
+        0.014000000000000012
+      ],
+      "original_gap": 0.03,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.0
+    },
+    {
+      "corrected_oriented_gap": 0.042,
+      "gap_change": 0.006,
+      "gap_change_ci95": [
+        -0.002000000000000113,
+        0.015000000000000013
+      ],
+      "original_gap": 0.036,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "amazon__nova-pro-v1",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.16666666666666669
+    },
+    {
+      "corrected_oriented_gap": 0.024,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.01200000000000001,
+        0.010000000000000009
+      ],
+      "original_gap": 0.025,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "amazon__nova-pro-v1",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.04
+    },
+    {
+      "corrected_oriented_gap": 0.091,
+      "gap_change": 0.016,
+      "gap_change_ci95": [
+        0.0010000000000000009,
+        0.03200000000000003
+      ],
+      "original_gap": 0.075,
+      "original_high_model": "amazon__nova-pro-v1",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.21333333333333335
+    },
+    {
+      "corrected_oriented_gap": 0.194,
+      "gap_change": 0.029,
+      "gap_change_ci95": [
+        0.01200000000000001,
+        0.04599999999999993
+      ],
+      "original_gap": 0.165,
+      "original_high_model": "deepseek",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.17575757575757575
+    },
+    {
+      "corrected_oriented_gap": 0.157,
+      "gap_change": 0.025,
+      "gap_change_ci95": [
+        0.007999999999999896,
+        0.041999999999999926
+      ],
+      "original_gap": 0.132,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1893939393939394
+    },
+    {
+      "corrected_oriented_gap": 0.077,
+      "gap_change": 0.018,
+      "gap_change_ci95": [
+        0.0020000000000000018,
+        0.03500000000000003
+      ],
+      "original_gap": 0.059,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.3050847457627119
+    },
+    {
+      "corrected_oriented_gap": 0.044,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.016000000000000014,
+        0.014000000000000012
+      ],
+      "original_gap": 0.045,
+      "original_high_model": "cohere__command-r-08-2024",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.022222222222222223
+    },
+    {
+      "corrected_oriented_gap": 0.071,
+      "gap_change": 0.02,
+      "gap_change_ci95": [
+        0.0039999999999998925,
+        0.03699999999999992
+      ],
+      "original_gap": 0.051,
+      "original_high_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.3921568627450981
+    },
+    {
+      "corrected_oriented_gap": 0.082,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        -0.0020000000000000018,
+        0.03200000000000003
+      ],
+      "original_gap": 0.067,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.22388059701492535
+    },
+    {
+      "corrected_oriented_gap": 0.057,
+      "gap_change": 0.001,
+      "gap_change_ci95": [
+        -0.015999999999999903,
+        0.017000000000000015
+      ],
+      "original_gap": 0.056,
+      "original_high_model": "cohere__command-r-08-2024",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.017857142857142856
+    },
+    {
+      "corrected_oriented_gap": 0.07,
+      "gap_change": 0.016,
+      "gap_change_ci95": [
+        -0.0010000000000000009,
+        0.03300000000000003
+      ],
+      "original_gap": 0.054,
+      "original_high_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.2962962962962963
+    },
+    {
+      "corrected_oriented_gap": 0.096,
+      "gap_change": 0.019,
+      "gap_change_ci95": [
+        0.0030000000000000027,
+        0.03600000000000003
+      ],
+      "original_gap": 0.077,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.24675324675324675
+    },
+    {
+      "corrected_oriented_gap": 0.055,
+      "gap_change": 0.014,
+      "gap_change_ci95": [
+        -1.1102230246251565e-16,
+        0.028999999999999915
+      ],
+      "original_gap": 0.041,
+      "original_high_model": "openai__gpt-4o-mini",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.3414634146341463
+    },
+    {
+      "corrected_oriented_gap": 0.127,
+      "gap_change": 0.02,
+      "gap_change_ci95": [
+        0.0030000000000001137,
+        0.03700000000000003
+      ],
+      "original_gap": 0.107,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1869158878504673
+    },
+    {
+      "corrected_oriented_gap": 0.109,
+      "gap_change": 0.013,
+      "gap_change_ci95": [
+        -0.0030000000000000027,
+        0.030000000000000027
+      ],
+      "original_gap": 0.096,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "cohere__command-r-08-2024",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13541666666666666
+    },
+    {
+      "corrected_oriented_gap": 0.006,
+      "gap_change": 0.002,
+      "gap_change_ci95": [
+        -0.014999999999999906,
+        0.018999999999999906
+      ],
+      "original_gap": 0.004,
+      "original_high_model": "cohere__command-r-08-2024",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.5
+    },
+    {
+      "corrected_oriented_gap": 0.037,
+      "gap_change": 0.004,
+      "gap_change_ci95": [
+        -0.004999999999999893,
+        0.0129999999999999
+      ],
+      "original_gap": 0.033,
+      "original_high_model": "deepseek",
+      "original_low_model": "google__gemini-2.5-flash",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.12121212121212122
+    },
+    {
+      "corrected_oriented_gap": 0.117,
+      "gap_change": 0.011,
+      "gap_change_ci95": [
+        -0.0040000000000000036,
+        0.025999999999999912
+      ],
+      "original_gap": 0.106,
+      "original_high_model": "deepseek",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.10377358490566037
+    },
+    {
+      "corrected_oriented_gap": 0.238,
+      "gap_change": 0.028,
+      "gap_change_ci95": [
+        0.0119999999999999,
+        0.04400000000000004
+      ],
+      "original_gap": 0.21,
+      "original_high_model": "deepseek",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13333333333333333
+    },
+    {
+      "corrected_oriented_gap": 0.123,
+      "gap_change": 0.009,
+      "gap_change_ci95": [
+        -0.004000000000000115,
+        0.02200000000000002
+      ],
+      "original_gap": 0.114,
+      "original_high_model": "deepseek",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.07894736842105263
+    },
+    {
+      "corrected_oriented_gap": 0.112,
+      "gap_change": 0.014,
+      "gap_change_ci95": [
+        0.0010000000000000009,
+        0.027999999999999914
+      ],
+      "original_gap": 0.098,
+      "original_high_model": "deepseek",
+      "original_low_model": "microsoft__phi-4",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.14285714285714285
+    },
+    {
+      "corrected_oriented_gap": 0.251,
+      "gap_change": 0.03,
+      "gap_change_ci95": [
+        0.013999999999999901,
+        0.04699999999999993
+      ],
+      "original_gap": 0.221,
+      "original_high_model": "deepseek",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13574660633484162
+    },
+    {
+      "corrected_oriented_gap": 0.124,
+      "gap_change": 0.013,
+      "gap_change_ci95": [
+        -0.0020000000000000018,
+        0.027999999999999914
+      ],
+      "original_gap": 0.111,
+      "original_high_model": "deepseek",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.11711711711711711
+    },
+    {
+      "corrected_oriented_gap": 0.098,
+      "gap_change": 0.01,
+      "gap_change_ci95": [
+        -0.0030000000000000027,
+        0.02299999999999991
+      ],
+      "original_gap": 0.088,
+      "original_high_model": "deepseek",
+      "original_low_model": "openai__gpt-4.1-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.11363636363636365
+    },
+    {
+      "corrected_oriented_gap": 0.139,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        0.0010000000000000009,
+        0.029000000000000026
+      ],
+      "original_gap": 0.124,
+      "original_high_model": "deepseek",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.12096774193548386
+    },
+    {
+      "corrected_oriented_gap": 0.067,
+      "gap_change": 0.009,
+      "gap_change_ci95": [
+        -0.0030000000000001137,
+        0.020999999999999908
+      ],
+      "original_gap": 0.058,
+      "original_high_model": "deepseek",
+      "original_low_model": "openai__gpt-4o",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15517241379310343
+    },
+    {
+      "corrected_oriented_gap": 0.085,
+      "gap_change": 0.016,
+      "gap_change_ci95": [
+        0.0029999999999998916,
+        0.028999999999999918
+      ],
+      "original_gap": 0.069,
+      "original_high_model": "deepseek",
+      "original_low_model": "qwen__qwen-2.5-72b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.23188405797101447
+    },
+    {
+      "corrected_oriented_gap": 0.2,
+      "gap_change": 0.031,
+      "gap_change_ci95": [
+        0.013999999999999901,
+        0.04899999999999993
+      ],
+      "original_gap": 0.169,
+      "original_high_model": "deepseek",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1834319526627219
+    },
+    {
+      "corrected_oriented_gap": 0.08,
+      "gap_change": 0.007,
+      "gap_change_ci95": [
+        -0.007000000000000006,
+        0.020999999999999908
+      ],
+      "original_gap": 0.073,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.09589041095890412
+    },
+    {
+      "corrected_oriented_gap": 0.201,
+      "gap_change": 0.024,
+      "gap_change_ci95": [
+        0.007999999999999896,
+        0.039999999999999925
+      ],
+      "original_gap": 0.177,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13559322033898305
+    },
+    {
+      "corrected_oriented_gap": 0.086,
+      "gap_change": 0.005,
+      "gap_change_ci95": [
+        -0.008000000000000007,
+        0.017000000000000015
+      ],
+      "original_gap": 0.081,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.06172839506172839
+    },
+    {
+      "corrected_oriented_gap": 0.075,
+      "gap_change": 0.01,
+      "gap_change_ci95": [
+        -0.001000000000000112,
+        0.02199999999999991
+      ],
+      "original_gap": 0.065,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "microsoft__phi-4",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15384615384615385
+    },
+    {
+      "corrected_oriented_gap": 0.214,
+      "gap_change": 0.026,
+      "gap_change_ci95": [
+        0.009999999999999898,
+        0.041999999999999926
+      ],
+      "original_gap": 0.188,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13829787234042554
+    },
+    {
+      "corrected_oriented_gap": 0.087,
+      "gap_change": 0.009,
+      "gap_change_ci95": [
+        -0.0050000000000000044,
+        0.02299999999999991
+      ],
+      "original_gap": 0.078,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.11538461538461538
+    },
+    {
+      "corrected_oriented_gap": 0.061,
+      "gap_change": 0.006,
+      "gap_change_ci95": [
+        -0.0050000000000001155,
+        0.016999999999999904
+      ],
+      "original_gap": 0.055,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "openai__gpt-4.1-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1090909090909091
+    },
+    {
+      "corrected_oriented_gap": 0.102,
+      "gap_change": 0.011,
+      "gap_change_ci95": [
+        -0.0030000000000000027,
+        0.02499999999999991
+      ],
+      "original_gap": 0.091,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.12087912087912088
+    },
+    {
+      "corrected_oriented_gap": 0.03,
+      "gap_change": 0.005,
+      "gap_change_ci95": [
+        -0.0050000000000001155,
+        0.015999999999999903
+      ],
+      "original_gap": 0.025,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "openai__gpt-4o",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.19999999999999998
+    },
+    {
+      "corrected_oriented_gap": 0.048,
+      "gap_change": 0.012,
+      "gap_change_ci95": [
+        0.0009999999999998899,
+        0.02399999999999991
+      ],
+      "original_gap": 0.036,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "qwen__qwen-2.5-72b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.33333333333333337
+    },
+    {
+      "corrected_oriented_gap": 0.163,
+      "gap_change": 0.027,
+      "gap_change_ci95": [
+        0.009999999999999898,
+        0.04499999999999993
+      ],
+      "original_gap": 0.136,
+      "original_high_model": "google__gemini-2.5-flash",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.19852941176470587
+    },
+    {
+      "corrected_oriented_gap": 0.121,
+      "gap_change": 0.017,
+      "gap_change_ci95": [
+        0.0020000000000000018,
+        0.03200000000000003
+      ],
+      "original_gap": 0.104,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1634615384615385
+    },
+    {
+      "corrected_oriented_gap": 0.006,
+      "gap_change": -0.002,
+      "gap_change_ci95": [
+        -0.015000000000000013,
+        0.01100000000000001
+      ],
+      "original_gap": 0.008,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.25
+    },
+    {
+      "corrected_oriented_gap": 0.005,
+      "gap_change": -0.003,
+      "gap_change_ci95": [
+        -0.016000000000000014,
+        0.010000000000000009
+      ],
+      "original_gap": 0.008,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.375
+    },
+    {
+      "corrected_oriented_gap": 0.134,
+      "gap_change": 0.019,
+      "gap_change_ci95": [
+        0.0029999999999998916,
+        0.03500000000000003
+      ],
+      "original_gap": 0.115,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.16521739130434782
+    },
+    {
+      "corrected_oriented_gap": 0.007,
+      "gap_change": 0.002,
+      "gap_change_ci95": [
+        -0.013000000000000012,
+        0.017000000000000015
+      ],
+      "original_gap": 0.005,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.4
+    },
+    {
+      "corrected_oriented_gap": 0.019,
+      "gap_change": 0.001,
+      "gap_change_ci95": [
+        -0.0129999999999999,
+        0.015000000000000013
+      ],
+      "original_gap": 0.018,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.05555555555555556
+    },
+    {
+      "corrected_oriented_gap": 0.022,
+      "gap_change": 0.004,
+      "gap_change_ci95": [
+        -0.010999999999999899,
+        0.019000000000000017
+      ],
+      "original_gap": 0.018,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.22222222222222224
+    },
+    {
+      "corrected_oriented_gap": 0.05,
+      "gap_change": 0.002,
+      "gap_change_ci95": [
+        -0.009999999999999898,
+        0.013000000000000123
+      ],
+      "original_gap": 0.048,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.041666666666666664
+    },
+    {
+      "corrected_oriented_gap": 0.032,
+      "gap_change": -0.005,
+      "gap_change_ci95": [
+        -0.018000000000000016,
+        0.008000000000000007
+      ],
+      "original_gap": 0.037,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.13513513513513514
+    },
+    {
+      "corrected_oriented_gap": 0.083,
+      "gap_change": 0.02,
+      "gap_change_ci95": [
+        0.0019999999999998908,
+        0.039000000000000035
+      ],
+      "original_gap": 0.063,
+      "original_high_model": "meta-llama__llama-3.1-70b-instruct",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.31746031746031744
+    },
+    {
+      "corrected_oriented_gap": 0.115,
+      "gap_change": 0.019,
+      "gap_change_ci95": [
+        0.0040000000000000036,
+        0.03399999999999992
+      ],
+      "original_gap": 0.096,
+      "original_high_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.19791666666666666
+    },
+    {
+      "corrected_oriented_gap": 0.126,
+      "gap_change": 0.014,
+      "gap_change_ci95": [
+        0.0,
+        0.028000000000000025
+      ],
+      "original_gap": 0.112,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.125
+    },
+    {
+      "corrected_oriented_gap": 0.013,
+      "gap_change": 0.002,
+      "gap_change_ci95": [
+        -0.013000000000000012,
+        0.018000000000000016
+      ],
+      "original_gap": 0.011,
+      "original_high_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.18181818181818182
+    },
+    {
+      "corrected_oriented_gap": 0.114,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        0.0020000000000000018,
+        0.028000000000000025
+      ],
+      "original_gap": 0.099,
+      "original_high_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1515151515151515
+    },
+    {
+      "corrected_oriented_gap": 0.14,
+      "gap_change": 0.018,
+      "gap_change_ci95": [
+        0.0040000000000000036,
+        0.03300000000000003
+      ],
+      "original_gap": 0.122,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.14754098360655737
+    },
+    {
+      "corrected_oriented_gap": 0.099,
+      "gap_change": 0.013,
+      "gap_change_ci95": [
+        -0.001000000000000112,
+        0.027999999999999914
+      ],
+      "original_gap": 0.086,
+      "original_high_model": "openai__gpt-4o-mini",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15116279069767444
+    },
+    {
+      "corrected_oriented_gap": 0.171,
+      "gap_change": 0.019,
+      "gap_change_ci95": [
+        0.0050000000000000044,
+        0.03399999999999992
+      ],
+      "original_gap": 0.152,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.125
+    },
+    {
+      "corrected_oriented_gap": 0.153,
+      "gap_change": 0.012,
+      "gap_change_ci95": [
+        -0.0030000000000000027,
+        0.027000000000000024
+      ],
+      "original_gap": 0.141,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.08510638297872342
+    },
+    {
+      "corrected_oriented_gap": 0.038,
+      "gap_change": -0.003,
+      "gap_change_ci95": [
+        -0.019000000000000017,
+        0.01200000000000001
+      ],
+      "original_gap": 0.041,
+      "original_high_model": "qwen__qwen-2.5-7b-instruct",
+      "original_low_model": "meta-llama__llama-3.1-8b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.07317073170731707
+    },
+    {
+      "corrected_oriented_gap": 0.011,
+      "gap_change": -0.005,
+      "gap_change_ci95": [
+        -0.019000000000000017,
+        0.008000000000000118
+      ],
+      "original_gap": 0.016,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.3125
+    },
+    {
+      "corrected_oriented_gap": 0.128,
+      "gap_change": 0.021,
+      "gap_change_ci95": [
+        0.0039999999999998925,
+        0.038999999999999924
+      ],
+      "original_gap": 0.107,
+      "original_high_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.19626168224299068
+    },
+    {
+      "corrected_oriented_gap": -0.001,
+      "gap_change": -0.004,
+      "gap_change_ci95": [
+        -0.017000000000000015,
+        0.009999999999999898
+      ],
+      "original_gap": 0.003,
+      "original_high_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": true,
+      "relative_gap_change": -1.3333333333333333
+    },
+    {
+      "corrected_oriented_gap": 0.025,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.013000000000000012,
+        0.01100000000000012
+      ],
+      "original_gap": 0.026,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.038461538461538464
+    },
+    {
+      "corrected_oriented_gap": 0.016,
+      "gap_change": 0.006,
+      "gap_change_ci95": [
+        -0.005999999999999894,
+        0.018000000000000016
+      ],
+      "original_gap": 0.01,
+      "original_high_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.6
+    },
+    {
+      "corrected_oriented_gap": 0.056,
+      "gap_change": 0.0,
+      "gap_change_ci95": [
+        -0.009999999999999898,
+        0.010000000000000009
+      ],
+      "original_gap": 0.056,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.0
+    },
+    {
+      "corrected_oriented_gap": 0.038,
+      "gap_change": -0.007,
+      "gap_change_ci95": [
+        -0.020000000000000018,
+        0.006000000000000116
+      ],
+      "original_gap": 0.045,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.15555555555555556
+    },
+    {
+      "corrected_oriented_gap": 0.077,
+      "gap_change": 0.022,
+      "gap_change_ci95": [
+        0.004000000000000115,
+        0.040000000000000036
+      ],
+      "original_gap": 0.055,
+      "original_high_model": "meta-llama__llama-3.3-70b-instruct",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.39999999999999997
+    },
+    {
+      "corrected_oriented_gap": 0.139,
+      "gap_change": 0.016,
+      "gap_change_ci95": [
+        0.0010000000000000009,
+        0.031000000000000028
+      ],
+      "original_gap": 0.123,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13008130081300814
+    },
+    {
+      "corrected_oriented_gap": 0.012,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.016000000000000014,
+        0.014000000000000012
+      ],
+      "original_gap": 0.013,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.07692307692307693
+    },
+    {
+      "corrected_oriented_gap": 0.014,
+      "gap_change": 0.004,
+      "gap_change_ci95": [
+        -0.009000000000000008,
+        0.01700000000000002
+      ],
+      "original_gap": 0.01,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "microsoft__phi-4",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.4
+    },
+    {
+      "corrected_oriented_gap": 0.027,
+      "gap_change": 0.001,
+      "gap_change_ci95": [
+        -0.013999999999999901,
+        0.015000000000000124
+      ],
+      "original_gap": 0.026,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.038461538461538464
+    },
+    {
+      "corrected_oriented_gap": 0.045,
+      "gap_change": 0.005,
+      "gap_change_ci95": [
+        -0.0050000000000000044,
+        0.016000000000000014
+      ],
+      "original_gap": 0.04,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "microsoft__phi-4",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.125
+    },
+    {
+      "corrected_oriented_gap": 0.027,
+      "gap_change": -0.002,
+      "gap_change_ci95": [
+        -0.014000000000000012,
+        0.010000000000000009
+      ],
+      "original_gap": 0.029,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "microsoft__phi-4",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.06896551724137931
+    },
+    {
+      "corrected_oriented_gap": 0.088,
+      "gap_change": 0.017,
+      "gap_change_ci95": [
+        0.0,
+        0.03400000000000003
+      ],
+      "original_gap": 0.071,
+      "original_high_model": "microsoft__phi-4",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.2394366197183099
+    },
+    {
+      "corrected_oriented_gap": 0.127,
+      "gap_change": 0.017,
+      "gap_change_ci95": [
+        -1.1102230246251565e-16,
+        0.03499999999999992
+      ],
+      "original_gap": 0.11,
+      "original_high_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15454545454545457
+    },
+    {
+      "corrected_oriented_gap": 0.153,
+      "gap_change": 0.02,
+      "gap_change_ci95": [
+        0.0030000000000000027,
+        0.03700000000000003
+      ],
+      "original_gap": 0.133,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15037593984962405
+    },
+    {
+      "corrected_oriented_gap": 0.112,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        -0.0010000000000000009,
+        0.031000000000000028
+      ],
+      "original_gap": 0.097,
+      "original_high_model": "openai__gpt-4o-mini",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15463917525773194
+    },
+    {
+      "corrected_oriented_gap": 0.184,
+      "gap_change": 0.021,
+      "gap_change_ci95": [
+        0.005999999999999894,
+        0.03700000000000003
+      ],
+      "original_gap": 0.163,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.12883435582822086
+    },
+    {
+      "corrected_oriented_gap": 0.166,
+      "gap_change": 0.014,
+      "gap_change_ci95": [
+        -0.0010000000000000009,
+        0.029000000000000026
+      ],
+      "original_gap": 0.152,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.09210526315789475
+    },
+    {
+      "corrected_oriented_gap": 0.051,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.018000000000000016,
+        0.016000000000000014
+      ],
+      "original_gap": 0.052,
+      "original_high_model": "qwen__qwen-2.5-7b-instruct",
+      "original_low_model": "mistralai__mistral-nemo",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.019230769230769232
+    },
+    {
+      "corrected_oriented_gap": 0.026,
+      "gap_change": 0.003,
+      "gap_change_ci95": [
+        -0.0119999999999999,
+        0.018000000000000016
+      ],
+      "original_gap": 0.023,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.13043478260869565
+    },
+    {
+      "corrected_oriented_gap": 0.015,
+      "gap_change": 0.002,
+      "gap_change_ci95": [
+        -0.0119999999999999,
+        0.016000000000000014
+      ],
+      "original_gap": 0.013,
+      "original_high_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15384615384615385
+    },
+    {
+      "corrected_oriented_gap": 0.057,
+      "gap_change": 0.004,
+      "gap_change_ci95": [
+        -0.009000000000000008,
+        0.017000000000000126
+      ],
+      "original_gap": 0.053,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.07547169811320754
+    },
+    {
+      "corrected_oriented_gap": 0.039,
+      "gap_change": -0.003,
+      "gap_change_ci95": [
+        -0.017000000000000015,
+        0.01100000000000001
+      ],
+      "original_gap": 0.042,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.07142857142857142
+    },
+    {
+      "corrected_oriented_gap": 0.076,
+      "gap_change": 0.018,
+      "gap_change_ci95": [
+        0.0010000000000000009,
+        0.03500000000000003
+      ],
+      "original_gap": 0.058,
+      "original_high_model": "mistralai__mistral-small-24b-instruct-2501",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.31034482758620685
+    },
+    {
+      "corrected_oriented_gap": 0.041,
+      "gap_change": 0.005,
+      "gap_change_ci95": [
+        -0.006999999999999895,
+        0.017000000000000126
+      ],
+      "original_gap": 0.036,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.1388888888888889
+    },
+    {
+      "corrected_oriented_gap": 0.031,
+      "gap_change": 0.001,
+      "gap_change_ci95": [
+        -0.01100000000000001,
+        0.01200000000000001
+      ],
+      "original_gap": 0.03,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "openai__gpt-4.1-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.03333333333333333
+    },
+    {
+      "corrected_oriented_gap": 0.013,
+      "gap_change": -0.006,
+      "gap_change_ci95": [
+        -0.017000000000000015,
+        0.0040000000000000036
+      ],
+      "original_gap": 0.019,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "openai__gpt-4.1-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.31578947368421056
+    },
+    {
+      "corrected_oriented_gap": 0.102,
+      "gap_change": 0.021,
+      "gap_change_ci95": [
+        0.0050000000000000044,
+        0.03700000000000003
+      ],
+      "original_gap": 0.081,
+      "original_high_model": "openai__gpt-4.1-mini",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.25925925925925924
+    },
+    {
+      "corrected_oriented_gap": 0.072,
+      "gap_change": 0.006,
+      "gap_change_ci95": [
+        -0.007999999999999896,
+        0.020000000000000018
+      ],
+      "original_gap": 0.066,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.09090909090909091
+    },
+    {
+      "corrected_oriented_gap": 0.054,
+      "gap_change": -0.001,
+      "gap_change_ci95": [
+        -0.014999999999999902,
+        0.012024999999999755
+      ],
+      "original_gap": 0.055,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "openai__gpt-4o-mini",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": -0.01818181818181818
+    },
+    {
+      "corrected_oriented_gap": 0.061,
+      "gap_change": 0.016,
+      "gap_change_ci95": [
+        -1.1102230246251565e-16,
+        0.03299999999999992
+      ],
+      "original_gap": 0.045,
+      "original_high_model": "openai__gpt-4o-mini",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.35555555555555557
+    },
+    {
+      "corrected_oriented_gap": 0.018,
+      "gap_change": 0.007,
+      "gap_change_ci95": [
+        -0.0020000000000000018,
+        0.017000000000000015
+      ],
+      "original_gap": 0.011,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "qwen__qwen-2.5-72b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.6363636363636365
+    },
+    {
+      "corrected_oriented_gap": 0.133,
+      "gap_change": 0.022,
+      "gap_change_ci95": [
+        0.006000000000000005,
+        0.038000000000000034
+      ],
+      "original_gap": 0.111,
+      "original_high_model": "openai__gpt-4o",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.19819819819819817
+    },
+    {
+      "corrected_oriented_gap": 0.115,
+      "gap_change": 0.015,
+      "gap_change_ci95": [
+        0.0,
+        0.031000000000000028
+      ],
+      "original_gap": 0.1,
+      "original_high_model": "qwen__qwen-2.5-72b-instruct",
+      "original_low_model": "qwen__qwen-2.5-7b-instruct",
+      "original_tie": false,
+      "rank_flipped": false,
+      "relative_gap_change": 0.15
+    }
+  ],
+  "pairwise_summary": {
+    "contracted_including_flips": 20,
+    "correction_gain_span": 0.030999999999999917,
+    "expanded": 83,
+    "mean_absolute_relative_gap_change": 0.19497234602155816,
+    "mean_signed_relative_gap_change": 0.1129365720165717,
+    "mean_signed_relative_gap_change_ci95": [
+      -0.019285005172335796,
+      0.33278650301274343
+    ],
+    "median_signed_relative_gap_change": 0.13559322033898305,
+    "rank_flipped": 1,
+    "unchanged": 2
+  },
+  "parameters": {
+    "bootstrap_kind": "paired_subject_stratified_item_bootstrap",
+    "bootstrap_replicates": 10000,
+    "bootstrap_seed": 20260803
+  },
+  "ranking": {
+    "changed_ranks": [
+      {
+        "corrected_rank": 9,
+        "model": "meta-llama__llama-3.3-70b-instruct",
+        "old_rank": 10
+      },
+      {
+        "corrected_rank": 10,
+        "model": "mistralai__mistral-small-24b-instruct-2501",
+        "old_rank": 9
+      }
+    ],
+    "corrected_order": [
+      "deepseek",
+      "google__gemini-2.5-flash",
+      "openai__gpt-4o",
+      "qwen__qwen-2.5-72b-instruct",
+      "openai__gpt-4.1-mini",
+      "amazon__nova-pro-v1",
+      "microsoft__phi-4",
+      "meta-llama__llama-3.1-70b-instruct",
+      "meta-llama__llama-3.3-70b-instruct",
+      "mistralai__mistral-small-24b-instruct-2501",
+      "openai__gpt-4o-mini",
+      "cohere__command-r-08-2024",
+      "qwen__qwen-2.5-7b-instruct",
+      "meta-llama__llama-3.1-8b-instruct",
+      "mistralai__mistral-nemo"
+    ],
+    "kendall_tau": 0.9809523809523809,
+    "maximum_rank_shift": 1,
+    "old_order": [
+      "deepseek",
+      "google__gemini-2.5-flash",
+      "openai__gpt-4o",
+      "qwen__qwen-2.5-72b-instruct",
+      "openai__gpt-4.1-mini",
+      "amazon__nova-pro-v1",
+      "microsoft__phi-4",
+      "meta-llama__llama-3.1-70b-instruct",
+      "mistralai__mistral-small-24b-instruct-2501",
+      "meta-llama__llama-3.3-70b-instruct",
+      "openai__gpt-4o-mini",
+      "cohere__command-r-08-2024",
+      "qwen__qwen-2.5-7b-instruct",
+      "meta-llama__llama-3.1-8b-instruct",
+      "mistralai__mistral-nemo"
+    ],
+    "top1_changed": false
+  },
+  "schema_version": "mmlu-gold-correction-impact-v1",
+  "scope": "conditional_on_fixed_15_model_panel_and_1000_items"
+}
