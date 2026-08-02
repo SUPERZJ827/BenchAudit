@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -27,7 +28,11 @@ from benchcore.execution import (  # noqa: E402
 )
 
 
-PLAN = REPO_ROOT / "docs" / "VERIFIER_TOPOLOGY_PREFLIGHT_PLAN_V3_20260802.md"
+PLAN = (
+    REPO_ROOT
+    / "docs"
+    / "VERIFIER_TOPOLOGY_UPSTREAM_CHAIN_CORRECTION_PLAN_20260802.md"
+)
 PROXY_SCRIPT = REPO_ROOT / "scripts" / "https_connect_allowlist_proxy.py"
 PROBE_SCRIPT = REPO_ROOT / "scripts" / "verifier_topology_probe.py"
 PINNED_IMAGE = (
@@ -61,6 +66,25 @@ ENGINE_PROFILES: dict[str, dict[str, str]] = {
         "executable_sha256": "1fc0af13dcb8070408ce2ac4051b76f76ff0c63570bdaeeb6bd5b13b993d0249",
         "version_output_sha256": "7728e85580e079e17edb6b02fe937fe85727034c12a8d017a9efab6567e2733b",
         "invocation_schema": "docker-cli-29.4-v1",
+    },
+}
+UPSTREAM_PROXY_PROFILES: dict[str, dict[str, Any]] = {
+    "mihomo-host-17890-v1": {
+        "access_host": "127.0.0.1",
+        "port": 17890,
+        "listener_inode": "2095371633",
+        "listener_cgroup": "/system.slice/mihomo.service",
+        "service": "mihomo.service",
+        "main_pid": "1480383",
+        "active_enter_timestamp_monotonic": "7363036411785",
+        "exec_main_start_timestamp_monotonic": "7363036411213",
+        "exec_start_fragment": "/usr/bin/mihomo -d /etc/mihomo",
+        "binary": "/usr/bin/mihomo",
+        "binary_sha256": "82f0f824f553d5ad950611cec476b8ed94b9f9ac629388d28c322c0814b2bc12",
+        "version": "Mihomo Meta v1.19.29 linux amd64 with go1.26.5 Sat Jul 18 12:22:36 UTC 2026",
+        "unit": "/lib/systemd/system/mihomo.service",
+        "unit_sha256": "b4b011a4b5670b09cc7d21a73cbaf47e038ff3f504deb16afab460555572f3a4",
+        "configuration_readable": False,
     },
 }
 
@@ -151,6 +175,96 @@ def _engine_identity(profile_id: str) -> dict[str, Any]:
     }
 
 
+def _upstream_proxy_identity(profile_id: str) -> dict[str, Any]:
+    try:
+        profile = UPSTREAM_PROXY_PROFILES[profile_id]
+    except KeyError as exc:
+        raise PreflightFailure(
+            "upstream_proxy_profile", "upstream proxy profile is not code-owned"
+        ) from exc
+    binary = Path(profile["binary"])
+    unit = Path(profile["unit"])
+    if not binary.is_file() or _sha256(binary) != profile["binary_sha256"]:
+        raise PreflightFailure("upstream_proxy_binary", "mihomo binary hash mismatch")
+    if not unit.is_file() or _sha256(unit) != profile["unit_sha256"]:
+        raise PreflightFailure("upstream_proxy_unit", "mihomo unit hash mismatch")
+    version = _run([str(binary), "-v"], check=False)
+    observed_version = version.stdout.strip().splitlines()[0] if version.stdout else ""
+    if version.returncode != 0 or observed_version != profile["version"]:
+        raise PreflightFailure("upstream_proxy_version", "mihomo version mismatch")
+    properties = _run([
+        "systemctl", "show", profile["service"], "--no-pager",
+        "--property=MainPID,ActiveState,SubState,ExecMainStartTimestampMonotonic,"
+        "ActiveEnterTimestampMonotonic,ExecStart,FragmentPath",
+    ])
+    values = {}
+    for line in properties.stdout.splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            values[key] = value
+    listener = _run(["ss", "-ltnpe", "( sport = :17890 )"])
+    if not _upstream_proxy_observation_matches(
+        profile,
+        properties=values,
+        observed_version=observed_version,
+        listener_stdout=listener.stdout,
+    ):
+        raise PreflightFailure(
+            "upstream_proxy_service_identity", "mihomo runtime identity drifted"
+        )
+    return {
+        "profile_id": profile_id,
+        "access_endpoint": f"{profile['access_host']}:{profile['port']}",
+        "listener_inode": profile["listener_inode"],
+        "listener_cgroup": profile["listener_cgroup"],
+        "service": profile["service"],
+        "main_pid": profile["main_pid"],
+        "active_enter_timestamp_monotonic": profile[
+            "active_enter_timestamp_monotonic"
+        ],
+        "exec_main_start_timestamp_monotonic": profile[
+            "exec_main_start_timestamp_monotonic"
+        ],
+        "binary_sha256": profile["binary_sha256"],
+        "version": profile["version"],
+        "unit_sha256": profile["unit_sha256"],
+        "configuration_readable": profile["configuration_readable"],
+        "code_owned_profile": True,
+    }
+
+
+def _upstream_proxy_observation_matches(
+    profile: dict[str, Any],
+    *,
+    properties: dict[str, str],
+    observed_version: str,
+    listener_stdout: str,
+) -> bool:
+    expected = {
+        "MainPID": profile["main_pid"],
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStartTimestampMonotonic": profile[
+            "exec_main_start_timestamp_monotonic"
+        ],
+        "ActiveEnterTimestampMonotonic": profile[
+            "active_enter_timestamp_monotonic"
+        ],
+        "FragmentPath": profile["unit"],
+    }
+    required_listener_fragments = (
+        "*:17890",
+        f"ino:{profile['listener_inode']}",
+        f"cgroup:{profile['listener_cgroup']}",
+    )
+    return (
+        observed_version == profile["version"]
+        and all(properties.get(key) == value for key, value in expected.items())
+        and profile["exec_start_fragment"] in properties.get("ExecStart", "")
+        and all(value in listener_stdout for value in required_listener_fragments)
+    )
+
+
 def _image_identity(engine: str) -> dict[str, Any]:
     process = _run([engine, "image", "inspect", PINNED_IMAGE], check=False)
     if process.returncode != 0:
@@ -210,12 +324,34 @@ def _create_network(
             "network_internal_flag",
             f"{name}: expected internal={internal}, got {observed_internal!r}",
         )
+    gateways: list[str] = []
+    ipam = value.get("IPAM") or value.get("ipam_options") or {}
+    configs = ipam.get("Config") or ipam.get("config") or []
+    for config in configs:
+        gateway = config.get("Gateway") or config.get("gateway")
+        if gateway:
+            try:
+                address = ipaddress.ip_address(gateway)
+            except ValueError as exc:
+                raise PreflightFailure(
+                    "network_gateway", "network gateway was not a literal IPv4 address"
+                ) from exc
+            if address.version != 4 or address.is_unspecified:
+                raise PreflightFailure(
+                    "network_gateway", "network gateway was not a usable literal IPv4 address"
+                )
+            gateways.append(address.compressed)
+    if len(set(gateways)) != 1:
+        raise PreflightFailure(
+            "network_gateway", f"expected one network gateway, got {gateways!r}"
+        )
     return {
         "name": name,
         "network_id": result.stdout.strip(),
         "subnet": subnet_prefix + ".0/24",
         "internal": internal,
         "internal_derivation": derivation,
+        "gateway": gateways[0],
         "inspect_sha256": hashlib.sha256(inspect.stdout.encode()).hexdigest(),
     }
 
@@ -310,6 +446,8 @@ def _start_proxy(
     bundle: Path,
     output: Path,
     session_id: str,
+    upstream_profile_id: str,
+    upstream_proxy_authority: str,
 ) -> dict[str, Any]:
     output.mkdir(parents=True, exist_ok=False)
     os.chmod(output, 0o777)
@@ -328,6 +466,8 @@ def _start_proxy(
         "--audit-log", "/output/raw.jsonl",
         "--stable-summary-out", "/output/stable.json",
         "--session-id", session_id,
+        "--upstream-profile-id", upstream_profile_id,
+        "--upstream-proxy-authority", upstream_proxy_authority,
     ])
     _run([engine, "network", "connect", egress_network, name])
     networks, inspect = _container_networks(engine, name)
@@ -342,6 +482,32 @@ def _start_proxy(
         logs = _run([engine, "logs", name], check=False)
         raise PreflightFailure("proxy_start", logs.stderr + logs.stdout)
     return inspect
+
+
+def _make_proxy_artifacts_readable(engine: str, output: Path) -> dict[str, Any]:
+    """Let the artifact owner expose completed logs without host-side rewriting."""
+
+    process = _run([
+        engine, "run", "--rm", "--network", "none",
+        "--user", "65534:65534",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges",
+        "--read-only",
+        "--mount", f"type=bind,src={output},dst=/output",
+        PINNED_IMAGE,
+        "chmod", "0644", "/output/raw.jsonl", "/output/stable.json",
+    ], check=False)
+    if process.returncode != 0:
+        raise PreflightFailure(
+            "proxy_artifact_permissions", process.stderr[-1000:]
+        )
+    return {
+        "performed": True,
+        "image": PINNED_IMAGE,
+        "user": "65534:65534",
+        "network": "none",
+        "content_rewritten": False,
+    }
 
 
 def _run_verifier(
@@ -409,9 +575,15 @@ def _candidate_network_regression(engine: str, scratch: Path) -> dict[str, Any]:
     }
 
 
-def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
+def run_preflight(
+    output_dir: Path,
+    *,
+    engine_profile: str,
+    upstream_proxy_profile: str,
+) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=False)
     engine_identity = _engine_identity(engine_profile)
+    upstream_identity = _upstream_proxy_identity(upstream_proxy_profile)
     engine = engine_identity["selected_executable"]
     image_identity = _image_identity(engine)
     canonical_ips = sorted({
@@ -441,7 +613,7 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
     for path in (bundle / "scripts").iterdir():
         os.chmod(path, 0o644)
     result: dict[str, Any] = {
-        "receipt_schema": "benchaudit-verifier-topology-preflight-v3",
+        "receipt_schema": "benchaudit-verifier-topology-upstream-chain-v1",
         "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
         "claim_boundary": {
             "topology_only": True,
@@ -461,6 +633,7 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             "third_party_direct_ip": THIRD_PARTY_IP,
         },
         "engine": engine_identity,
+        "upstream_proxy": upstream_identity,
         "image": image_identity,
         "code_bindings": {
             "plan_sha256": _sha256(PLAN),
@@ -478,6 +651,10 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
         egress_value = _create_network(
             engine, name=egress, subnet_prefix=egress_prefix, internal=False
         )
+        upstream_proxy_authority = (
+            f"{egress_value['gateway']}:"
+            f"{UPSTREAM_PROXY_PROFILES[upstream_proxy_profile]['port']}"
+        )
         result["network_mechanism"] = {
             "mechanism_blocking_direct_egress": (
                 "verifier attached only to engine-enforced internal network; "
@@ -489,7 +666,30 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             "proxy_listen_normalized": internal_prefix + ".2",
             "wildcard_listen": False,
             "host_network": False,
+            "upstream_proxy_authority_inside_container": upstream_proxy_authority,
+            "upstream_proxy_authority_source": (
+                "inspected Docker egress-network gateway plus code-owned port"
+            ),
         }
+        result["protocol_deviations"] = [{
+            "path": "V1 §3.3 / direct canonical-host egress implementation",
+            "change": (
+                "audited proxy reaches a pinned host HTTP CONNECT proxy"
+            ),
+            "exact_loss": (
+                "packet-level egress terminates first at a host proxy whose "
+                "configuration is unreadable; the original direct-egress "
+                "mechanism is not preserved"
+            ),
+            "retained_guards": [
+                "exact downstream authority allowlist",
+                "no direct fallback",
+                "end-to-end TLS",
+                "five live probes",
+                "candidate network none",
+            ],
+            "confirmation_eligible": False,
+        }]
 
         containers.append(proxy_fetch)
         fetch_proxy_inspect = _start_proxy(
@@ -501,6 +701,8 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             bundle=bundle,
             output=output_dir / "fetch_proxy",
             session_id="fetch-session",
+            upstream_profile_id=upstream_proxy_profile,
+            upstream_proxy_authority=upstream_proxy_authority,
         )
         containers.append(verifier_fetch)
         fetch_exit, fetch_verifier_inspect = _run_verifier(
@@ -515,6 +717,9 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             canonical_ips=canonical_ips,
         )
         fetch_proxy_exit = _stop_proxy(engine, proxy_fetch)
+        fetch_permission_adjustment = _make_proxy_artifacts_readable(
+            engine, output_dir / "fetch_proxy"
+        )
         fetch_probe = json.loads(
             (output_dir / "fetch_verifier" / "result.json").read_text()
         )
@@ -534,6 +739,7 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             "probe": fetch_probe,
             "proxy_stable_summary": fetch_summary,
             "proxy_stable_summary_gate": fetch_summary_gate,
+            "artifact_permission_adjustment": fetch_permission_adjustment,
             "raw_log_sha256": _sha256(output_dir / "fetch_proxy" / "raw.jsonl"),
             "stable_summary_sha256": _sha256(output_dir / "fetch_proxy" / "stable.json"),
             "direct_canonical_ip_probe_result": "corroboration_only",
@@ -553,6 +759,8 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             bundle=bundle,
             output=output_dir / "reject_proxy",
             session_id="reject-session",
+            upstream_profile_id=upstream_proxy_profile,
+            upstream_proxy_authority=upstream_proxy_authority,
         )
         containers.append(verifier_reject)
         reject_exit, reject_verifier_inspect = _run_verifier(
@@ -567,6 +775,9 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             canonical_ips=[],
         )
         reject_proxy_exit = _stop_proxy(engine, proxy_reject)
+        reject_permission_adjustment = _make_proxy_artifacts_readable(
+            engine, output_dir / "reject_proxy"
+        )
         reject_probe = json.loads(
             (output_dir / "reject_verifier" / "result.json").read_text()
         )
@@ -586,6 +797,7 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             "probe": reject_probe,
             "proxy_stable_summary": reject_summary,
             "proxy_stable_summary_gate": reject_summary_gate,
+            "artifact_permission_adjustment": reject_permission_adjustment,
             "raw_log_sha256": _sha256(output_dir / "reject_proxy" / "raw.jsonl"),
             "stable_summary_sha256": _sha256(output_dir / "reject_proxy" / "stable.json"),
         }
@@ -600,11 +812,13 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             ]["system_config_disabled"] and fetch_probe["git_configuration"][
                 "global_config_path"
             ] == "/dev/null",
-            "network_egress_restricted_to_manifest_authority": (
+            "application_layer_connect_restricted_to_manifest_authority": (
                 internal_value["internal"]
                 and all(fetch_summary_gate.values())
                 and all(reject_summary_gate.values())
             ),
+            "original_direct_egress_mechanism_preserved": False,
+            "host_upstream_configuration_verified": False,
         }
         all_gates = (
             fetch_exit == 0
@@ -616,10 +830,20 @@ def run_preflight(output_dir: Path, *, engine_profile: str) -> dict[str, Any]:
             and reject_probe["all_gates_passed"]
             and all(reject_summary_gate.values())
             and candidate["passed"]
-            and all(result["v1_section_3_3"].values())
+            and result["v1_section_3_3"]["digest_pinned_environment"]
+            and result["v1_section_3_3"][
+                "no_mounted_git_repository_or_object_cache"
+            ]
+            and result["v1_section_3_3"]["no_credentials_ssh_agent_or_secrets"]
+            and result["v1_section_3_3"][
+                "system_and_global_git_configuration_disabled"
+            ]
+            and result["v1_section_3_3"][
+                "application_layer_connect_restricted_to_manifest_authority"
+            ]
         )
         result["decision"] = (
-            "TOPOLOGY_SATISFIABLE"
+            "TOPOLOGY_SATISFIABLE_WITH_UPSTREAM_CHAIN_DEVIATION"
             if all_gates else "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY"
         )
         result["all_preflight_gates_passed"] = all_gates
@@ -642,14 +866,23 @@ def main() -> int:
         choices=tuple(sorted(ENGINE_PROFILES)),
         required=True,
     )
+    parser.add_argument(
+        "--upstream-proxy-profile",
+        choices=tuple(sorted(UPSTREAM_PROXY_PROFILES)),
+        required=True,
+    )
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
     try:
-        result = run_preflight(output_dir, engine_profile=args.engine_profile)
+        result = run_preflight(
+            output_dir,
+            engine_profile=args.engine_profile,
+            upstream_proxy_profile=args.upstream_proxy_profile,
+        )
     except PreflightFailure as exc:
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
-            "receipt_schema": "benchaudit-verifier-topology-preflight-v3",
+            "receipt_schema": "benchaudit-verifier-topology-upstream-chain-v1",
             "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
             "first_failing_gate": exc.gate,
             "reason": exc.detail,
@@ -664,7 +897,7 @@ def main() -> int:
     except Exception as exc:  # an operational surprise is a fail-closed result
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
-            "receipt_schema": "benchaudit-verifier-topology-preflight-v3",
+            "receipt_schema": "benchaudit-verifier-topology-upstream-chain-v1",
             "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
             "first_failing_gate": "unexpected_preflight_error",
             "reason": type(exc).__name__,
@@ -683,7 +916,12 @@ def main() -> int:
         "first_failing_gate": result.get("first_failing_gate"),
         "receipt": str(receipt),
     }, ensure_ascii=False, sort_keys=True))
-    return 0 if result["decision"] == "TOPOLOGY_SATISFIABLE" else 2
+    return (
+        0
+        if result["decision"]
+        == "TOPOLOGY_SATISFIABLE_WITH_UPSTREAM_CHAIN_DEVIATION"
+        else 2
+    )
 
 
 if __name__ == "__main__":

@@ -10,17 +10,22 @@ import time
 
 import pytest
 
+import scripts.https_connect_allowlist_proxy as connect_proxy
+
 from scripts.https_connect_allowlist_proxy import (
     AuditLogger,
     AuditedThreadingTCPServer,
     ConnectHandler,
     DISPOSITIONS,
     normalize_listen_address,
+    normalize_upstream_proxy_authority,
 )
 from scripts.run_verifier_topology_preflight import (
     ENGINE_PROFILES,
+    UPSTREAM_PROXY_PROFILES,
     _derive_internal_network,
     _summary_gate,
+    _upstream_proxy_observation_matches,
 )
 
 
@@ -39,6 +44,72 @@ class _ThreadedServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 
+class _NestedConnectHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        data = bytearray()
+        self.request.settimeout(2)
+        while b"\r\n\r\n" not in data:
+            chunk = self.request.recv(4096)
+            if not chunk:
+                return
+            data.extend(chunk)
+        header, buffered = bytes(data).split(b"\r\n\r\n", 1)
+        self.server.request_headers.append(header)  # type: ignore[attr-defined]
+        status = self.server.connect_status  # type: ignore[attr-defined]
+        self.request.sendall(
+            f"HTTP/1.1 {status} fixture\r\n\r\n".encode("ascii")
+        )
+        if status != 200:
+            return
+        if buffered:
+            self.request.sendall(buffered)
+        while True:
+            chunk = self.request.recv(4096)
+            if not chunk:
+                return
+            self.request.sendall(chunk)
+
+
+class _MalformedNestedConnectHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        self.request.recv(4096)
+        self.request.sendall(b"not-http\r\n\r\n")
+
+
+class _EofNestedConnectHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        self.request.recv(4096)
+
+
+class _StalledNestedConnectHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        self.request.recv(4096)
+        time.sleep(0.3)
+
+
+def _start_nested_connect_upstream(*, status: int = 200):
+    server = _ThreadedServer(("127.0.0.1", 0), _NestedConnectHandler)
+    server.connect_status = status
+    server.request_headers = []
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
+def _start_custom_nested_upstream(handler):
+    server = _ThreadedServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
+def _recv_header(client: socket.socket) -> bytes:
+    data = bytearray()
+    while b"\r\n\r\n" not in data:
+        data.extend(client.recv(4096))
+    return bytes(data)
+
+
 def _start_upstream():
     server = _ThreadedServer(("127.0.0.1", 0), _UpstreamHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -51,6 +122,8 @@ def _start_proxy(
     *,
     allowed_authority: str,
     handler_base: type[ConnectHandler] = ConnectHandler,
+    upstream_profile_id: str | None = None,
+    upstream_proxy_authority: str | None = None,
 ):
     audit = AuditLogger(
         audit_log=tmp_path / "raw.jsonl",
@@ -60,11 +133,17 @@ def _start_proxy(
         listen_text="127.0.0.1",
         listen_normalized="127.0.0.1",
         port=0,
+        upstream_profile_id=upstream_profile_id,
+        upstream_proxy_authority=upstream_proxy_authority,
     )
     handler = type(
         "FixtureConnectHandler",
         (handler_base,),
-        {"allowed_authority": allowed_authority},
+        {
+            "allowed_authority": allowed_authority,
+            "upstream_profile_id": upstream_profile_id,
+            "upstream_proxy_authority": upstream_proxy_authority,
+        },
     )
     server = AuditedThreadingTCPServer(
         ("127.0.0.1", 0), handler, audit=audit
@@ -176,6 +255,158 @@ def test_upstream_failure_is_audited(tmp_path: Path):
     _assert_single_disposition(summary, authority, "upstream_failed")
 
 
+def test_nested_connect_uses_pinned_upstream_and_relays(tmp_path: Path):
+    upstream, upstream_thread = _start_nested_connect_upstream()
+    upstream_authority = f"127.0.0.1:{upstream.server_address[1]}"
+    authority = "allowed.invalid:443"
+    server, thread, audit = _start_proxy(
+        tmp_path,
+        allowed_authority=authority,
+        upstream_profile_id="fixture-upstream-v1",
+        upstream_proxy_authority=upstream_authority,
+    )
+    with socket.create_connection(("127.0.0.1", server.server_address[1])) as client:
+        client.settimeout(2)
+        client.sendall(f"CONNECT {authority} HTTP/1.1\r\n\r\n".encode())
+        assert _recv_header(client).startswith(b"HTTP/1.1 200")
+        client.sendall(b"fixture-payload")
+        assert client.recv(len(b"fixture-payload")) == b"fixture-payload"
+    _wait_for_connections(audit, 1)
+    summary = _finish_proxy(server, thread, audit)
+    upstream.shutdown()
+    upstream.server_close()
+    upstream_thread.join(timeout=2)
+
+    _assert_single_disposition(summary, authority, "allowed")
+    assert summary["upstream_mode"] == "http_connect"
+    assert summary["upstream_profile_id"] == "fixture-upstream-v1"
+    assert summary["upstream_proxy_authority"] == upstream_authority
+    assert len(upstream.request_headers) == 1
+    assert upstream.request_headers[0].startswith(
+        f"CONNECT {authority} HTTP/1.1".encode()
+    )
+
+
+@pytest.mark.parametrize("status", [403, 407, 502])
+def test_nested_connect_rejection_fails_closed_without_direct_fallback(
+    tmp_path: Path, status: int
+):
+    upstream, upstream_thread = _start_nested_connect_upstream(status=status)
+    upstream_authority = f"127.0.0.1:{upstream.server_address[1]}"
+    authority = "does-not-resolve.invalid:443"
+    server, thread, audit = _start_proxy(
+        tmp_path,
+        allowed_authority=authority,
+        upstream_profile_id="fixture-upstream-v1",
+        upstream_proxy_authority=upstream_authority,
+    )
+    response = _request(
+        server.server_address[1],
+        f"CONNECT {authority} HTTP/1.1\r\n\r\n".encode(),
+    )
+    _wait_for_connections(audit, 1)
+    summary = _finish_proxy(server, thread, audit)
+    upstream.shutdown()
+    upstream.server_close()
+    upstream_thread.join(timeout=2)
+
+    assert response.startswith(b"HTTP/1.1 502")
+    _assert_single_disposition(summary, authority, "upstream_failed")
+    row = [
+        json.loads(line)
+        for line in (tmp_path / "raw.jsonl").read_text().splitlines()
+        if json.loads(line)["record_type"] == "connection"
+    ][0]
+    assert row["reason"] == f"upstream_proxy_status_{status}"
+    assert len(upstream.request_headers) == 1
+
+
+@pytest.mark.parametrize(
+    ("handler", "expected_reason"),
+    [
+        (_MalformedNestedConnectHandler, "upstream_proxy_invalid_status_line"),
+        (_EofNestedConnectHandler, "upstream_proxy_eof_before_complete_header"),
+    ],
+)
+def test_nested_connect_malformed_or_eof_fails_closed(
+    tmp_path: Path, handler, expected_reason: str
+):
+    upstream, upstream_thread = _start_custom_nested_upstream(handler)
+    upstream_authority = f"127.0.0.1:{upstream.server_address[1]}"
+    authority = "does-not-resolve.invalid:443"
+    server, thread, audit = _start_proxy(
+        tmp_path,
+        allowed_authority=authority,
+        upstream_profile_id="fixture-upstream-v1",
+        upstream_proxy_authority=upstream_authority,
+    )
+    response = _request(
+        server.server_address[1],
+        f"CONNECT {authority} HTTP/1.1\r\n\r\n".encode(),
+    )
+    _wait_for_connections(audit, 1)
+    summary = _finish_proxy(server, thread, audit)
+    upstream.shutdown()
+    upstream.server_close()
+    upstream_thread.join(timeout=2)
+
+    assert response.startswith(b"HTTP/1.1 502")
+    _assert_single_disposition(summary, authority, "upstream_failed")
+    rows = [json.loads(line) for line in (tmp_path / "raw.jsonl").read_text().splitlines()]
+    connection = [row for row in rows if row["record_type"] == "connection"][0]
+    assert connection["reason"] == expected_reason
+
+
+def test_nested_connect_timeout_fails_closed(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(connect_proxy, "UPSTREAM_TIMEOUT_SECONDS", 0.05)
+    upstream, upstream_thread = _start_custom_nested_upstream(
+        _StalledNestedConnectHandler
+    )
+    upstream_authority = f"127.0.0.1:{upstream.server_address[1]}"
+    authority = "does-not-resolve.invalid:443"
+    server, thread, audit = _start_proxy(
+        tmp_path,
+        allowed_authority=authority,
+        upstream_profile_id="fixture-upstream-v1",
+        upstream_proxy_authority=upstream_authority,
+    )
+    response = _request(
+        server.server_address[1],
+        f"CONNECT {authority} HTTP/1.1\r\n\r\n".encode(),
+    )
+    _wait_for_connections(audit, 1)
+    summary = _finish_proxy(server, thread, audit)
+    upstream.shutdown()
+    upstream.server_close()
+    upstream_thread.join(timeout=2)
+
+    assert response.startswith(b"HTTP/1.1 502")
+    _assert_single_disposition(summary, authority, "upstream_failed")
+
+
+def test_nonallowlisted_request_is_rejected_before_nested_upstream_dial(tmp_path: Path):
+    upstream, upstream_thread = _start_nested_connect_upstream()
+    upstream_authority = f"127.0.0.1:{upstream.server_address[1]}"
+    server, thread, audit = _start_proxy(
+        tmp_path,
+        allowed_authority="allowed.invalid:443",
+        upstream_profile_id="fixture-upstream-v1",
+        upstream_proxy_authority=upstream_authority,
+    )
+    response = _request(
+        server.server_address[1], b"CONNECT denied.invalid:443 HTTP/1.1\r\n\r\n"
+    )
+    _wait_for_connections(audit, 1)
+    summary = _finish_proxy(server, thread, audit)
+    upstream.shutdown()
+    upstream.server_close()
+    upstream_thread.join(timeout=2)
+
+    assert response.startswith(b"HTTP/1.1 403")
+    _assert_single_disposition(summary, "denied.invalid:443", "forbidden")
+    assert upstream.request_headers == []
+
+
 def test_malformed_and_client_aborted_connections_are_not_silent(tmp_path: Path):
     server, thread, audit = _start_proxy(
         tmp_path, allowed_authority="allowed.invalid:443"
@@ -224,6 +455,14 @@ def test_unexpected_relay_exception_is_audited_as_handler_error(tmp_path: Path):
 def test_unspecified_or_nonliteral_listen_addresses_are_rejected(value: str):
     with pytest.raises(argparse.ArgumentTypeError):
         normalize_listen_address(value)
+
+
+@pytest.mark.parametrize(
+    "value", ["proxy.invalid:17890", "0.0.0.0:17890", "[::]:17890"]
+)
+def test_upstream_proxy_authority_requires_usable_literal_ip(value: str):
+    with pytest.raises(ValueError):
+        normalize_upstream_proxy_authority(value)
 
 
 def test_concurrent_jsonl_records_are_complete_and_sequences_unique(tmp_path: Path):
@@ -354,3 +593,65 @@ def test_verifier_engine_profiles_are_code_owned_and_not_free_form():
         "version_output_sha256": "7728e85580e079e17edb6b02fe937fe85727034c12a8d017a9efab6567e2733b",
         "invocation_schema": "docker-cli-29.4-v1",
     }
+    assert UPSTREAM_PROXY_PROFILES == {
+        "mihomo-host-17890-v1": {
+            "access_host": "127.0.0.1",
+            "port": 17890,
+            "listener_inode": "2095371633",
+            "listener_cgroup": "/system.slice/mihomo.service",
+            "service": "mihomo.service",
+            "main_pid": "1480383",
+            "active_enter_timestamp_monotonic": "7363036411785",
+            "exec_main_start_timestamp_monotonic": "7363036411213",
+            "exec_start_fragment": "/usr/bin/mihomo -d /etc/mihomo",
+            "binary": "/usr/bin/mihomo",
+            "binary_sha256": "82f0f824f553d5ad950611cec476b8ed94b9f9ac629388d28c322c0814b2bc12",
+            "version": "Mihomo Meta v1.19.29 linux amd64 with go1.26.5 Sat Jul 18 12:22:36 UTC 2026",
+            "unit": "/lib/systemd/system/mihomo.service",
+            "unit_sha256": "b4b011a4b5670b09cc7d21a73cbaf47e038ff3f504deb16afab460555572f3a4",
+            "configuration_readable": False,
+        }
+    }
+
+
+def test_upstream_proxy_runtime_binding_rejects_each_identity_drift():
+    profile = UPSTREAM_PROXY_PROFILES["mihomo-host-17890-v1"]
+    properties = {
+        "MainPID": profile["main_pid"],
+        "ActiveState": "active",
+        "SubState": "running",
+        "ExecMainStartTimestampMonotonic": profile[
+            "exec_main_start_timestamp_monotonic"
+        ],
+        "ActiveEnterTimestampMonotonic": profile[
+            "active_enter_timestamp_monotonic"
+        ],
+        "FragmentPath": profile["unit"],
+        "ExecStart": "{ argv[]=/usr/bin/mihomo -d /etc/mihomo ; }",
+    }
+    listener = (
+        "LISTEN *:17890 ino:2095371633 "
+        "cgroup:/system.slice/mihomo.service"
+    )
+    kwargs = {
+        "properties": properties,
+        "observed_version": profile["version"],
+        "listener_stdout": listener,
+    }
+    assert _upstream_proxy_observation_matches(profile, **kwargs)
+
+    for key in (
+        "MainPID",
+        "ExecMainStartTimestampMonotonic",
+        "ActiveEnterTimestampMonotonic",
+    ):
+        drifted = dict(properties, **{key: "drifted"})
+        assert not _upstream_proxy_observation_matches(
+            profile, **dict(kwargs, properties=drifted)
+        )
+    assert not _upstream_proxy_observation_matches(
+        profile, **dict(kwargs, observed_version="drifted")
+    )
+    assert not _upstream_proxy_observation_matches(
+        profile, **dict(kwargs, listener_stdout="LISTEN *:17890")
+    )
