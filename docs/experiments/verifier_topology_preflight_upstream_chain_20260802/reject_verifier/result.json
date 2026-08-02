@@ -1,0 +1,9 @@
+{
+  "all_gates_passed": true,
+  "gate_results": {
+    "live_non_allowlisted_authority_rejected": true
+  },
+  "probe_schema": "benchaudit-verifier-topology-rejection-probe-v1",
+  "proxy_status_line": "HTTP/1.1 403 Forbidden",
+  "rejected_authority": "example.com:443"
+}

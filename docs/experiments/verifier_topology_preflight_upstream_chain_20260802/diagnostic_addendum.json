@@ -1,0 +1,89 @@
+{
+  "addendum_schema": "benchaudit-verifier-topology-upstream-chain-diagnostic-v1",
+  "created_at_utc": "2026-08-02T10:38:52Z",
+  "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
+  "reason_code": "CONTAINER_TO_PINNED_HOST_PROXY_ENDPOINT_TIMEOUT",
+  "single_live_run_consumed": true,
+  "rerun_performed": false,
+  "engine_profile": "docker-29.4.1",
+  "upstream_proxy_profile": "mihomo-host-17890-v1",
+  "upstream_proxy_configuration_readable": false,
+  "container_upstream_endpoint": "10.252.83.1:17890",
+  "container_upstream_endpoint_derivation": "inspected Docker egress-network gateway plus code-owned port 17890",
+  "fetch_session": {
+    "canonical_downstream_authority": "huggingface.co:443",
+    "parsed_authorities": [
+      "huggingface.co:443"
+    ],
+    "accepted_connections": 2,
+    "allowed": 0,
+    "upstream_failed": 2,
+    "upstream_failure_reason": "timed out",
+    "upstream_http_response_observed": false,
+    "canonical_proxy_connect_succeeded": false,
+    "exact_git_fetch_succeeded": false,
+    "git_fetch_exit_code": 128,
+    "blob_oid_match": false,
+    "blob_content_match": false
+  },
+  "isolation_controls": {
+    "direct_proxy_environment_cleared": true,
+    "canonical_direct_addresses_tested": 12,
+    "canonical_direct_connections_blocked": true,
+    "third_party_direct_connection_blocked": true,
+    "container_dns_blocked": true,
+    "interpretation": "corroboration_only"
+  },
+  "live_rejection_session": {
+    "authority": "example.com:443",
+    "http_status": 403,
+    "forbidden": 1,
+    "allowed": 0,
+    "upstream_failed": 0,
+    "all_gates_passed": true,
+    "rejected_before_upstream_connect": true
+  },
+  "candidate_network_regression": {
+    "passed": true,
+    "network_arguments": [
+      [
+        "--network",
+        "none"
+      ]
+    ]
+  },
+  "protocol_deviation": {
+    "path": "V1 §3.3 / direct canonical-host egress implementation",
+    "change": "audited proxy attempted to reach a pinned host HTTP CONNECT proxy",
+    "exact_loss": "packet-level egress would terminate first at a host proxy whose configuration is unreadable; the original direct-egress mechanism was not preserved",
+    "confirmation_eligible": false
+  },
+  "artifact_bindings": {
+    "plan_sha256": "536ca2f69ed3461572a4190851e4c7c69e48a5687455b58aa373470c569982a1",
+    "proxy_script_sha256": "b4df52a791dc1203a8ef2bca0ea901cbe784841caed3a0402c8b5cbe9014396b",
+    "runner_sha256": "5ce81314502f44926286f89606a09437c72778da846d5dc86dfc76fad13e8318",
+    "terminal_receipt_sha256": "663483d7bb123345aa085fdd739830930336a2b9f474b2e6dd3697370bdca291",
+    "fetch_proxy_raw_sha256": "54d6ceeffc138e6379e9d8f43235a74dffc6f960ef202b68de0456043307da75",
+    "fetch_proxy_stable_sha256": "2d50f353f6ca838dc7f18d500aee797b1a2b3d9fe234c9404a26092e6ed811ac",
+    "fetch_verifier_result_sha256": "309b69ae43ea7a4ee66f0cee3f1f50bf24a1052a274a211d7062a57e1fc13622",
+    "reject_proxy_raw_sha256": "0725364c9ef20cc3dc47ec50f48aa05c14e1070d8ad3c18cfcacd325b2f3479d",
+    "reject_proxy_stable_sha256": "b30ea603656d89caf850a3ca81af3987728832d17f1e1bc3b9f474373f6acc7e",
+    "reject_verifier_result_sha256": "3a866fe691ddbbdf5f8a146fa61d060a2e3126bf3a4b903fc2d5c547c389b86c"
+  },
+  "fallbacks_not_used": {
+    "second_docker_run": false,
+    "podman_v4": false,
+    "host_network": false,
+    "host_git_fetch": false,
+    "wildcard_listen": false,
+    "authority_widening": false,
+    "firewall_or_host_gateway_change": false,
+    "runtime_upgrade_or_install": false
+  },
+  "claim_boundary": "The live rejection path and isolation negative controls were measured successfully. The audited proxy never completed a TCP connection to the pinned host-proxy endpoint, so no upstream HTTP response, canonical tunnel, exact Git fetch, or single-authority fetch claim was observed. This host experiment line is closed without a rerun.",
+  "provenance_receipt_produced": false,
+  "attestation_produced": false,
+  "finding_produced": false,
+  "candidate_code_executed": false,
+  "api_used": false
+}
