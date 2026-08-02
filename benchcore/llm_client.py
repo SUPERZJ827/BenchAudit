@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 class LLMConfig:
     model: str
     base_url: str
+    proxy_url: str | None = None
     api_key_env: str = "FIN_API"
     temperature: float = 0.0
     timeout: int = 120
@@ -185,9 +186,27 @@ def load_llm_config(path: str | None = None) -> LLMConfig:
     observed_token_stop = _optional_positive_int(
         data.get("observed_token_stop"), name="observed_token_stop"
     )
+    proxy_url = data.get("proxy_url")
+    if proxy_url is not None:
+        if not isinstance(proxy_url, str):
+            raise ValueError("proxy_url must be a string or omitted")
+        parsed_proxy = urlparse(proxy_url)
+        if (
+            parsed_proxy.scheme != "http"
+            or not parsed_proxy.hostname
+            or parsed_proxy.username is not None
+            or parsed_proxy.password is not None
+            or parsed_proxy.path not in {"", "/"}
+            or parsed_proxy.query
+            or parsed_proxy.fragment
+        ):
+            raise ValueError(
+                "proxy_url must be an unauthenticated http://host:port endpoint"
+            )
     return LLMConfig(
         model=data.get("model", "deepseek-v4-flash"),
         base_url=data.get("base_url", "https://api.deepseek.com"),
+        proxy_url=proxy_url,
         api_key_env=data.get("api_key_env", "FIN_API"),
         temperature=float(data.get("temperature", 0.0)),
         timeout=int(data.get("timeout", 120)),
@@ -329,11 +348,23 @@ class LLMClient:
         path = parsed.path or "/chat/completions"
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
-            conn = (
-                conn_cls(parsed.netloc, timeout=self.config.timeout, context=context)
-                if context
-                else conn_cls(parsed.netloc, timeout=self.config.timeout)
-            )
+            if self.config.proxy_url:
+                if parsed.scheme != "https":
+                    raise ValueError("proxy_url transport currently requires HTTPS base_url")
+                proxy = urlparse(self.config.proxy_url)
+                conn = http.client.HTTPSConnection(
+                    proxy.hostname,
+                    proxy.port or 80,
+                    timeout=self.config.timeout,
+                    context=context,
+                )
+                conn.set_tunnel(parsed.hostname, parsed.port or 443)
+            else:
+                conn = (
+                    conn_cls(parsed.netloc, timeout=self.config.timeout, context=context)
+                    if context
+                    else conn_cls(parsed.netloc, timeout=self.config.timeout)
+                )
             try:
                 self._begin_api_attempt()
                 status, response_body = _perform_http_request_with_deadline(
@@ -688,6 +719,7 @@ class LLMClient:
         return {
             "model": self.config.model,
             "base_url": self.config.base_url,
+            "proxy_url": self.config.proxy_url,
             "temperature": self.config.temperature,
             "vote_temperature": self.config.vote_temperature,
             "max_tokens": self.config.max_tokens,
