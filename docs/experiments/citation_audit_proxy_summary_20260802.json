@@ -1,0 +1,46 @@
+{
+  "schema_version": "benchaudit-citation-proxy-summary-v1",
+  "execution_commit": "fe9a612534455140164c392d4df1f2ccdaa16244",
+  "protocol_sha256": "4b12bab8f7217f4e490510276dc9f978467c0fdbfd2b2e688580edd5086fd48e",
+  "script_sha256": "39f37190d37905d390a88392623bb49065d4d17226187b3ffc80aac00a725663",
+  "survey_sha256": "659f8bf22bf3c0d7068f476fd56c9c3c016ebaa19cc7a38bb75d5df6d195b1a7",
+  "receipt_sha256": "0527d9fb8827bc85623d7dc8ec17ae7cc7de39954442391f1f01c73f33ea4367",
+  "transport": "proxy",
+  "proxy_url": "http://127.0.0.1:17890",
+  "rows": 83,
+  "unique_cite_keys": 83,
+  "unique_urls": 83,
+  "terminal_counts": {
+    "resolved": 26,
+    "title_mismatch": 55,
+    "not_found": 0,
+    "unreachable": 2,
+    "blocked_by_anti_bot": 0
+  },
+  "terminal_count_sum": 83,
+  "http_status_counts": {
+    "200": 81,
+    "403": 2
+  },
+  "unreachable_urls": [
+    "https://nottingham-repository.worktribe.com/output/925152/metamorphic-testing-a-review-of-challenges-and-opportunities",
+    "https://dl.acm.org/doi/10.1145/3287560.3287596"
+  ],
+  "manual_review_observations": {
+    "openreview_rows_with_title_verifying_your_browser_openreview": 6,
+    "frozen_antibot_rule_matched": 0,
+    "reason": "The preregistered exact normalized title was 'verifying your browser'; the observed normalized title also contained 'openreview'. The rule was not widened after results, so these rows remain title_mismatch pending manual review.",
+    "short_alias_or_abbreviation_title_mismatches_are_possible": true
+  },
+  "integrity": {
+    "all_receipt_schemas_v2": true,
+    "all_survey_hashes_match": true,
+    "all_transports_proxy": true,
+    "all_proxy_urls_match": true,
+    "terminal_states_mutually_exhaustive": true,
+    "model_api_calls": 0,
+    "experiment_level_reruns": 0,
+    "old_partial_receipt_reused": false
+  },
+  "claim_boundary": "Resolved is a machine-verified URL/title lower bound, not verification of numerical claims. Title mismatch includes aliases, abbreviations, minor title variants, and unrecognized interstitials; it is a manual-review queue, not an error count."
+}
