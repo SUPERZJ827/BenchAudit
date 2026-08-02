@@ -180,17 +180,38 @@ class LLMClientTest(unittest.TestCase):
             ):
                 client._cache_key("system", "user")
 
+    def test_cache_key_golden_values_bind_component_serialization(self):
+        client = LLMClient(LLMConfig(
+            model="golden-model",
+            base_url="https://example.invalid/v1/",
+            temperature=0.0,
+            max_tokens=1234,
+            dry_run=False,
+            thinking="disabled",
+            vote_temperature=0.25,
+        ))
+        self.assertEqual(
+            client._cache_key("system\nα", "user\nβ"),
+            "9344332f27db65f4c10bee3081aba99112619c94750a09848d5694ec92315d05",
+        )
+        self.assertEqual(
+            client._vote_cache_key("system\nα", "user\nβ", 2),
+            "5fe546d596c35191920567b8567d85d9c57ebf0f779de445ee76b01a03a9b4af",
+        )
+
     def test_run_metadata_records_cache_key_schema_version(self):
         client = StubLLMClient([])
         metadata = collect_run_metadata(
             run_started=time.monotonic(),
             started_at=datetime.now(timezone.utc),
             primary_client=client,
+            workers=7,
         )
         self.assertEqual(
             metadata["llm"]["cache_key_schema_version"],
             CACHE_KEY_SCHEMA_VERSION,
         )
+        self.assertEqual(metadata["workers"], 7)
 
     def test_transaction_deadline_covers_stalled_first_byte(self):
         entered = threading.Event()
