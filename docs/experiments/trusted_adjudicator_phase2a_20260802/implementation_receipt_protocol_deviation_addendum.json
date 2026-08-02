@@ -1,0 +1,57 @@
+{
+  "addendum_schema": "benchaudit-implementation-receipt-protocol-deviation-addendum-v1",
+  "date": "2026-08-02",
+  "decision": "IMPLEMENTED_NOT_ACTIVATED",
+  "original_receipt": {
+    "path": "docs/experiments/trusted_adjudicator_phase2a_20260802/implementation_receipt.json",
+    "sha256": "249672e6b4385dc8489ef5df5af008bf70dc8085ec92bde8a83cc80f352f8a1f",
+    "modified": false
+  },
+  "refrozen_protocol": {
+    "path": "docs/TRUSTED_ADJUDICATOR_PROTOCOL_V4_20260802.md",
+    "commit": "75edb37f8ae8061631503b17465129c449972a09",
+    "sha256": "cae85f5a62155217129b6e4e25c4a7fe1e30fc473a8c6431d57dbf2f1a3fea74",
+    "status": "frozen"
+  },
+  "corrective_implementation": {
+    "commit": "62a2b49dc91c960ef985ab5125db9f0055a5b5e0",
+    "implementation_path": "benchcore/trusted_adjudicator.py",
+    "implementation_sha256": "c4e69b5ec5332cc7fced103120f4708716c2d0f97dbcf1390531f4ec55e9e230",
+    "test_path": "tests/test_trusted_adjudicator.py",
+    "test_sha256": "7c77cc7e03c2b1a985da088b947b9667c56a0570fb3416847dd6800dcd83a84d"
+  },
+  "protocol_deviations": [
+    {
+      "protocol": "docs/TRUSTED_ADJUDICATOR_PROTOCOL_V1_20260802.md",
+      "protocol_sha256": "9cbe5b1badf62540bd113b8822a1a584d8bcd3d9995a602fb14c7b7ad020cb0f",
+      "clause": "4.1",
+      "protocol_required_choice": "asymmetric project-approved signature scheme such as Ed25519",
+      "actual_implementation_choice": "HMAC-SHA256 internal symmetric integrity binding",
+      "reason": "Python's standard library has no Ed25519 implementation; adding a cryptographic dependency is outside Phase 2A dependency policy; V3 assigns third-party confidence to deterministic replay rather than this signature",
+      "exact_loss": [
+        "verification capability implies forgery capability",
+        "the parent process cannot be structurally excluded from forgery capability and is constrained only by trusted-computing-base discipline",
+        "the attestation can never be treated as external or third-party-verifiable proof"
+      ],
+      "refrozen_by_new_protocol": true,
+      "refrozen_protocol_path": "docs/TRUSTED_ADJUDICATOR_PROTOCOL_V4_20260802.md",
+      "refrozen_protocol_sha256": "cae85f5a62155217129b6e4e25c4a7fe1e30fc473a8c6431d57dbf2f1a3fea74"
+    }
+  ],
+  "additional_corrections": [
+    {
+      "finding": "F2",
+      "change": "key_id is SHA-256 over the code-owned domain separator benchaudit-adjudicator-keyid-v1 followed by key bytes rather than bare SHA-256 of key bytes",
+      "activation_change": false
+    },
+    {
+      "finding": "F3",
+      "change": "stable raw capture distinguishes timeout from descendant_retained_pipe and preserves both as confirmation-ineligible incomplete observations",
+      "activation_change": false
+    }
+  ],
+  "claim_boundary": "This addendum discloses and re-freezes the symmetric-attestation deviation. It does not alter the original Phase 2A result, activate a manifest or consumer, establish third-party proof, or establish PASS_TRUSTED_ADJUDICATOR_OS_VISIBLE.",
+  "historical_results_modified": false,
+  "api_used": false,
+  "network_used": false
+}
