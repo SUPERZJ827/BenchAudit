@@ -1,8 +1,10 @@
 # BenchCore After623
 
-这是一个从零开始的轻量 benchmark audit 原型，不依赖前面已有的 `benchaudit` 代码。
+这是一个面向 benchmark 本身的研究型质量审计平台，不依赖前面已有的
+`benchaudit` 代码。最新 Workspace-Bench 实现、实验和能力边界见：
+[`BENCHAUDIT_NEAR_FINAL_WORKSPACEBENCH_EXPERIMENT_20260714_zh.md`](BENCHAUDIT_NEAR_FINAL_WORKSPACEBENCH_EXPERIMENT_20260714_zh.md)。
 
-当前聚焦 5 个核心 benchmark artifact：
+item 层以五个核心 artifact 为起点：
 
 ```text
 Task Specification
@@ -12,11 +14,13 @@ Oracle / Ground Truth
 Evaluator / Rubric / Tests
 ```
 
-暂时不把复杂 agent 环境、工具、交互、trace、provenance 作为第一阶段主线。
+package 与 planning 层同时追踪 environment、tools、interaction、trace 和 provenance。
+没有相应 adapter、环境或 oracle 时，系统会显式输出 unsupported/unknown，不会把
+“没有执行”写成 clean。
 
 ## 0. 通用 Package 扫描与审计规划
 
-除了直接审计 JSONL/JSON/CSV，当前可以先扫描一个未知 benchmark 文件、目录或
+除了直接审计 JSONL/JSON/CSV/TSV/Parquet，当前可以先扫描一个未知 benchmark 文件、目录或
 repository，生成 artifact inventory、自动 family 判断、可执行 checker 和未覆盖项：
 
 ```bash
@@ -91,7 +95,12 @@ python -m benchcore.cli score-injections \
 `benchcore.harness.CommandHarnessAdapter` 提供统一 command/exit-code harness 接口。
 本地 runner 只有调用方显式设置 `allow_local_process=True` 时才运行，并明确标记为
 `trusted_local_process`，不能视为安全 sandbox。表格 code verifier 额外进行 AST 安全
-检查，但处理任意外部代码时仍必须使用容器后端。
+检查，但默认没有 runner 时会记录 `security_blocked`；处理生成代码或任意外部代码
+时应使用 digest-pinned 容器后端。不安全本地执行需要 CLI 的两个独立确认开关，且
+证据最高只能进入 review。
+
+所有 LLM-backed CLI 审计默认禁止远程外发 benchmark 数据。调用方必须显式使用
+`--allow-remote-data-egress`，报告会记录 task、gold、rubric、附件内容等可能外发字段。
 
 ## 1. 输入格式
 
@@ -100,6 +109,8 @@ python -m benchcore.cli score-injections \
 - `.jsonl`
 - `.json`
 - `.csv`
+- `.tsv`
+- `.parquet`
 
 字段可以不完全统一，程序会自动推断常见字段：
 
@@ -592,3 +603,45 @@ violations
 2. `ExecutionConsistencyAlternativeChecker`：检测合理替代解是否被 evaluator 误杀；
 3. candidate solution generation：为 metamorphic/mutation 提供更多候选；
 4. 多次 LLM / solver disagreement 和 assumption audit。
+
+## 7. 使用已有多模型响应做低成本候选分诊
+
+如果 benchmark 已经保存了多个模型逐题的 `correct/incorrect` 结果，可以在不重新
+执行任务、不调用 API 的情况下，把多模型错误率与 BenchAudit 候选风险融合：
+
+```bash
+python -m benchcore.cli triage-responses \
+  path/to/model_response_directory \
+  --report reports/audit_report.json \
+  --minimum-models 5 \
+  --minimum-responses-per-item 5 \
+  --panel-kind independent-models \
+  --audit-score-mode priority-risk \
+  --out reports/response_triage.json \
+  --md reports/response_triage.md \
+  --print-summary
+```
+
+支持三种输入：
+
+```json
+{"id": "q1", "correct": {"model-a": true, "model-b": false}}
+{"item_id": "q1", "model_id": "model-a", "correct": true}
+{"id": "q1", "correct": true}
+```
+
+第三种格式用于“每个模型一个 JSONL 文件”的目录，模型 ID 取文件名。系统始终按
+`item_id` 连接，不依赖文件行序；重复的 `(item_id, model_id)`、字符串布尔值和
+模型数不足会 fail closed。
+
+输出是候选排序，不是新的缺陷判定。高错误率也可能表示题目确实很难，因此所有
+行为信号固定为 `review-only`，不能把任何条目升级为 `confirmed`。只有独立重算、
+执行 replay 或其他客观 verifier 才能完成确认。
+
+默认只有 `priority` 或已有客观确认支持的 BenchAudit 分数参与融合。单条弱
+`exploratory` 提示仍保留在原审计报告中，但不会仅凭一个高百分位覆盖多模型行为
+排序；如需复现实验旧口径，可显式选择 `risk` 或 `max-confidence`。
+
+`--panel-kind` 必须如实区分真实的多模型结果、单模型多提示视角和同模型重复运行。
+后两者仍可用于低成本候选分诊，但产物会明确记录“没有跨模型独立性”，不能在论文
+或报告中冒充多模型证据。未声明时默认 `unspecified` 并产生质量警告。

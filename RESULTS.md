@@ -1,5 +1,79 @@
 # BenchCore Experiment Results
 
+> **Evidence-policy note (2026-07-14):** older tables preserve the labels used by
+> their historical experiment code. In particular, an LLM vote or a checker-local
+> `review_only=False` flag is **not** a current automatic confirmation. The current
+> centralized policy confirms only an exact, versioned proof tuple whose payload is
+> revalidated; model judgments remain review signals and coverage failures remain
+> unknown. Candidate P/R/F1 below are still valid supervised ranking metrics, but
+> legacy “confirmed tier” rows must not be interpreted as proof-sound precision.
+
+## Workspace-Bench release experiments (2026-07-14)
+
+The release protocol separates controlled structural recall, semantic evidence
+binding, and findings on unmodified data.  Full interpretation and limitations:
+[`BENCHAUDIT_NEAR_FINAL_WORKSPACEBENCH_EXPERIMENT_20260714_zh.md`](BENCHAUDIT_NEAR_FINAL_WORKSPACEBENCH_EXPERIMENT_20260714_zh.md).
+
+### Controlled structural invariants
+
+| Suite | Source tasks | Paired mutations | Exact recall | Paired discrimination | Extra / duplicate alarms |
+|---|---:|---:|---:|---:|---:|
+| Workspace Full | 388 | 1,940 | 1,940/1,940 = **1.000** | 1,940/1,940 = **1.000** | 0 / 0 |
+| Workspace Lite | 100 | 500 | 500/500 = **1.000** | 500/500 = **1.000** | 0 / 0 |
+
+At pair level, the Full 95% Wilson lower bound is 0.9980 and the Lite lower
+bound is 0.9924.  Five rows from the same source task are correlated; the more
+conservative all-five-perfect source-task lower bounds are 0.9902 (388/388) and
+0.9630 (100/100).  These are five co-designed deterministic schema/artifact
+operators—a conformance/regression result, not natural-defect prevalence,
+held-out root-cause recall, or arbitrary semantic recall.  The Full unmutated
+side had no natural alarm.  The Lite unmutated side had one review-level
+output-generator heuristic alarm; hidden-oracle equivalence and score impact
+remain unproven, and it is not an injected-target false positive.
+
+### Paired semantic-grounding challenge
+
+Fifty real Lite source tasks × four objective interventions produced 200
+clean/mutant pairs and 400 isolated single-rubric decisions.
+
+| Decision layer | Mutant recall | Clean FP | Paired | Strict paired | Uncertain |
+|---|---:|---:|---:|---:|---:|
+| Raw LLM scanner | 1.000 | 0.170 | **0.830** | **0.830** | 0/400 |
+| Citation-grounded model, certificate excluded | 0.570 | 0.050 | **0.540** | **0.395** | 137/400 |
+| Objective certificate | 1.000 | 0.000 | **1.000** | **1.000** | 0/400 |
+| Certificate-aware controlled decision | 1.000 | 0.000 | **1.000** | **1.000** | 0/400 |
+
+The pair-level certificate-aware 95% Wilson interval is [0.981, 1.000].  The
+200 pairs are clustered within 50 source tasks: all four operators were correct
+for 50/50 sources (source-level Wilson [0.929, 1.000]), versus 25/50 for raw LLM
+and 0/50 for citation-grounded decisions.  The challenge generator and the
+resolver share four exact atomic grammars, so this is certificate conformance,
+not paraphrase generalization.  The objective-certificate and certificate-aware
+rows use the same decision path and are not independent replications.
+
+The result applies only to four narrow task/contract/complete-inventory
+predicates. Input inventory was complete for 50/50 tasks, while complete
+attachment-content coverage was only 24/50; therefore it must not be presented
+as 100% attachment-semantic or arbitrary-benchmark recall.  The final
+source-hash gate and exact-cache validation both passed.  See
+[`ANALYSIS_zh.md`](reports/workspace_semantic_challenge_lite100_20260714_v3_final/ANALYSIS_zh.md).
+
+### Unmodified Workspace data
+
+| Suite | Coverage ledger | Confirmed | Review signals | Coverage unknown |
+|---|---:|---:|---:|---:|
+| Lite CN 100 | 1,300 planned; 800 completed; 500 ineligible | 0 | 1 suspected visible output-generator script | 0 |
+| Full 388 | 5,044 planned; 3,104 completed; 1,940 ineligible | 0 | 2 temporal-wording candidates | 0 |
+
+These three rows are review candidates, not verified defects.  Both package
+plans also contain 7 skipped and 5 unsupported methods (alongside 8 executed
+and 5 ineligible methods), so selected-checker `unknown=0` is not full-package
+coverage.  Likewise, `completed_no_finding` is a checker outcome and not a clean
+benchmark verdict.  The controlled Lite runs use `lite_100.jsonl` (SHA prefix
+`fe59c596`), while the unmodified Lite-CN audit uses a separately pinned local
+representation (SHA prefix `89be51be`); their item-level results must not be
+silently pooled.
+
 ## Ablation Baselines — Four-Way Comparison
 
 Four systems compared on two supervised datasets (SVAMP-Platinum n=100; MMLU-Redux n=1000).
@@ -156,3 +230,45 @@ Full three-tier breakdown for reference.
 | GSM8K | 0.667 | 0.600 | 0.632 | 0.400 | 1.000 | 0.571 | 0.714 | 1.000 | **0.833** |
 | MMLU-Redux (n=1000) | 0.875 | 0.210 | 0.339 | 0.641 | 0.686 | **0.663** | 0.727 | 0.503 | 0.595 |
 | MMLU vote3 (n=1000) | 0.811 | 0.268 | **0.402** | 0.629 | 0.751 | **0.685** | 0.720 | 0.527 | 0.608 |
+
+---
+
+## Execution-Grounded Evaluator Audit (DS-1000 pilot, 2026-07-13)
+
+> **Superseded automation status (2026-07-14):** the two DS-1000 cases below
+> remain valuable manually verified findings, but the original run must not be
+> cited as sound automatic confirmation. A second audit found that the old
+> driver did not always replay identical harness inputs, treated finite-sample
+> output proximity as equivalence, and ran locally without a real sandbox. The
+> implementation now requires exact typed equality, serialized same-input
+> replay, explicit semantic contracts, and an isolated runner. A further adversarial
+> test showed that evaluator code and numeric adjudication still share one interpreter,
+> so harness code can monkeypatch the comparator. Current execution observations are
+> therefore forcibly capped at `review` until a separate trusted adjudicator exists;
+> the old report predates these gates and has not been rerun.
+
+New tier: `benchcore/evaluator_execution.py` — the LLM only *generates* probe solutions;
+every verdict is decided by real execution (differential validation on the harness's own
+test inputs, asymmetric strict/loose comparators so both confirmation directions are
+conservative). Full report: `reports/ds1000_execution_audit.md`.
+
+**Real data (DS-1000 Pandas+Numpy, 60 items, 411 probes)**: 141 validated equivalent
+probes (0 rejected), 190 validated mutants → 186 killed, 4 survived. Hand-verified:
+**2 genuine evaluator defects** — id=11 (harness cannot detect whether the timezone was
+actually removed, the very property the task tests) and id=300 (`assert_allclose`
+broadcasting makes it shape-blind); id=308 was a method FP (property-based comparator
+ignores `ans`; task admits many outputs) → fixed with an automatic property-based guard
+that downgrades such survivals to review. Plus 4 `test_string` surface-strictness reviews.
+
+**Injected-defect validation (20 clean items × 3 evaluator-defect classes, probes
+cache-paired with the clean condition)**:
+
+| Injected defect | Detected |
+|---|---:|
+| neutralize_comparator | 20/20 (100%) |
+| reject_gold | 20/20 (100%) |
+| implementation_assert | 13/20 (65%) |
+
+`implementation_assert` misses occur when the pinned token is the natural idiom that all
+generated equivalents also use — detection depends on probe diversity (honest recall floor
+with n=3 equivalents).
