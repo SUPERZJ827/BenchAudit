@@ -28,7 +28,7 @@ from benchcore.execution import (  # noqa: E402
 )
 
 
-PLAN = REPO_ROOT / "docs" / "VERIFIER_TOPOLOGY_PREFLIGHT_PLAN_20260802.md"
+PLAN = REPO_ROOT / "docs" / "VERIFIER_TOPOLOGY_PREFLIGHT_PLAN_V2_20260802.md"
 PROXY_SCRIPT = REPO_ROOT / "scripts" / "https_connect_allowlist_proxy.py"
 PROBE_SCRIPT = REPO_ROOT / "scripts" / "verifier_topology_probe.py"
 PINNED_IMAGE = (
@@ -166,9 +166,7 @@ def _create_network(
     value = json.loads(inspect.stdout)
     if isinstance(value, list):
         value = value[0]
-    observed_internal = value.get("internal")
-    if observed_internal is None:
-        observed_internal = value.get("Internal")
+    observed_internal, derivation = _derive_internal_network(value)
     if bool(observed_internal) is not internal:
         raise PreflightFailure(
             "network_internal_flag",
@@ -179,8 +177,37 @@ def _create_network(
         "network_id": result.stdout.strip(),
         "subnet": subnet_prefix + ".0/24",
         "internal": internal,
+        "internal_derivation": derivation,
         "inspect_sha256": hashlib.sha256(inspect.stdout.encode()).hexdigest(),
     }
+
+
+def _derive_internal_network(value: dict[str, Any]) -> tuple[bool | None, str]:
+    """Recognize explicit booleans or the frozen Podman-CNI representation."""
+
+    explicit = value.get("internal")
+    if explicit is None:
+        explicit = value.get("Internal")
+    if isinstance(explicit, bool):
+        return explicit, "explicit_internal_boolean"
+    plugins = value.get("plugins")
+    if not isinstance(plugins, list):
+        return None, "unknown_network_inspect_representation"
+    bridges = [item for item in plugins if item.get("type") == "bridge"]
+    if len(bridges) != 1:
+        return None, "podman_cni_bridge_cardinality_invalid"
+    bridge = bridges[0]
+    plugin_types = {str(item.get("type")) for item in plugins}
+    if (
+        bridge.get("isGateway") is False
+        and bridge.get("ipMasq") in (None, False)
+        and "dnsname" not in plugin_types
+        and "masq" not in plugin_types
+    ):
+        return True, "podman_cni_no_gateway_no_masquerade_no_dnsname"
+    if bridge.get("isGateway") is True and bridge.get("ipMasq") is True:
+        return False, "podman_cni_gateway_with_masquerade"
+    return None, "podman_cni_ambiguous"
 
 
 def _container_networks(engine: str, name: str) -> tuple[set[str], dict[str, Any]]:
@@ -381,7 +408,7 @@ def run_preflight(output_dir: Path) -> dict[str, Any]:
     for path in (bundle / "scripts").iterdir():
         os.chmod(path, 0o644)
     result: dict[str, Any] = {
-        "receipt_schema": "benchaudit-verifier-topology-preflight-v1",
+        "receipt_schema": "benchaudit-verifier-topology-preflight-v2",
         "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
         "claim_boundary": {
             "topology_only": True,
@@ -586,7 +613,7 @@ def main() -> int:
     except PreflightFailure as exc:
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
-            "receipt_schema": "benchaudit-verifier-topology-preflight-v1",
+            "receipt_schema": "benchaudit-verifier-topology-preflight-v2",
             "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
             "first_failing_gate": exc.gate,
             "reason": exc.detail,
@@ -601,7 +628,7 @@ def main() -> int:
     except Exception as exc:  # an operational surprise is a fail-closed result
         output_dir.mkdir(parents=True, exist_ok=True)
         result = {
-            "receipt_schema": "benchaudit-verifier-topology-preflight-v1",
+            "receipt_schema": "benchaudit-verifier-topology-preflight-v2",
             "decision": "NOT_IDENTIFIABLE_VERIFIER_TOPOLOGY",
             "first_failing_gate": "unexpected_preflight_error",
             "reason": type(exc).__name__,
