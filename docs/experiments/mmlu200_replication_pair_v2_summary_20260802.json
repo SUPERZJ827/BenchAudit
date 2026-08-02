@@ -1,0 +1,82 @@
+{
+  "schema_version": "mmlu200-replication-pair-v2-published-summary-v1",
+  "execution_commit": "0b464c2ebd3367cd2ece568617fca57829dc6373",
+  "detached_fresh_clone": true,
+  "protocol_sha256": "33a9e6ff313e56325ed85623e4880b0a8a3cfa9bbb1abbf9fcbdf625f3c81cf9",
+  "runner_sha256": "7f78bde8d7bc7654ac9074694e3b2cd8243c8ef20d3e2edda7f79f6437e7c8c4",
+  "config_sha256": "9b8c0d774e527c470d3854dc5d0f02512056daa3f01755aa3d17312ac3482e52",
+  "raw_replication_summary_sha256": "32f3a198f41d51cfecafea7695fa51a3dd77366e844e4ed79f430c19e43e12cc",
+  "runs": [
+    {
+      "run": 1,
+      "passed": true,
+      "api_attempts": 1256,
+      "cache_entries": 1253,
+      "cache_hits": 0,
+      "provider_tokens": 2913971,
+      "operational_failed": 3,
+      "operational_attempted": 3054,
+      "operational_failure_rate": 0.0009823182711198428,
+      "llm_derived_confirmed": 0,
+      "elapsed_seconds": 449.195,
+      "candidate": {
+        "prediction_items": 86,
+        "true_positive": 68,
+        "false_positive": 18,
+        "false_negative": 32,
+        "precision": 0.7906976744186046,
+        "recall": 0.68,
+        "f1": 0.7311827956989247
+      }
+    },
+    {
+      "run": 2,
+      "passed": true,
+      "api_attempts": 1257,
+      "cache_entries": 1252,
+      "cache_hits": 0,
+      "provider_tokens": 2911572,
+      "operational_failed": 2,
+      "operational_attempted": 3050,
+      "operational_failure_rate": 0.0006557377049180328,
+      "llm_derived_confirmed": 0,
+      "elapsed_seconds": 432.769,
+      "candidate": {
+        "prediction_items": 83,
+        "true_positive": 62,
+        "false_positive": 21,
+        "false_negative": 38,
+        "precision": 0.7469879518072289,
+        "recall": 0.62,
+        "f1": 0.6775956284153004
+      }
+    }
+  ],
+  "metrics": {
+    "item_jaccard": 0.8105263157894737,
+    "violation_jaccard": 0.6834170854271356,
+    "f1_absolute_difference": 0.05358716728362434,
+    "per_method_jaccard": {
+      "llm_evidence_fusion": 0.6774193548387096,
+      "llm_gold_audit": 0.6547619047619048,
+      "llm_option_applicability": 0.0,
+      "llm_option_set": 0.6333333333333333,
+      "llm_question_clarity": 0.9375,
+      "static_rule": 1.0,
+      "task_integrity_rule": 1.0
+    }
+  },
+  "preregistered_interpretation": "DOES_NOT_SUPPORT_MMLU_MORE_STABLE_FOR_THIS_PAIR",
+  "artifact_sha256": {
+    "execution_receipt": "7fd9b56b3857d4fa67780b75f54c5fbf85a472ba14ede0ef11b5ffe0bbd6be1e",
+    "run1_cache": "60f043709513899ff7f6459c7878fd3f3b4e80a61172b2dcd07fcd3ed28cec2c",
+    "run1_report": "c58469b6bc472d5ba9a83119f78222ee077763198b29d4c0fcb4bcc7e15c2bfd",
+    "run1_comparison": "79706e5ee180ef77915f9df2d36f35b83da70a1a6df0baceaecbcac55bc19c13",
+    "run1_integrity_gate": "48fbc0abde8910cb77bc8b18d8f419fb9d8be1bd92d60298e62188d236a59b21",
+    "run2_cache": "d5dbe6b117c53ac52b637e5f4d921c979ebf188ff21c18cee7c572b4b40330af",
+    "run2_report": "920fa803b869f2f7bcc97ac4e4a4d17c0f8761016887d48c9b9366f198e6bd38",
+    "run2_comparison": "3f4b8ec34eabd5b2fa463b4be8173464e0bc199c89ddc5cdf6fb3ba1d793d476",
+    "run2_integrity_gate": "65ce35e376252c6bf9b261bbee6a3d7185edcaaa9e6c02003ddca8a4d027313b"
+  },
+  "claim_boundary": "This is one same-day pair on the frozen MMLU-200 sample. It refutes the preregistered claim that this pair is more stable than the SVAMP reference; it is not a population estimate for all MMLU runs."
+}
