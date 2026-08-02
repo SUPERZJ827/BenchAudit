@@ -13,6 +13,57 @@ from .schema import BenchmarkItem, FieldMapping, Violation
 from .promotion import enforce_all
 
 
+REPORT_SCHEMA_VERSION = "benchcore-audit-report-v2"
+STABLE_PAYLOAD_SCHEMA_VERSION = "benchcore-audit-stable-payload-v1"
+_STABLE_OPTIONAL_FIELDS = (
+    "coverage_ledger",
+    "benchmark_package",
+    "audit_plan",
+)
+
+
+def build_stable_payload(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the semantic report payload used for deterministic hashing.
+
+    Runtime metadata and local paths are intentionally excluded.  The source
+    identity binds the input bytes and audited rows without making an absolute
+    or temporary path part of the stable identity.
+    """
+
+    payload: dict[str, Any] = {
+        "schema_version": STABLE_PAYLOAD_SCHEMA_VERSION,
+        "report_schema_version": report.get("schema_version", REPORT_SCHEMA_VERSION),
+        "source_identity": report["source_identity"],
+        "summary": report["summary"],
+        "field_mapping": report["field_mapping"],
+        "methods_run": report.get("methods_run", []),
+        "violations": report["violations"],
+    }
+    for field in _STABLE_OPTIONAL_FIELDS:
+        if field in report:
+            payload[field] = report[field]
+    return payload
+
+
+def stable_payload_sha256(report: Mapping[str, Any]) -> str:
+    """Hash canonical semantic content, excluding volatile run metadata."""
+
+    encoded = json.dumps(
+        build_stable_payload(report),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _refresh_stable_payload_metadata(report: dict[str, Any]) -> None:
+    report["schema_version"] = REPORT_SCHEMA_VERSION
+    report["stable_payload_schema_version"] = STABLE_PAYLOAD_SCHEMA_VERSION
+    report["stable_payload_sha256"] = stable_payload_sha256(report)
+
+
 def summarize(
     items: list[BenchmarkItem],
     violations: list[Violation],
@@ -72,6 +123,7 @@ def build_report(
         else None
     )
     report = {
+        "schema_version": REPORT_SCHEMA_VERSION,
         "input_path": input_path,
         "source_identity": build_source_identity(input_path, items),
         "summary": summarize(items, violations, serialized_ledger),
@@ -87,6 +139,7 @@ def build_report(
         report["benchmark_package"] = benchmark_package
     if audit_plan:
         report["audit_plan"] = audit_plan
+    _refresh_stable_payload_metadata(report)
     return report
 
 
@@ -133,6 +186,7 @@ def build_source_identity(
 
 def write_json_report(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _refresh_stable_payload_metadata(report)
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
