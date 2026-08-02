@@ -1,0 +1,16 @@
+{
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "proxy_url": "http://127.0.0.1:17890",
+  "api_key_env": "DEEPSEEK_API_KEY",
+  "temperature": 0.0,
+  "timeout": 120,
+  "max_tokens": 5000,
+  "max_retries": 3,
+  "dry_run": false,
+  "n_votes": 1,
+  "vote_temperature": 0.3,
+  "thinking": "disabled",
+  "max_api_attempts": 1400,
+  "observed_token_stop": 4000000
+}

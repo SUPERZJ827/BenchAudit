@@ -16,6 +16,7 @@ from benchcore.llm_client import (
     LLMConfig,
     _extract_json_result,
     _perform_http_request_with_deadline,
+    load_llm_config,
 )
 
 
@@ -292,6 +293,64 @@ class LLMClientTest(unittest.TestCase):
             client.run_stats()["cache_key_schema_version"],
             CACHE_KEY_SCHEMA_VERSION,
         )
+
+    def test_explicit_http_connect_proxy_is_used_and_recorded(self):
+        connections = []
+
+        class FakeHTTPSConnection:
+            def __init__(self, host, port, **kwargs):
+                self.host = host
+                self.port = port
+                self.kwargs = kwargs
+                self.tunnel = None
+                self.closed = False
+                connections.append(self)
+
+            def set_tunnel(self, host, port):
+                self.tunnel = (host, port)
+
+            def close(self):
+                self.closed = True
+
+        client = LLMClient(LLMConfig(
+            model="proxy-test",
+            base_url="https://api.example.invalid/v1",
+            proxy_url="http://127.0.0.1:17890",
+            max_retries=1,
+        ))
+        response = {
+            "choices": [{"message": {"content": '{"status":"ok"}'}}]
+        }
+        with mock.patch.object(
+            llm_client_module.http.client,
+            "HTTPSConnection",
+            FakeHTTPSConnection,
+        ), mock.patch.object(
+            llm_client_module,
+            "_perform_http_request_with_deadline",
+            return_value=(200, json.dumps(response).encode()),
+        ):
+            self.assertEqual(
+                client._post_chat_completions({"messages": []}, "key"),
+                response,
+            )
+
+        self.assertEqual(len(connections), 1)
+        self.assertEqual((connections[0].host, connections[0].port), ("127.0.0.1", 17890))
+        self.assertEqual(connections[0].tunnel, ("api.example.invalid", 443))
+        self.assertTrue(connections[0].closed)
+        self.assertEqual(client.run_stats()["proxy_url"], "http://127.0.0.1:17890")
+
+    def test_proxy_config_rejects_credentials_and_non_http_scheme(self):
+        for value in (
+            "https://127.0.0.1:17890",
+            "http://user:secret@127.0.0.1:17890",
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "config.json"
+                path.write_text(json.dumps({"proxy_url": value}))
+                with self.assertRaisesRegex(ValueError, "proxy_url"):
+                    load_llm_config(str(path))
 
     def test_truncated_json_fails_fast_without_identical_provider_retry(self):
         client = StubLLMClient([
