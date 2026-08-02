@@ -18,6 +18,7 @@ from typing import Any
 
 
 MAX_HEADER_BYTES = 16 * 1024
+UPSTREAM_TIMEOUT_SECONDS = 15
 DISPOSITIONS = (
     "allowed",
     "forbidden",
@@ -67,6 +68,22 @@ def normalize_authority(value: str) -> str:
     return f"{host.casefold()}:{port}"
 
 
+def normalize_upstream_proxy_authority(value: str) -> str:
+    """Require a literal-IP HTTP CONNECT proxy endpoint."""
+
+    normalized = normalize_authority(value)
+    host, port_text = normalized.rsplit(":", 1)
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise ValueError("upstream proxy host must be a literal IP address") from exc
+    if address.is_unspecified:
+        raise ValueError("upstream proxy host must not be unspecified")
+    if address.version == 6:
+        return f"[{address.compressed}]:{port_text}"
+    return f"{address.compressed}:{port_text}"
+
+
 class AuditLogger:
     """Write one terminal record per accepted socket plus stable aggregates."""
 
@@ -80,6 +97,8 @@ class AuditLogger:
         listen_text: str,
         listen_normalized: str,
         port: int,
+        upstream_profile_id: str | None = None,
+        upstream_proxy_authority: str | None = None,
     ) -> None:
         if not session_id:
             raise ValueError("session_id is required")
@@ -90,6 +109,8 @@ class AuditLogger:
         self.listen_text = listen_text
         self.listen_normalized = listen_normalized
         self.port = port
+        self.upstream_profile_id = upstream_profile_id
+        self.upstream_proxy_authority = upstream_proxy_authority
         self._lock = threading.RLock()
         self._next_sequence = 1
         self._finished = False
@@ -108,6 +129,9 @@ class AuditLogger:
             "listen_text": listen_text,
             "listen_normalized": listen_normalized,
             "port": port,
+            "upstream_mode": "http_connect" if upstream_proxy_authority else "direct",
+            "upstream_profile_id": upstream_profile_id,
+            "upstream_proxy_authority": upstream_proxy_authority,
         })
 
     def _write_locked(self, value: dict[str, Any]) -> None:
@@ -177,6 +201,11 @@ class AuditLogger:
                 "listen_text": self.listen_text,
                 "listen_normalized": self.listen_normalized,
                 "port": self.port,
+                "upstream_mode": (
+                    "http_connect" if self.upstream_proxy_authority else "direct"
+                ),
+                "upstream_profile_id": self.upstream_profile_id,
+                "upstream_proxy_authority": self.upstream_proxy_authority,
                 "parsed_authorities": sorted(self._parsed_authorities),
                 "disposition_counts": {
                     authority: dict(sorted(counts.items()))
@@ -207,6 +236,53 @@ class AuditLogger:
 
 class ConnectHandler(socketserver.BaseRequestHandler):
     allowed_authority: str
+    upstream_profile_id: str | None = None
+    upstream_proxy_authority: str | None = None
+
+    def _open_upstream(self, authority: str) -> tuple[socket.socket, bytes]:
+        """Open either a direct socket or a fail-closed nested CONNECT tunnel."""
+
+        host, port_text = authority.rsplit(":", 1)
+        if self.upstream_proxy_authority is None:
+            return socket.create_connection(
+                (host, int(port_text)), timeout=UPSTREAM_TIMEOUT_SECONDS
+            ), b""
+
+        proxy_host, proxy_port_text = self.upstream_proxy_authority.rsplit(":", 1)
+        proxy_host = proxy_host.strip("[]")
+        upstream = socket.create_connection(
+            (proxy_host, int(proxy_port_text)), timeout=UPSTREAM_TIMEOUT_SECONDS
+        )
+        try:
+            upstream.settimeout(UPSTREAM_TIMEOUT_SECONDS)
+            upstream.sendall(
+                (
+                    f"CONNECT {authority} HTTP/1.1\r\n"
+                    f"Host: {authority}\r\n"
+                    "Proxy-Connection: Keep-Alive\r\n\r\n"
+                ).encode("ascii")
+            )
+            data = bytearray()
+            while b"\r\n\r\n" not in data and len(data) < MAX_HEADER_BYTES:
+                chunk = upstream.recv(4096)
+                if not chunk:
+                    raise OSError("upstream_proxy_eof_before_complete_header")
+                data.extend(chunk)
+            if b"\r\n\r\n" not in data:
+                raise OSError("upstream_proxy_header_too_large")
+            header, buffered = bytes(data).split(b"\r\n\r\n", 1)
+            try:
+                status_line = header.split(b"\r\n", 1)[0].decode("ascii")
+                version, status_text, _reason = status_line.split(" ", 2)
+                status_code = int(status_text)
+            except (UnicodeDecodeError, ValueError) as exc:
+                raise OSError("upstream_proxy_invalid_status_line") from exc
+            if version not in {"HTTP/1.0", "HTTP/1.1"} or status_code != 200:
+                raise OSError(f"upstream_proxy_status_{status_code}")
+            return upstream, buffered
+        except Exception:
+            upstream.close()
+            raise
 
     def _send_response(self, status_code: int, reason: str) -> None:
         try:
@@ -294,18 +370,19 @@ class ConnectHandler(socketserver.BaseRequestHandler):
                 reason = "method_version_or_authority_not_allowed"
                 self._send_response(status_code, "Forbidden")
                 return
-            host, port_text = authority.rsplit(":", 1)
             try:
-                upstream = socket.create_connection((host, int(port_text)), timeout=15)
+                upstream, buffered = self._open_upstream(authority)
             except OSError as exc:
                 disposition = "upstream_failed"
                 status_code = 502
-                reason = type(exc).__name__
+                reason = str(exc) or type(exc).__name__
                 self._send_response(status_code, "Bad Gateway")
                 return
             upstream_connected = True
             with upstream:
                 self.request.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                if buffered:
+                    self.request.sendall(buffered)
                 status_code = 200
                 self._relay(upstream)
             disposition = "allowed"
@@ -371,9 +448,20 @@ def main() -> int:
     parser.add_argument("--audit-log", type=Path, required=True)
     parser.add_argument("--stable-summary-out", type=Path, required=True)
     parser.add_argument("--session-id", required=True)
+    parser.add_argument("--upstream-profile-id")
+    parser.add_argument("--upstream-proxy-authority")
     args = parser.parse_args()
+    if bool(args.upstream_profile_id) != bool(args.upstream_proxy_authority):
+        parser.error(
+            "--upstream-profile-id and --upstream-proxy-authority are required together"
+        )
     listen_normalized = normalize_listen_address(args.listen)
     allowed_authority = normalize_authority(args.allow_authority)
+    upstream_proxy_authority = (
+        normalize_upstream_proxy_authority(args.upstream_proxy_authority)
+        if args.upstream_proxy_authority
+        else None
+    )
     audit = AuditLogger(
         audit_log=args.audit_log,
         stable_summary_out=args.stable_summary_out,
@@ -382,11 +470,17 @@ def main() -> int:
         listen_text=args.listen,
         listen_normalized=listen_normalized,
         port=args.port,
+        upstream_profile_id=args.upstream_profile_id,
+        upstream_proxy_authority=upstream_proxy_authority,
     )
     handler = type(
         "PinnedConnectHandler",
         (ConnectHandler,),
-        {"allowed_authority": allowed_authority},
+        {
+            "allowed_authority": allowed_authority,
+            "upstream_profile_id": args.upstream_profile_id,
+            "upstream_proxy_authority": upstream_proxy_authority,
+        },
     )
     with AuditedThreadingTCPServer(
         (listen_normalized, args.port), handler, audit=audit
