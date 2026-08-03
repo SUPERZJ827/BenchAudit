@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import subprocess
+import sys
 
 import pytest
 
@@ -40,6 +42,15 @@ def test_frozen_hashes_and_strata_receipt_are_valid() -> None:
     availability, strata = selector.verify_frozen_inputs()
     assert availability["outcomes"]["detection_source"] == "PASS_DETECTION_HOLDOUT_SOURCE_AVAILABLE"
     assert strata["outcome"] == "PASS_SELECTION_STRATA_AVAILABLE"
+
+
+def test_direct_cli_entrypoint_is_importable() -> None:
+    completed = subprocess.run(
+        [sys.executable, str(selector.Path(selector.__file__)), "--help"],
+        capture_output=True, text=True, check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "--truth-out" in completed.stdout
 
 
 def test_selection_exactly_matches_all_frozen_quotas() -> None:
