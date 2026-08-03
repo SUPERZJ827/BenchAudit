@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import inspect
 
+import pytest
+
 from scripts import verify_mmlu_redux_ok_mechanical as verifier
 
 
@@ -63,6 +65,7 @@ def test_gold_domain_unknown_contract_abstains() -> None:
     assert result == {"status": "not_applicable", "reason": "contract_not_explicit_single_choice"}
 
 
+@pytest.mark.skipif(not verifier.SOURCE.is_file(), reason="frozen dataset artifact is external to Git")
 def test_frozen_population_and_four_pool_counts_recompute() -> None:
     rows, report = verifier.load_frozen()
     result = verifier.pools(rows, report)
@@ -78,6 +81,7 @@ def test_frozen_population_and_four_pool_counts_recompute() -> None:
     assert not (result["expert_no_review"] & result["p_missed"])
 
 
+@pytest.mark.skipif(not verifier.SOURCE.is_file(), reason="frozen dataset artifact is external to Git")
 def test_all_86_items_run_both_rules_and_only_confirmed_route_out() -> None:
     rows, report = verifier.load_frozen()
     result = verifier.verify_all(rows, report)
@@ -97,4 +101,3 @@ def test_verifier_has_no_network_or_llm_path() -> None:
     source = inspect.getsource(verifier)
     for forbidden in ("import requests", "import urllib", "import socket", "LLMClient("):
         assert forbidden not in source
-
