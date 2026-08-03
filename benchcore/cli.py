@@ -33,6 +33,7 @@ from .artifact_consistency import (
     RubricOutputContractConsistencyChecker,
 )
 from .auditor import audit_items_with_ledger
+from .decision_policy import decision_policy_snapshot
 from .comparison import compare_report, write_comparison_markdown
 from .forensic import build_forensic_bundle, write_forensic_json, write_forensic_markdown
 from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_study_markdown
@@ -1077,6 +1078,10 @@ def run_audit(args: argparse.Namespace) -> int:
             started_at=started_at,
             primary_client=client,
             workers=max(args.workers, 1),
+            decision_policy=decision_policy_snapshot(
+                llm_confirm_threshold=args.llm_confirm_threshold,
+                llm_review_threshold=args.llm_review_threshold,
+            ),
             extra=extra_metadata or None,
         ),
         benchmark_package=benchmark_package.to_dict(),
@@ -1683,6 +1688,10 @@ def run_investigate(args: argparse.Namespace) -> int:
         started_at=started_at,
         primary_client=client,
         verifier_client=verifier_client if verifier_client is not client else None,
+        decision_policy=decision_policy_snapshot(
+            llm_confirm_threshold=getattr(args, "llm_confirm_threshold", None),
+            llm_review_threshold=getattr(args, "llm_review_threshold", None),
+        ),
         extra={
             "investigator_passes": max(args.investigator_passes, 1),
             "investigator_quorum": args.investigator_quorum,
@@ -1730,6 +1739,7 @@ def collect_run_metadata(
     primary_client: LLMClient | None,
     verifier_client: LLMClient | None = None,
     workers: int | None = None,
+    decision_policy: dict | None = None,
     extra: dict | None = None,
 ) -> dict:
     metadata = {
@@ -1746,6 +1756,8 @@ def collect_run_metadata(
         if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
             raise ValueError("workers must be a positive integer")
         metadata["workers"] = workers
+    if decision_policy is not None:
+        metadata["decision_policy"] = decision_policy
     if primary_client is not None:
         metadata["llm"] = primary_client.run_stats()
     if verifier_client is not None:
