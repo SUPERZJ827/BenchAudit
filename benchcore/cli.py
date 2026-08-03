@@ -33,7 +33,11 @@ from .artifact_consistency import (
     RubricOutputContractConsistencyChecker,
 )
 from .auditor import audit_items_with_ledger
-from .decision_policy import decision_policy_snapshot
+from .decision_policy import (
+    CASCADE_MODES,
+    DEFAULT_CASCADE_MODE,
+    decision_policy_snapshot,
+)
 from .comparison import compare_report, write_comparison_markdown
 from .forensic import build_forensic_bundle, write_forensic_json, write_forensic_markdown
 from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_study_markdown
@@ -164,6 +168,12 @@ def main(argv: list[str] | None = None) -> int:
     audit_parser.add_argument("--llm-config", help="LLM config JSON")
     audit_parser.add_argument("--llm-cache", help="LLM response cache JSONL")
     audit_parser.add_argument("--llm-dry-run", action="store_true", help="Do not call API; emit dry-run uncertain outputs")
+    audit_parser.add_argument(
+        "--cascade-mode",
+        choices=list(CASCADE_MODES),
+        default=DEFAULT_CASCADE_MODE,
+        help="Cascade ablation arm; 'full' is the unmodified pipeline",
+    )
     audit_parser.add_argument("--llm-confirm-threshold", type=float, default=0.75)
     audit_parser.add_argument("--llm-review-threshold", type=float, default=0.45)
     audit_parser.add_argument(
@@ -946,6 +956,7 @@ def run_audit(args: argparse.Namespace) -> int:
                         client,
                         confirm_threshold=args.llm_confirm_threshold,
                         review_threshold=args.llm_review_threshold,
+                        cascade_mode=getattr(args, "cascade_mode", DEFAULT_CASCADE_MODE),
                         mode=args.gold_evidence_mode,
                     )
                 )
@@ -1081,6 +1092,7 @@ def run_audit(args: argparse.Namespace) -> int:
             decision_policy=decision_policy_snapshot(
                 llm_confirm_threshold=args.llm_confirm_threshold,
                 llm_review_threshold=args.llm_review_threshold,
+                cascade_mode=getattr(args, "cascade_mode", None),
             ),
             extra=extra_metadata or None,
         ),

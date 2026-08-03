@@ -115,3 +115,73 @@ def test_audit_run_metadata_records_the_decision_policy(tmp_path):
     )
     recorded = json.loads(out.read_text())["run_metadata"]["decision_policy"]
     assert recorded["sha256"] == dp.decision_policy_sha256(recorded["policy"])
+
+
+# --- cascade ablation --------------------------------------------------------
+
+def test_normalized_cascade_drops_the_free_text_channel():
+    from benchcore.llm_auditor import normalize_blind_solution
+
+    blind = {
+        "solution_status": "solved",
+        "derived_answers": ["5"],
+        "confidence": 0.87,
+        "needs_expert": False,
+        "assumption_risk": "none",
+        "rationale": "one wording",
+        "claims": [{"claim": "a", "support": "b"}],
+        "required_assumptions": ["x"],
+    }
+    normalized = normalize_blind_solution(blind)
+    for prose in ("rationale", "claims", "required_assumptions"):
+        assert prose not in normalized
+
+
+def test_normalized_cascade_collapses_equivalent_blind_solves():
+    """Two temperature-0 samples that differ only in prose and a hair of
+    confidence must produce byte-identical downstream prompt input."""
+    from benchcore.llm_auditor import normalize_blind_solution
+
+    base = {
+        "solution_status": "solved",
+        "derived_answers": ["5"],
+        "confidence": 0.87,
+        "needs_expert": False,
+        "assumption_risk": "none",
+        "rationale": "one wording",
+    }
+    other = dict(base, confidence=0.86, rationale="a different wording")
+    assert normalize_blind_solution(base) == normalize_blind_solution(other)
+
+
+def test_confidence_bucket_still_separates_across_the_gate():
+    from benchcore.llm_auditor import normalize_blind_solution
+
+    above = normalize_blind_solution({"confidence": dp.BLIND_SOLVE_MIN_CONFIDENCE})
+    below = normalize_blind_solution({"confidence": dp.BLIND_SOLVE_MIN_CONFIDENCE - 0.01})
+    assert above[dp.CONFIDENCE_BUCKET_FIELD] != below[dp.CONFIDENCE_BUCKET_FIELD]
+
+
+def test_full_cascade_is_unchanged():
+    from benchcore.llm_auditor import apply_cascade_mode
+
+    blind = {"solution_status": "solved", "rationale": "prose"}
+    assert apply_cascade_mode(blind, "full") is blind
+
+
+def test_ungated_bypasses_every_live_cascade_gate():
+    source = (
+        Path(__file__).resolve().parent.parent / "benchcore" / "llm_auditor.py"
+    ).read_text(encoding="utf-8")
+    assert "cascade_gate_is_bypassed(self.cascade_mode)\n            and not option_evidence_is_risky" in source
+    assert "defender_is_needed(\n            item, option_evidence, challenger, self.cascade_mode\n        )" in source
+
+
+def test_cascade_mode_is_part_of_the_policy_hash():
+    hashes = {m: dp.decision_policy_sha256(cascade_mode=m) for m in dp.CASCADE_MODES}
+    assert len(set(hashes.values())) == len(dp.CASCADE_MODES)
+
+
+def test_unknown_cascade_mode_fails_closed():
+    with pytest.raises(ValueError):
+        dp.decision_policy(cascade_mode="whatever")
