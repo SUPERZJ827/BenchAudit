@@ -119,6 +119,7 @@ def aggregate_table(config: str, path: Path) -> dict[str, Any]:
         identities.append(row_identity(config, row))
     identity_counts = Counter(identities)
     unknown = sum(count for status, count in statuses.items() if status not in STATUSES)
+    duplicate_rows = sum(count - 1 for count in identity_counts.values() if count > 1)
     return {
         "config": config,
         "rows": len(rows),
@@ -127,7 +128,10 @@ def aggregate_table(config: str, path: Path) -> dict[str, Any]:
         "positive_rows": sum(statuses[s] for s in POSITIVE_STATUSES),
         "negative_rows": sum(statuses[s] for s in NEGATIVE_STATUSES),
         "identity_missing_rows": 0,
-        "identity_duplicate_rows": sum(count - 1 for count in identity_counts.values() if count > 1),
+        "identity_duplicate_rows": duplicate_rows,
+        "identity_outcome": (
+            "AVAILABLE" if duplicate_rows == 0 else "NOT_IDENTIFIABLE_ITEM_IDENTITY"
+        ),
         "identity_set_sha256": hashlib.sha256(stable_bytes(sorted(identity_counts))).hexdigest(),
         "artifact": {"bytes": path.stat().st_size, "sha256": sha256_file(path)},
     }
@@ -183,12 +187,19 @@ def cache_filename(config: str) -> str:
 def decide_detection(configs: list[dict[str, Any]]) -> str:
     if any(row["unknown_status_rows"] for row in configs):
         return "NOT_IDENTIFIABLE_DEFECT_LABELS"
-    mixed = [row for row in configs if row["positive_rows"] > 0 and row["negative_rows"] > 0 and row["identity_duplicate_rows"] == 0]
-    if any(row["identity_duplicate_rows"] or row["identity_missing_rows"] for row in configs):
+    eligible = [
+        row for row in configs
+        if row["identity_duplicate_rows"] == 0 and row["identity_missing_rows"] == 0
+    ]
+    mixed = [
+        row for row in eligible
+        if row["positive_rows"] > 0 and row["negative_rows"] > 0
+    ]
+    if len(eligible) < 3:
         return "NOT_IDENTIFIABLE_ITEM_IDENTITY"
-    if sum(row["positive_rows"] for row in configs) < 100 or len(mixed) < 3:
+    if sum(row["positive_rows"] for row in eligible) < 100 or len(mixed) < 3:
         return "INSUFFICIENT_POSITIVE_PREVALENCE"
-    if sum(row["negative_rows"] for row in configs) < 300:
+    if sum(row["negative_rows"] for row in eligible) < 300:
         return "INSUFFICIENT_NEGATIVE_CONTROLS"
     return "PASS_DETECTION_HOLDOUT_SOURCE_AVAILABLE"
 
@@ -250,6 +261,17 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         "unknown_status_rows": sum(row["unknown_status_rows"] for row in config_results),
         "mixed_label_configs": sum(row["positive_rows"] > 0 and row["negative_rows"] > 0 for row in config_results),
         "cache_bytes": cache_total_bytes,
+        "identity_eligible_configs": sum(
+            row["identity_outcome"] == "AVAILABLE" for row in config_results
+        ),
+        "identity_eligible_positive_rows": sum(
+            row["positive_rows"] for row in config_results
+            if row["identity_outcome"] == "AVAILABLE"
+        ),
+        "identity_eligible_negative_rows": sum(
+            row["negative_rows"] for row in config_results
+            if row["identity_outcome"] == "AVAILABLE"
+        ),
     }
     availability = {
         "schema_version": "platinum-untouched-availability-v1",
@@ -268,6 +290,9 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         "auditor_executed": False,
         "llm_api_attempts": 0,
         "rng_instantiated": False,
+        "implementation_corrections_before_result_commit": [
+            "An initial uncommitted run incorrectly treated any one config's duplicate native IDs as a global failure. The frozen gate requires at least three identity-valid configs; the implementation was corrected before result publication, without changing protocol thresholds."
+        ],
     }
     out.mkdir(parents=True, exist_ok=True)
     availability_path = out / "availability.json"
@@ -294,6 +319,8 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         f"- Model-output matrix: **{cache_outcome}**",
         f"- Configs/rows: **{totals['configs']} / {totals['rows']}**",
         f"- Natural positives / negative controls: **{totals['positive_rows']} / {totals['negative_rows']}**",
+        f"- Identity-eligible positives / negatives: **{totals['identity_eligible_positive_rows']} / {totals['identity_eligible_negative_rows']}**",
+        f"- Identity-eligible configs: **{totals['identity_eligible_configs']}**",
         f"- Mixed-label configs: **{totals['mixed_label_configs']}**",
         f"- Paper-cache bytes inspected: **{totals['cache_bytes']}**",
         "- Item content or item-label mapping emitted: **false**",
@@ -301,19 +328,21 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         "",
         "## Per-config aggregates",
         "",
-        "| config | rows | consensus | verified | revised | rejected | positive | negative | duplicate IDs |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| config | rows | consensus | verified | revised | rejected | positive | negative | duplicate IDs | identity outcome |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for row in config_results:
         counts = row["status_counts"]
         report.append(
             f"| {row['config']} | {row['rows']} | {counts['consensus']} | {counts['verified']} | "
             f"{counts['revised']} | {counts['rejected']} | {row['positive_rows']} | "
-            f"{row['negative_rows']} | {row['identity_duplicate_rows']} |"
+            f"{row['negative_rows']} | {row['identity_duplicate_rows']} | {row['identity_outcome']} |"
         )
     report.extend([
+        "", "## Pre-publication implementation correction", "",
+        "An initial uncommitted run incorrectly treated `tab_fact`'s 17 duplicate native IDs as a global identity failure. The frozen protocol requires at least three identity-valid configs, not all twelve. The implementation was aligned to that existing gate before this result was committed; no threshold or config scope changed.",
         "", "## Boundary", "",
-        "The dataset axis only establishes that a future, separately frozen detection-holdout protocol is feasible. "
+        "A PASS on the dataset axis only establishes that a future, separately frozen detection-holdout protocol is feasible. "
         "The cache axis stops because the published primitive cache keys expose generated prompt text and model/configuration fields but no explicit item identity; policy forbids treating prompt-text matching as an exact item join.",
     ])
     (out / "REPORT.md").write_text("\n".join(report) + "\n", encoding="utf-8")

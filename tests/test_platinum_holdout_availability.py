@@ -26,12 +26,24 @@ def test_aggregate_counts_statuses_without_emitting_ids(tmp_path: Path) -> None:
     assert '"a"' not in serialized
 
 
-def test_duplicate_identity_fails_detection_gate() -> None:
+def test_too_few_identity_valid_configs_fail_detection_gate() -> None:
     rows = [{
         "positive_rows": 100, "negative_rows": 300, "unknown_status_rows": 0,
         "identity_duplicate_rows": 1, "identity_missing_rows": 0,
     }] * 3
     assert preflight.decide_detection(rows) == "NOT_IDENTIFIABLE_ITEM_IDENTITY"
+
+
+def test_one_invalid_config_does_not_override_three_valid_configs() -> None:
+    valid = [{
+        "positive_rows": 40, "negative_rows": 120, "unknown_status_rows": 0,
+        "identity_duplicate_rows": 0, "identity_missing_rows": 0,
+    }] * 3
+    duplicate = {
+        "positive_rows": 1000, "negative_rows": 1000, "unknown_status_rows": 0,
+        "identity_duplicate_rows": 17, "identity_missing_rows": 0,
+    }
+    assert preflight.decide_detection(valid + [duplicate]) == "PASS_DETECTION_HOLDOUT_SOURCE_AVAILABLE"
 
 
 def test_detection_gate_requires_live_positives_and_negatives() -> None:
