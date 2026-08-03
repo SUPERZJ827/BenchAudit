@@ -1,0 +1,231 @@
+{
+  "api_attempts": 0,
+  "candidate_or_holdout_prompts_reconstructed": 0,
+  "candidate_question_gold_or_label_emitted": false,
+  "cases": [
+    {
+      "cache_entries": 6090,
+      "cache_path": "reports/deepseek_v4_flash_rerun_20260801/mmlu1000_cache.jsonl",
+      "cache_sha256": "0a9f79a9bef2138ea421c05954507000fc53b4d153ebc7c342412598d512f9a5",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-jurisprudence-67",
+        "key": "0ccdbed614328a5aa35988ce8fec240d4a22be7dde76835f177fbb971bd12e14"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": true,
+      "key_schema": "legacy_extended_without_schema_version",
+      "name": "mmlu1000",
+      "prompt_commit": "8057825e170e1cc742cc667112ba8c7845f59705",
+      "prompt_source_hashes": {
+        "benchcore/llm_auditor.py": "c913cb622e3cf44c7c2a6dd2d5472c8cebb1489d3ab94ad86f6851335256c137",
+        "benchcore/llm_client.py": "19785d85e31dc14fff25bd6c08a372e3db361522ab3f3aae480017310c60dc3c"
+      },
+      "prompt_sources_attested": true,
+      "report_git_dirty": false,
+      "reports": [
+        {
+          "path": "reports/deepseek_v4_flash_rerun_20260801/mmlu1000_report.json",
+          "sha256": "4ebdbff87336623bdde4d7fb299ada9660b6cb70d9f7f2a4d9c11aeb0626e94b"
+        }
+      ],
+      "reverse_status": "attested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "91325c9c67cb0a92ebf8832efbf5ee09730d47322493d29def9fe222799475b3",
+      "upper_bound_item_count": 1000
+    },
+    {
+      "cache_entries": 1398,
+      "cache_path": "reports/deepseek_v4_flash_rerun_20260801/mmlu200_cache.jsonl",
+      "cache_sha256": "70f2902a060f7dae23488146dd199d304b1c2e0d9bf8a830cf000dd9760a80c6",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-high_school_statistics-66",
+        "key": "ce745c97416bafa365c8a9ecfe8dc1a3f2ae531b14b60b2af3d2b32f4f45870a"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": true,
+      "key_schema": "legacy_extended_without_schema_version",
+      "name": "mmlu200",
+      "prompt_commit": "7d9c426ea460052aadf99881c8058d9e1c9fc40f",
+      "prompt_source_hashes": {
+        "benchcore/llm_auditor.py": "c913cb622e3cf44c7c2a6dd2d5472c8cebb1489d3ab94ad86f6851335256c137",
+        "benchcore/llm_client.py": "19785d85e31dc14fff25bd6c08a372e3db361522ab3f3aae480017310c60dc3c"
+      },
+      "prompt_sources_attested": true,
+      "report_git_dirty": false,
+      "reports": [
+        {
+          "path": "reports/deepseek_v4_flash_rerun_20260801/mmlu200_report.json",
+          "sha256": "e6aaafff1fb5061ce2e1e74113e59d4f831070746770d4fd6fe017455ccd30dd"
+        }
+      ],
+      "reverse_status": "attested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "8f2cd366d9a7111671dc937225dbf4aee8622b03252e586656e1d6b20e4efd2d",
+      "upper_bound_item_count": 200
+    },
+    {
+      "cache_entries": 1260,
+      "cache_path": "reports/deepseek_v4_flash_rerun_20260801/mmlu200_comparable_cache.jsonl",
+      "cache_sha256": "6576b06f0ca9fb3c3cda7d3e1398491306c8828dfda1befaf145ba746f777ffd",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-high_school_statistics-66",
+        "key": "ce745c97416bafa365c8a9ecfe8dc1a3f2ae531b14b60b2af3d2b32f4f45870a"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": true,
+      "key_schema": "legacy_extended_without_schema_version",
+      "name": "mmlu200_comparable",
+      "prompt_commit": "8057825e170e1cc742cc667112ba8c7845f59705",
+      "prompt_source_hashes": {
+        "benchcore/llm_auditor.py": "c913cb622e3cf44c7c2a6dd2d5472c8cebb1489d3ab94ad86f6851335256c137",
+        "benchcore/llm_client.py": "19785d85e31dc14fff25bd6c08a372e3db361522ab3f3aae480017310c60dc3c"
+      },
+      "prompt_sources_attested": true,
+      "report_git_dirty": false,
+      "reports": [
+        {
+          "path": "reports/deepseek_v4_flash_rerun_20260801/mmlu200_comparable_report.json",
+          "sha256": "272b942d3c20b49b4089d6ca591886a79b211ffa32a0abb91abb500bc8aeab69"
+        }
+      ],
+      "reverse_status": "attested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "8f2cd366d9a7111671dc937225dbf4aee8622b03252e586656e1d6b20e4efd2d",
+      "upper_bound_item_count": 200
+    },
+    {
+      "cache_entries": 5947,
+      "cache_path": "reports/ranking_impact/audit_llm_cache.jsonl",
+      "cache_sha256": "8fcb677475b033dd3caba429face1804f2fcc2116a5c356f9b086d43607e3f1f",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-jurisprudence-67",
+        "key": "122d6703fa8505c5c8193ad34fa7161dec1687dd0d2bf25952f4c4dd88364d86"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": true,
+      "key_schema": "legacy_extended_without_schema_version",
+      "name": "ranking_impact",
+      "prompt_commit": "2b3ce354683132ef03eafe684fc79600200f8c9b",
+      "prompt_source_hashes": {
+        "benchcore/llm_auditor.py": "43ce7ae56ec03ef798123d3fcf7d9540af2e96ec63f820e64745ff4d1122b2d8",
+        "benchcore/llm_client.py": "8a440d5288544464fdf802fe3322a6da7eea377d0451d335b12afcc2091d9dc0"
+      },
+      "prompt_sources_attested": true,
+      "report_git_dirty": true,
+      "reports": [
+        {
+          "path": "reports/ranking_impact/audit_pilot10.json",
+          "sha256": "1f2f6ead3a022ef993d751bbaa3569dd08fe62429cf9eb67a3fd6092c606add5"
+        },
+        {
+          "path": "reports/ranking_impact/audit_full1000.json",
+          "sha256": "8fc5fa57330b704faa48f7007f228a7ae3f44d02beaa30c1e96970ba9aa88cc6"
+        }
+      ],
+      "reverse_status": "attested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "91325c9c67cb0a92ebf8832efbf5ee09730d47322493d29def9fe222799475b3",
+      "upper_bound_item_count": 1000
+    },
+    {
+      "cache_entries": 50,
+      "cache_path": "reports/universal_audit_experiment_20260713/mmlu_clean10_cache.jsonl",
+      "cache_sha256": "911cd33911062880cdaae455e05a42c3e493ae35aa01534fb8d81f9a6fb673af",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-high_school_biology-43__mut_wrong_gold_1",
+        "key": "4d6697e921fff9d905687b6db6359868e55f72c3282247e72eb9ee03cbf1a458"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": false,
+      "key_schema": "legacy_minimal",
+      "name": "universal_clean10",
+      "prompt_commit": "1942ac3f758d9e199b9939c92030dd7c5217e63c",
+      "prompt_sources_attested": false,
+      "reason": "report_predates_implementation_manifest",
+      "report_git_dirty": true,
+      "reports": [
+        {
+          "path": "reports/universal_audit_experiment_20260713/mmlu_clean10_audit.json",
+          "sha256": "5a90b276b70c1e7b796b7f8b1c0b8e53ca4e469d8e807fd733f3fdd1ea8d9e0e"
+        }
+      ],
+      "reverse_status": "unattested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "bb3a747768dface870365cdae913bfe35708906d88d9879737363139b1ed79ea",
+      "upper_bound_item_count": 10
+    },
+    {
+      "cache_entries": 44,
+      "cache_path": "reports/universal_audit_experiment_20260713/mmlu_llm10_cache.jsonl",
+      "cache_sha256": "529d13bf40cf1b356a1e7ea6a6017ffa2954d6967f0b65325b4c933489b42af9",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-electrical_engineering-16__mut_wrong_gold_1",
+        "key": "6de65f07f579d174d958d63f5e8c89d4af6c5880a08782584113370f4f857b26"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": false,
+      "key_schema": "legacy_minimal",
+      "name": "universal_llm10",
+      "prompt_commit": "1942ac3f758d9e199b9939c92030dd7c5217e63c",
+      "prompt_sources_attested": false,
+      "reason": "report_predates_implementation_manifest",
+      "report_git_dirty": true,
+      "reports": [
+        {
+          "path": "reports/universal_audit_experiment_20260713/mmlu_llm10_audit.json",
+          "sha256": "4cbd070fd18bb6477fa80a54477b4aa4365fc4b0606c95e1802a203730cadea6"
+        }
+      ],
+      "reverse_status": "unattested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "4ad512c4fccbb9f75d20d52ce89bb40e0dda9d81ba36613b1c4386b8d427791f",
+      "upper_bound_item_count": 10
+    },
+    {
+      "cache_entries": 50,
+      "cache_path": "reports/universal_audit_experiment_20260713/mmlu_llm10_v2_cache.jsonl",
+      "cache_sha256": "04cdafb39d9c63a2f9f54d4508a2c673a2aca8fee2d491cc497baca2fb618a59",
+      "golden_initial_key": {
+        "item_id": "mmlu-redux-electrical_engineering-16__mut_wrong_gold_1",
+        "key": "6de65f07f579d174d958d63f5e8c89d4af6c5880a08782584113370f4f857b26"
+      },
+      "golden_initial_key_match": true,
+      "implementation_manifest_present": false,
+      "key_schema": "legacy_minimal",
+      "name": "universal_llm10_v2",
+      "prompt_commit": "1942ac3f758d9e199b9939c92030dd7c5217e63c",
+      "prompt_sources_attested": false,
+      "reason": "report_predates_implementation_manifest",
+      "report_git_dirty": true,
+      "reports": [
+        {
+          "path": "reports/universal_audit_experiment_20260713/mmlu_llm10_v2_audit.json",
+          "sha256": "335553268c2f1eeb1c8712cd391d6915bac3a4eefb3099beca23bf615263559d"
+        }
+      ],
+      "reverse_status": "unattested_prompt_snapshot_golden_match",
+      "upper_bound_complete": true,
+      "upper_bound_ids_sha256": "4ad512c4fccbb9f75d20d52ce89bb40e0dda9d81ba36613b1c4386b8d427791f",
+      "upper_bound_item_count": 10
+    }
+  ],
+  "counts": {
+    "attested_reverse": 4,
+    "caches": 7,
+    "unattested_reverse": 3,
+    "upper_bound_complete": 7,
+    "upper_bound_union_items": 1087
+  },
+  "network_attempts": 0,
+  "outcome": "PASS_V2_FEASIBLE_WITH_RESIDUAL_UNATTESTED_PROMPT_SNAPSHOTS",
+  "outcome_inspected_before_freeze": true,
+  "schema_version": "mmlu-cache-binding-a0-v1",
+  "upper_bound_union_ids_sha256": "f06faeb336ef5241d76ef2342a2810d3bf460671bcfdb9d2b273a4033fdd077a",
+  "v2_constraints": [
+    "Forward run-to-item bounds are authoritative for all seven caches.",
+    "Reverse absence is supporting evidence and is limited to reconstructable prompt formats.",
+    "The three 2026-07-13 prompt snapshots may not be described as attested.",
+    "Legacy cache rows do not store a schema version; schema selection is bound by the historical prompt commit and golden-key match.",
+    "No candidate set may be generated or audited by this A0 preflight."
+  ]
+}

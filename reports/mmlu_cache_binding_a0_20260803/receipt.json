@@ -1,0 +1,13 @@
+{
+  "api_attempts": 0,
+  "dataset_sha256": "0c8ccf09cbb422e4cd999524aa581e3bd3040c9dcd75f1c0b2408a49ef66b3d4",
+  "git_commit": "8ff380529238d5ec851697fb500581b87c6254eb",
+  "network_attempts": 0,
+  "outcome": "PASS_V2_FEASIBLE_WITH_RESIDUAL_UNATTESTED_PROMPT_SNAPSHOTS",
+  "outputs": {
+    "availability_sha256": "15b777f4049799ed8538d00bbfb11a7847b9fc32d0c48ece187307308ac6f9e1",
+    "report_sha256": "84c6c9e4c01b7e1c5a7fb4ee0f8445b996978a6e86d5c2f1c5cf418a052c24ff"
+  },
+  "schema_version": "mmlu-cache-binding-a0-receipt-v1",
+  "script_sha256": "7cf786946b5f4b11710902bd480ae3fe08636ab8b10467555bb708e361b66c78"
+}
