@@ -80,6 +80,38 @@ def load_llm_config(path: str | None = None) -> LLMConfig:
     )
 
 
+
+def _no_proxy_matches(host: str) -> bool:
+    """Honour the conventional no_proxy list for an exact or suffix match."""
+
+    raw = os.environ.get("no_proxy") or os.environ.get("NO_PROXY") or ""
+    for entry in (part.strip() for part in raw.split(",")):
+        if not entry:
+            continue
+        pattern = entry.lstrip("*").lstrip(".")
+        if pattern and (host == pattern or host.endswith("." + pattern)):
+            return True
+        if entry.endswith("*") and host.startswith(entry.rstrip("*")):
+            return True
+    return False
+
+
+def resolve_https_proxy(host: str) -> str | None:
+    """Return the CONNECT proxy to reach ``host``, honouring no_proxy.
+
+    The client speaks raw ``http.client``, which -- unlike ``urllib`` -- does
+    not consult the environment.  On hosts whose only egress is a loopback
+    proxy a direct connection simply hangs until the timeout, once per retry,
+    which is indistinguishable from an unresponsive provider.  Tunnelling
+    keeps TLS end to end: the certificate presented by the target is still
+    validated against the default trust store.
+    """
+
+    if _no_proxy_matches(host):
+        return None
+    return os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY") or None
+
+
 class LLMClient:
     def __init__(self, config: LLMConfig):
         self.config = config
@@ -194,11 +226,28 @@ class LLMClient:
         path = parsed.path or "/chat/completions"
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
-            conn = (
-                conn_cls(parsed.netloc, timeout=self.config.timeout, context=context)
-                if context
-                else conn_cls(parsed.netloc, timeout=self.config.timeout)
+            proxy_url = (
+                resolve_https_proxy(parsed.hostname or "") if context else None
             )
+            if proxy_url:
+                proxy = urlparse(proxy_url)
+                conn = conn_cls(
+                    proxy.hostname,
+                    proxy.port or 8080,
+                    timeout=self.config.timeout,
+                    context=context,
+                )
+                conn.set_tunnel(parsed.hostname, parsed.port or 443)
+                transport = "proxy"
+            else:
+                conn = (
+                    conn_cls(parsed.netloc, timeout=self.config.timeout, context=context)
+                    if context
+                    else conn_cls(parsed.netloc, timeout=self.config.timeout)
+                )
+                transport = "direct"
+            with self._stats_lock:
+                self._stats["transport"] = transport
             try:
                 self._begin_api_attempt()
                 conn.request("POST", path, payload, headers)
