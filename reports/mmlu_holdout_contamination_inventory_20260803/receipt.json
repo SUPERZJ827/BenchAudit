@@ -1,0 +1,20 @@
+{
+  "api_attempts": 0,
+  "candidate_question_gold_or_label_emitted": false,
+  "dataset_rows_json_decoded": false,
+  "dataset_sha256": "0c8ccf09cbb422e4cd999524aa581e3bd3040c9dcd75f1c0b2408a49ef66b3d4",
+  "environment": {
+    "git": "git version 2.34.1",
+    "python": "3.10.12"
+  },
+  "git_commit": "3d289e98f9bb080bc32cb0b24659f0b801f35d00",
+  "network_attempts": 0,
+  "outcome": "NOT_IDENTIFIABLE_SCAN_COVERAGE",
+  "outputs": {
+    "inventory_sha256": "a416ea4a2e3dd41865d6f0f12db46df67db91b324a7a2b6273fa66c21b5d0f10",
+    "report_sha256": "f288107462361b3afffb8d7382540aea4e16d029ffa5aad4222c0eca833245f3"
+  },
+  "protocol_sha256": "a825e0309c7bde2d5cecc26c695f098fe7896f04d81f43ca2bb41b563c0d27fe",
+  "scanner_sha256": "c66ce9e1dfe7771492b6d8ec8e49df8c49b272f36841855f899cd7b92bbefeee",
+  "schema_version": "mmlu-holdout-contamination-receipt-v1"
+}
