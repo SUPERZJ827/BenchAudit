@@ -1,0 +1,46 @@
+{
+  "api_attempts": 0,
+  "code_commit": "06fbc2e0c7a4c5dd6af3ed9ca141b6eac4dd7336",
+  "current_methods_run": [
+    "task_specification",
+    "context_attachment",
+    "expected_output",
+    "oracle_ground_truth",
+    "evaluator",
+    "task_integrity",
+    "contract_consistency",
+    "evaluator_replay",
+    "metamorphic_answer",
+    "evaluator_mutation",
+    "executable_evidence",
+    "differential_candidate",
+    "llm_gold_audit",
+    "llm_question_clarity",
+    "llm_quantity_consistency",
+    "llm_event_state",
+    "duplicate_conflict",
+    "schema_drift"
+  ],
+  "current_registry_file_sha256": {
+    "benchcore/checkers.py": "24c303bc695c8e879ac990b0cbed758e2394c9a081efcc5ecf10ab3deb95955b",
+    "benchcore/cli.py": "40700d90ea1ded61430e0f78b2e12e514ed1afac9158e99c6a20326c0efb06c5",
+    "benchcore/methods.py": "8d8b55f942a3db267c04dde1e2e4af1846691f22961661363e594e6da6e4cd5b"
+  },
+  "historical_reference": {
+    "methods_count": 19,
+    "path": "reports/deepseek_v4_flash_attribution_20260801/svamp/report.json",
+    "sha256": "cc158c7cdea04242b671e180e837328c591a41982a8fe68fdeef68fc61463423"
+  },
+  "mismatch": {
+    "current_count": 18,
+    "historical_only": [
+      "choice_encoding_contract"
+    ],
+    "protocol_v1_frozen_count": 19
+  },
+  "network_attempts": 0,
+  "outcome": "V1_METHOD_SET_NOT_SATISFIABLE_BY_FROZEN_CODE",
+  "probe_kind": "static_registry_import_only",
+  "run_protocol_v1_sha256": "ba09ef99cefc3f0fa63dbdc49171c1d31dd40a5da21db4200983e28073d57401",
+  "schema_version": "platinum-blind-method-registry-preflight-v1"
+}
