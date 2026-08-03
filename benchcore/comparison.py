@@ -9,37 +9,15 @@ from typing import Any
 from .loader import load_rows
 
 
-_IGNORED_DEFECTS = {"llm_audit_failure", "auditor_contradiction"}
-_STRONG_METHODS = {
-    "llm_gold_audit",
-    "llm_event_state",
-    "llm_quantity_consistency",
-    "executable_evidence",
-    "executable_evidence_replay",
-    "evaluator_replay",
-    "differential_testing",
-    "metamorphic_testing",
-}
-_STRONG_DEFECTS = {
-    "wrong_gold_answer",
-    "invalid_choice_gold",
-    "missing_oracle",
-    "duplicate_choices",
-    "duplicate_item_id",
-    "conflicting_duplicate_oracle",
-    "evaluator_mismatch",
-    "metamorphic_inconsistency",
-}
-_WEAK_REVIEW_DEFECTS = {
-    "ambiguous_goal",
-    "bad_options_clarity",
-    "context_version_mismatch_risk",
-    "missing_accepted_alternatives",
-    "missing_condition",
-    "missing_output_contract",
-    "source_reference_missing",
-    "temporal_scope_missing",
-}
+from .decision_policy import (
+    CORROBORATION_MIN_METHODS,
+    IGNORED_DEFECTS as _IGNORED_DEFECTS,
+    NONMATERIAL_METHODS as _NONMATERIAL_METHODS,
+    STRONG_DEFECTS as _STRONG_DEFECTS,
+    STRONG_METHODS as _STRONG_METHODS,
+    STRONG_SIGNAL_MIN_CONFIDENCE,
+    WEAK_REVIEW_DEFECTS as _WEAK_REVIEW_DEFECTS,
+)
 
 
 def nested_get(row: dict[str, Any], path: str) -> Any:
@@ -78,14 +56,11 @@ def candidate_tier(violations: list[dict[str, Any]]) -> str:
             v.get("detection_method", "").split("+")[0] in _STRONG_METHODS
             or v.get("defect_type") in _STRONG_DEFECTS
         )
-        and v.get("detection_method") not in {
-            "llm_quantity_consistency_nonmaterial",
-            "llm_event_state_nonmaterial",
-        }
-        and float(v.get("confidence", 0.0) or 0.0) >= 0.6
+        and v.get("detection_method") not in _NONMATERIAL_METHODS
+        and float(v.get("confidence", 0.0) or 0.0) >= STRONG_SIGNAL_MIN_CONFIDENCE
         for v in substantive
     )
-    has_corroboration = len(methods) >= 2 or any(
+    has_corroboration = len(methods) >= CORROBORATION_MIN_METHODS or any(
         v.get("evidence", {}).get("llm_corroborated_by") for v in substantive
     )
     only_weak_signals = all(v.get("defect_type") in _WEAK_REVIEW_DEFECTS for v in substantive)

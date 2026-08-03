@@ -10,6 +10,10 @@ from typing import Any, Iterable
 from .checkers import Checker, _violation
 from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number
 from .llm_client import LLMClient
+from .decision_policy import (
+    BLIND_SOLVE_MIN_CONFIDENCE,
+    OPTION_EVIDENCE_MIN_CONFIDENCE,
+)
 from .schema import BenchmarkItem, Violation
 
 
@@ -1208,7 +1212,7 @@ def blind_solution_is_risky(
         return True
     if bool(blind.get("needs_expert", False)):
         return True
-    if _float(blind.get("confidence"), 0.0) < 0.85:
+    if _float(blind.get("confidence"), 0.0) < BLIND_SOLVE_MIN_CONFIDENCE:
         return True
     if blind.get("assumption_risk") == "answer_changing":
         return True
@@ -1270,7 +1274,7 @@ def option_match_evidence(
         status = entry.get("status")
         confidence = _float(entry.get("confidence"), 0.0)
         confidences.append(confidence)
-        if confidence < 0.8 and label:
+        if confidence < OPTION_EVIDENCE_MIN_CONFIDENCE and label:
             independently_uncertain.add(label)
         elif status == "acceptable" and label:
             independently_acceptable.add(label)
