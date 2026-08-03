@@ -275,6 +275,12 @@ def run(data_root: Path, out: Path, *, offline: bool = False) -> dict[str, Any]:
         "negative_rows": sum(row["negative_rows"] for row in config_results),
         "unknown_status_rows": sum(row["unknown_status_rows"] for row in config_results),
         "mixed_label_configs": sum(row["positive_rows"] > 0 and row["negative_rows"] > 0 for row in config_results),
+        "identity_eligible_mixed_label_configs": sum(
+            row["identity_outcome"] == "AVAILABLE"
+            and row["positive_rows"] > 0
+            and row["negative_rows"] > 0
+            for row in config_results
+        ),
         "cache_bytes": cache_total_bytes,
         "identity_eligible_configs": sum(
             row["identity_outcome"] == "AVAILABLE" for row in config_results
@@ -339,6 +345,7 @@ def run(data_root: Path, out: Path, *, offline: bool = False) -> dict[str, Any]:
         f"- Identity-eligible positives / negatives: **{totals['identity_eligible_positive_rows']} / {totals['identity_eligible_negative_rows']}**",
         f"- Identity-eligible configs: **{totals['identity_eligible_configs']}**",
         f"- Mixed-label configs: **{totals['mixed_label_configs']}**",
+        f"- Identity-eligible mixed-label configs: **{totals['identity_eligible_mixed_label_configs']}**",
         f"- Paper-cache bytes inspected: **{totals['cache_bytes']}**",
         "- Item content or item-label mapping emitted: **false**",
         "- LLM/API/auditor execution: **zero**",
