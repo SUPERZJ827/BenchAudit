@@ -11,7 +11,11 @@ from .checkers import Checker, _violation
 from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number
 from .llm_client import LLMClient
 from .decision_policy import (
+    BLIND_SOLVE_DECISION_FIELDS,
     BLIND_SOLVE_MIN_CONFIDENCE,
+    CONFIDENCE_BUCKET_FIELD,
+    CASCADE_MODES,
+    DEFAULT_CASCADE_MODE,
     OPTION_EVIDENCE_MIN_CONFIDENCE,
 )
 from .schema import BenchmarkItem, Violation
@@ -572,11 +576,15 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
         confirm_threshold: float = 0.75,
         review_threshold: float = 0.45,
         mode: str = "cascade",
+        cascade_mode: str = DEFAULT_CASCADE_MODE,
     ):
         super().__init__(client, confirm_threshold, review_threshold)
         if mode not in {"cascade", "full"}:
             raise ValueError(f"Unknown evidence gold mode: {mode}")
         self.mode = mode
+        if cascade_mode not in CASCADE_MODES:
+            raise ValueError(f"Unknown cascade mode: {cascade_mode}")
+        self.cascade_mode = cascade_mode
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if not item.task or item.gold in (None, ""):
@@ -616,7 +624,9 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
         try:
             matcher = self.client.chat_json(
                 ANSWER_OPTION_MATCHER_SYSTEM_PROMPT,
-                build_option_match_user_prompt(item, blind),
+                build_option_match_user_prompt(
+                    item, apply_cascade_mode(blind, self.cascade_mode)
+                ),
             )
             observations["llm_answer_option_matcher"] = matcher
         except RuntimeError as exc:
@@ -627,7 +637,9 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
         try:
             applicability = self.client.chat_json(
                 OPTION_APPLICABILITY_SYSTEM_PROMPT,
-                build_option_applicability_user_prompt(item, blind, matcher),
+                build_option_applicability_user_prompt(
+                    item, apply_cascade_mode(blind, self.cascade_mode), matcher
+                ),
             )
             observations["llm_option_applicability"] = applicability
         except RuntimeError as exc:
@@ -644,6 +656,7 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
         observations["llm_programmatic_answer_set"] = option_evidence
         if (
             self.mode == "cascade"
+            and not cascade_gate_is_bypassed(self.cascade_mode)
             and not option_evidence_is_risky(item, option_evidence)
         ):
             result = aggregate_gold_evidence(item, option_evidence, None, None)
@@ -660,7 +673,7 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
 
         stage_payload = build_gold_evidence_user_prompt(
             item,
-            blind,
+            apply_cascade_mode(blind, self.cascade_mode),
             matcher,
             option_evidence,
         )
@@ -671,7 +684,9 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
             challenger = {"audit_failure": str(exc)}
             observations["llm_gold_challenger"] = challenger
         defender = None
-        if self.mode == "full" or defender_is_needed(item, option_evidence, challenger):
+        if self.mode == "full" or defender_is_needed(
+            item, option_evidence, challenger, self.cascade_mode
+        ):
             try:
                 defender = self.client.chat_json(GOLD_DEFENDER_SYSTEM_PROMPT, stage_payload)
                 observations["llm_gold_defender"] = defender
@@ -1048,6 +1063,50 @@ def build_blind_user_prompt(item: BenchmarkItem) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
+
+def normalize_blind_solution(blind: dict[str, Any]) -> dict[str, Any]:
+    """Strip the free-text channel out of a blind solve before re-embedding it.
+
+    ``rationale``, ``claims`` and ``required_assumptions`` are prose: two runs
+    of the same model at temperature 0 routinely word them differently, which
+    changes every downstream prompt and therefore every downstream cache key.
+    The gates and auditors decide on the structured fields only, so a
+    normalized cascade keeps those and buckets the raw confidence to the side
+    of its gate.
+    """
+
+    normalized: dict[str, Any] = {}
+    for field in BLIND_SOLVE_DECISION_FIELDS:
+        if field not in blind:
+            continue
+        value = blind[field]
+        if isinstance(value, list):
+            value = sorted(str(entry).strip() for entry in value)
+        normalized[field] = value
+    normalized[CONFIDENCE_BUCKET_FIELD] = (
+        "at_or_above_gate"
+        if _float(blind.get("confidence"), 0.0) >= BLIND_SOLVE_MIN_CONFIDENCE
+        else "below_gate"
+    )
+    if "audit_failure" in blind:
+        normalized["audit_failure"] = blind["audit_failure"]
+    return normalized
+
+
+def apply_cascade_mode(blind: dict[str, Any], cascade_mode: str) -> dict[str, Any]:
+    """Return the blind solve as it should be embedded downstream."""
+
+    if cascade_mode in {"normalized", "normalized_ungated"}:
+        return normalize_blind_solution(blind)
+    return blind
+
+
+def cascade_gate_is_bypassed(cascade_mode: str) -> bool:
+    """Under an ungated cascade every downstream stage always runs."""
+
+    return cascade_mode in {"ungated", "normalized_ungated"}
+
+
 def build_gold_evidence_user_prompt(
     item: BenchmarkItem,
     blind_solution: dict[str, Any],
@@ -1207,7 +1266,18 @@ def gold_violations(
 def blind_solution_is_risky(
     item: BenchmarkItem,
     blind: dict[str, Any],
+    cascade_mode: str = DEFAULT_CASCADE_MODE,
 ) -> bool:
+    """Unused.  Retained for reference only -- no caller gates on it.
+
+    The live cascade gates are ``option_evidence_is_risky`` (early return) and
+    ``defender_is_needed`` (defender stage).  ``BLIND_SOLVE_MIN_CONFIDENCE``
+    is therefore not a live decision threshold either; it survives here and in
+    the normalized-cascade confidence bucket only.
+    """
+
+    if cascade_gate_is_bypassed(cascade_mode):
+        return True
     if blind.get("solution_status") != "solved":
         return True
     if bool(blind.get("needs_expert", False)):
@@ -1228,7 +1298,10 @@ def defender_is_needed(
     item: BenchmarkItem,
     option_evidence: dict[str, Any],
     challenger: dict[str, Any],
+    cascade_mode: str = DEFAULT_CASCADE_MODE,
 ) -> bool:
+    if cascade_gate_is_bypassed(cascade_mode):
+        return True
     if "audit_failure" in challenger:
         return True
     if option_evidence_is_risky(item, option_evidence):

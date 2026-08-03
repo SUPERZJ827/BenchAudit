@@ -78,6 +78,36 @@ BLIND_SOLVE_MIN_CONFIDENCE = 0.85
 # Below this, an option-evidence entry is treated as independently uncertain.
 OPTION_EVIDENCE_MIN_CONFIDENCE = 0.8
 
+
+# --- cascade ablation ---------------------------------------------------------
+#
+# The auditor embeds the blind solve's answer into later prompts and gates
+# later calls on its confidence.  Provider nondeterminism at temperature 0
+# therefore fans out into different downstream calls, which is the proposed
+# mechanism behind finding-level irreproducibility.  These modes exist to test
+# that mechanism causally; "full" is the unmodified pipeline.
+#
+#   full                 embed the whole blind solve, honour the gates
+#   normalized           embed only decision fields, honour the gates
+#   ungated              embed the whole blind solve, always continue
+#   normalized_ungated   both interventions
+CASCADE_MODES = ("full", "normalized", "ungated", "normalized_ungated")
+DEFAULT_CASCADE_MODE = "full"
+
+# Fields of a blind solve that downstream gates or auditors actually decide on.
+# Everything else is prose and is dropped under a normalized cascade.
+BLIND_SOLVE_DECISION_FIELDS = (
+    "solution_status",
+    "derived_answers",
+    "valid_answers",
+    "needs_expert",
+    "assumption_risk",
+)
+
+# Under a normalized cascade the raw float is replaced by its side of the gate,
+# so that 0.86 and 0.87 cannot produce two different downstream prompts.
+CONFIDENCE_BUCKET_FIELD = "confidence_band"
+
 # --- runtime-supplied thresholds --------------------------------------------
 
 DEFAULT_LLM_CONFIRM_THRESHOLD = 0.75
@@ -88,6 +118,7 @@ def decision_policy(
     *,
     llm_confirm_threshold: float | None = None,
     llm_review_threshold: float | None = None,
+    cascade_mode: str | None = None,
 ) -> dict[str, Any]:
     """Return the complete decision surface actually in force for a run."""
 
@@ -112,7 +143,18 @@ def decision_policy(
             if llm_review_threshold is None
             else float(llm_review_threshold)
         ),
+        "cascade_mode": _validated_cascade_mode(cascade_mode),
+        "blind_solve_decision_fields": list(BLIND_SOLVE_DECISION_FIELDS),
     }
+
+
+def _validated_cascade_mode(mode: str | None) -> str:
+    resolved = DEFAULT_CASCADE_MODE if mode is None else str(mode)
+    if resolved not in CASCADE_MODES:
+        raise ValueError(
+            f"unknown cascade mode {resolved!r}; expected one of {CASCADE_MODES}"
+        )
+    return resolved
 
 
 def decision_policy_sha256(policy: dict[str, Any] | None = None, **kwargs: Any) -> str:
