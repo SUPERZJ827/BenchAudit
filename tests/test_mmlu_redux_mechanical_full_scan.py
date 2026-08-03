@@ -209,3 +209,39 @@ def test_committed_outputs_are_self_consistent_when_present() -> None:
     assert scan.sha256_file(output / "findings.jsonl") == receipt["outputs"]["findings_sha256"]
     assert scan.sha256_file(output / "REPORT.md") == receipt["outputs"]["report_sha256"]
     assert receipt["execution"]["production_activation"] is False
+
+
+def test_post_result_interpretation_is_bound_and_matches_frozen_findings() -> None:
+    output = scan.ROOT / "reports/mmlu_redux_mechanical_scan_20260803"
+    interpretation_path = output / "interpretation_addendum.json"
+    if not interpretation_path.is_file():
+        pytest.skip("post-result interpretation has not been published yet")
+    interpretation = json.loads(interpretation_path.read_text(encoding="utf-8"))
+    findings = [
+        json.loads(line)
+        for line in (output / "findings.jsonl").read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    bound = interpretation["bound_artifacts"]
+    assert scan.sha256_file(output / "findings.jsonl") == bound["findings_sha256"]
+    assert scan.sha256_file(output / "REPORT.md") == bound["report_sha256"]
+    assert scan.sha256_file(output / "receipt.json") == bound["receipt_sha256"]
+    assert scan.sha256_file(scan.PROTOCOL) == bound["protocol_sha256"]
+
+    t1 = {
+        finding["item_id"] for finding in findings
+        if finding["rule"] == "R1_duplicate_choices" and finding["tier"] == "T1"
+    }
+    t2 = {
+        finding["item_id"] for finding in findings
+        if finding["rule"] == "R1_duplicate_choices" and finding["tier"] == "T2"
+    }
+    t3 = {
+        finding["item_id"] for finding in findings
+        if finding["rule"] == "R1_duplicate_choices" and finding["tier"] == "T3"
+    }
+    assert t1 == set(interpretation["confirmation_eligible"]["item_ids"])
+    assert t2 - t1 == set(interpretation["normalization_findings"]["R1_T2_only"]["item_ids"])
+    assert t3 - t2 == set(interpretation["normalization_findings"]["R1_T3_only"]["item_ids"])
+    assert interpretation["normalization_findings"]["R1_T3_only"]["status"] == "INVALID_FOR_CONFIRMATION"
+    assert interpretation["production_activation"] is False
