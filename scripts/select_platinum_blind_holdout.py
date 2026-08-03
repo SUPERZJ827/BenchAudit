@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -15,10 +16,13 @@ import numpy
 import pyarrow
 import pyarrow.parquet as pq
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from scripts.preflight_platinum_holdout_availability import row_identity
 
 
-ROOT = Path(__file__).resolve().parents[1]
 AVAILABILITY = ROOT / "reports/platinum_untouched_holdout_availability_20260803/availability.json"
 STRATA_RECEIPT = ROOT / "reports/platinum_selection_strata_receipt_20260803/receipt.json"
 V1 = ROOT / "docs/research/PLATINUM_BLIND_DETECTION_HOLDOUT_SELECTION_PROTOCOL_20260803.md"
