@@ -134,14 +134,43 @@ def infer_evaluator_type(gold: Any, choices: list[Any] | None, evaluator: Any = 
     return contract["kind"]
 
 
-def evaluate_answer(prediction: Any, gold: Any, choices: list[Any] | None, evaluator: Any = None) -> bool:
+
+def evaluator_accepts_aliases(evaluator: Any = None) -> bool:
+    """Does the declared evaluator claim to accept an alias list?
+
+    A benchmark that ships several accepted answers and an evaluator that says
+    it handles aliases is not defective; it is doing exactly what it declares.
+    Only an evaluator whose declaration makes no such claim can be "overstrict"
+    with respect to declared alternatives.
+    """
+
+    return "alias" in normalize_contract_value(evaluator)
+
+
+def evaluate_answer(
+    prediction: Any,
+    gold: Any,
+    choices: list[Any] | None,
+    evaluator: Any = None,
+    aliases: list[Any] | None = None,
+) -> bool:
     contract = answer_contract(gold, choices, evaluator)
     kind = contract["kind"]
     if contract["cardinality"] == "set":
-        return _evaluate_answer_set(prediction, answer_values(gold), kind, choices, evaluator)
-    if contract["cardinality"] == "compound":
-        return _evaluate_compound_answer(prediction, gold, kind, choices)
-    return _evaluate_single_answer(prediction, gold, kind, choices)
+        accepted = _evaluate_answer_set(
+            prediction, answer_values(gold), kind, choices, evaluator
+        )
+    elif contract["cardinality"] == "compound":
+        accepted = _evaluate_compound_answer(prediction, gold, kind, choices)
+    else:
+        accepted = _evaluate_single_answer(prediction, gold, kind, choices)
+    if accepted or not aliases or not evaluator_accepts_aliases(evaluator):
+        return accepted
+    # The declaration promises alias handling, so a declared alternative is
+    # accepted under the same comparison kind as the primary gold.
+    return any(
+        _evaluate_single_answer(prediction, alias, kind, choices) for alias in aliases
+    )
 
 
 def _evaluate_single_answer(prediction: Any, gold: Any, kind: str, choices: list[Any] | None) -> bool:
