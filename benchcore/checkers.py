@@ -435,7 +435,13 @@ class EvaluatorChecker(Checker):
         alias_rejected = []
         if contract["cardinality"] != "set":
             for alias in item.aliases:
-                if not evaluate_answer(alias, item.gold, item.choices, item.evaluator):
+                if not evaluate_answer(
+                    alias,
+                    item.gold,
+                    item.choices,
+                    item.evaluator,
+                    aliases=list(item.aliases),
+                ):
                     alias_rejected.append(alias)
         if alias_rejected:
             yield _violation(
