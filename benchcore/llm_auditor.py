@@ -12,6 +12,8 @@ from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number
 from .llm_client import LLMClient
 from .decision_policy import (
     BLIND_SOLVE_DECISION_FIELDS,
+    CLARITY_LABEL_TIE_BREAK,
+    MAX_CLARITY_LABELS,
     BLIND_SOLVE_MIN_CONFIDENCE,
     CONFIDENCE_BUCKET_FIELD,
     CASCADE_MODES,
@@ -72,6 +74,8 @@ Rules:
 - For medicine, law, psychology, accounting, and other professional domains, mark needs_expert=true when the conclusion depends on a textbook-specific or professional convention rather than a direct formal derivation.
 - Use no_correct_answer only when none of the supplied choices/accepted forms is correct.
 """
+
+CLARITY_DEFECT_STATUSES = frozenset(CLARITY_LABEL_TIE_BREAK)
 
 BLIND_SOLVER_SYSTEM_PROMPT = """You are the Blind Solver in a benchmark quality audit system.
 Solve the task without access to its declared gold answer.
@@ -238,7 +242,9 @@ Do not solve only for the gold. Audit whether the task statement contains enough
 
 Return only JSON:
 {
-  "clarity_status": "clear" | "answer_changing_ambiguity" | "missing_condition" | "missing_context" | "uncertain",
+  "clarity_defects": [
+    {"defect": "answer_changing_ambiguity" | "missing_condition" | "missing_context", "confidence": 0.0}
+  ],
   "confidence": 0.0,
   "needs_expert": false,
   "assumptions_used": ["..."],
@@ -250,6 +256,8 @@ Return only JSON:
 }
 
 Rules:
+- Return every applicable defect, ordered by your confidence, highest first. Return at most 3.
+- Return an empty list when the task is clear, and when you cannot decide return an empty list with a low confidence.
 - Flag only defects that can change the answer, make the task unsolvable, or leave multiple materially different interpretations.
 - Do not flag harmless grammar, awkward wording, minor typos, or information already embedded in the task.
 - Build a consistency ledger over entities, quantities, events, and time points before declaring the task clear.
@@ -770,8 +778,7 @@ class QuestionClarityLLMAuditor(BaseLLMAuditor):
                 "audit_failure": str(exc)
             }
             return [self.failure_violation(item)]
-        _defect_statuses = {"answer_changing_ambiguity", "missing_condition", "missing_context"}
-        defect_results = [r for r in results if r.get("clarity_status") in _defect_statuses]
+        defect_results = [r for r in results if primary_clarity_defect(r) is not None]
         vote_fraction = len(defect_results) / len(results)
         result = defect_results[0] if defect_results else results[0]
         item.metadata.setdefault("_llm_observations", {})[self.name] = result
@@ -1713,6 +1720,46 @@ def task_requires_specific_source(item: BenchmarkItem) -> bool:
     )
 
 
+
+def clarity_defect_labels(result: dict[str, Any]) -> list[tuple[str, float]]:
+    """Return the confidence-ranked clarity defects of one auditor response.
+
+    Accepts the ranked-list schema and the superseded single-status schema so
+    that reports written before the change can still be re-analysed.  The list
+    is truncated to the declared cap and ties are broken by a fixed order, so
+    the primary label never depends on dict iteration order.
+    """
+
+    raw = result.get("clarity_defects")
+    if raw is None:
+        status = str(result.get("clarity_status", "") or "")
+        if status not in CLARITY_DEFECT_STATUSES:
+            return []
+        return [(status, _float(result.get("confidence"), 0.0))]
+    if not isinstance(raw, list):
+        return []
+    entries: list[tuple[str, float]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        label = str(entry.get("defect", "") or "")
+        if label not in CLARITY_DEFECT_STATUSES:
+            continue
+        if any(label == seen for seen, _ in entries):
+            continue
+        entries.append((label, _float(entry.get("confidence"), 0.0)))
+    order = {name: i for i, name in enumerate(CLARITY_LABEL_TIE_BREAK)}
+    entries.sort(key=lambda e: (-e[1], order.get(e[0], len(order))))
+    return entries[:MAX_CLARITY_LABELS]
+
+
+def primary_clarity_defect(result: dict[str, Any]) -> tuple[str, float] | None:
+    """The single label scoring uses: highest confidence, deterministic ties."""
+
+    labels = clarity_defect_labels(result)
+    return labels[0] if labels else None
+
+
 def question_violations(
     item: BenchmarkItem,
     result: dict[str, Any],
@@ -1720,8 +1767,10 @@ def question_violations(
     review_threshold: float,
     vote_fraction: float | None = None,
 ) -> Iterable[Violation]:
-    status = str(result.get("clarity_status", "uncertain"))
-    confidence = _float(result.get("confidence"), 0.0)
+    primary = primary_clarity_defect(result)
+    if primary is None:
+        return
+    status, confidence = primary
     needs_expert = bool(result.get("needs_expert", False))
     mapping = {
         "answer_changing_ambiguity": "ambiguous_goal",
