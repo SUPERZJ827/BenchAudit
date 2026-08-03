@@ -169,7 +169,14 @@ def inspect_cache_in_container(path: Path) -> dict[str, Any]:
     return json.loads(lines[0])
 
 
-def download_exact(repo: str, revision: str, filename: str, root: Path) -> Path:
+def download_exact(
+    repo: str, revision: str, filename: str, root: Path, *, offline: bool = False
+) -> Path:
+    if offline:
+        path = root / repo.split("/")[-1] / filename
+        if not path.is_file():
+            raise PreflightError(f"offline frozen artifact missing: {repo}:{filename}")
+        return path
     return Path(hf_hub_download(
         repo_id=repo, repo_type="dataset", revision=revision,
         filename=filename, local_dir=root / repo.split("/")[-1],
@@ -215,14 +222,18 @@ def decide_cache(caches: list[dict[str, Any]], total_bytes: int) -> str:
     return "INSUFFICIENT_MODEL_OUTPUT_COVERAGE"
 
 
-def run(data_root: Path, out: Path) -> dict[str, Any]:
-    api = HfApi()
-    dataset_info = api.dataset_info(DATASET_REPO, revision=DATASET_REVISION, files_metadata=True)
-    cache_info = api.dataset_info(CACHE_REPO, revision=CACHE_REVISION, files_metadata=True)
-    if dataset_info.sha != DATASET_REVISION or cache_info.sha != CACHE_REVISION:
-        raise PreflightError("immutable revision did not resolve exactly")
-    dataset_siblings = {item.rfilename: item for item in dataset_info.siblings}
-    cache_siblings = {item.rfilename: item for item in cache_info.siblings}
+def run(data_root: Path, out: Path, *, offline: bool = False) -> dict[str, Any]:
+    if offline:
+        dataset_siblings = {dataset_filename(config): None for config in CONFIGS}
+        cache_siblings = {cache_filename(config): None for config in CONFIGS}
+    else:
+        api = HfApi()
+        dataset_info = api.dataset_info(DATASET_REPO, revision=DATASET_REVISION, files_metadata=True)
+        cache_info = api.dataset_info(CACHE_REPO, revision=CACHE_REVISION, files_metadata=True)
+        if dataset_info.sha != DATASET_REVISION or cache_info.sha != CACHE_REVISION:
+            raise PreflightError("immutable revision did not resolve exactly")
+        dataset_siblings = {item.rfilename: item for item in dataset_info.siblings}
+        cache_siblings = {item.rfilename: item for item in cache_info.siblings}
 
     config_results: list[dict[str, Any]] = []
     cache_results: list[dict[str, Any]] = []
@@ -231,10 +242,14 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         cf = cache_filename(config)
         if df not in dataset_siblings or cf not in cache_siblings:
             raise PreflightError(f"missing frozen artifact for {config}")
-        dataset_path = download_exact(DATASET_REPO, DATASET_REVISION, df, data_root)
+        dataset_path = download_exact(
+            DATASET_REPO, DATASET_REVISION, df, data_root, offline=offline
+        )
         config_results.append(aggregate_table(config, dataset_path))
 
-        cache_path = download_exact(CACHE_REPO, CACHE_REVISION, cf, data_root)
+        cache_path = download_exact(
+            CACHE_REPO, CACHE_REVISION, cf, data_root, offline=offline
+        )
         opcode_result = safe_pickle_opcodes(cache_path)
         if opcode_result["dangerous_opcode_counts"]:
             inspection = {
@@ -290,6 +305,7 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         "auditor_executed": False,
         "llm_api_attempts": 0,
         "rng_instantiated": False,
+        "network_used_for_current_aggregation": not offline,
         "implementation_corrections_before_result_commit": [
             "An initial uncommitted run incorrectly treated any one config's duplicate native IDs as a global failure. The frozen gate requires at least three identity-valid configs; the implementation was corrected before result publication, without changing protocol thresholds."
         ],
@@ -310,6 +326,7 @@ def run(data_root: Path, out: Path) -> dict[str, Any]:
         },
         "zero_api": True,
         "zero_auditor_execution": True,
+        "network_used_for_current_aggregation": not offline,
     }
     (out / "receipt.json").write_bytes(stable_bytes(receipt))
     report = [
@@ -353,8 +370,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--offline", action="store_true")
     args = parser.parse_args()
-    run(Path(args.data_root), Path(args.out))
+    run(Path(args.data_root), Path(args.out), offline=args.offline)
     return 0
 
 

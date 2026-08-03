@@ -77,3 +77,23 @@ def test_dangerous_pickle_is_rejected_before_container_parse(tmp_path: Path) -> 
     path.write_bytes(b"cos\nsystem\n.")
     result = preflight.safe_pickle_opcodes(path)
     assert result["dangerous_opcode_counts"] == {"GLOBAL": 1}
+
+
+def test_offline_resolution_never_falls_back_to_network(tmp_path: Path) -> None:
+    expected = tmp_path / "platinum-bench" / "x/test.parquet"
+    expected.parent.mkdir(parents=True)
+    expected.write_bytes(b"frozen")
+    assert preflight.download_exact(
+        "madrylab/platinum-bench", "revision", "x/test.parquet", tmp_path,
+        offline=True,
+    ) == expected
+    missing = tmp_path / "platinum-bench" / "missing.parquet"
+    try:
+        preflight.download_exact(
+            "madrylab/platinum-bench", "revision", "missing.parquet", tmp_path,
+            offline=True,
+        )
+    except preflight.PreflightError:
+        pass
+    else:
+        raise AssertionError(f"offline resolution unexpectedly created {missing}")
