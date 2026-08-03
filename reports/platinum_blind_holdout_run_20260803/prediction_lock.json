@@ -1,0 +1,74 @@
+{
+  "schema_version": "benchaudit-platinum-blind-holdout-prediction-lock-v1",
+  "date": "2026-08-03",
+  "protocol": "docs/research/PLATINUM_BLIND_HOLDOUT_RUN_PROTOCOL_V3_20260803.md",
+  "materialized_input_sha256": "26b3ab8e174acaaa67123d313f593ebb363a3b4699248f1a2f0441819bccce41",
+  "truth_unsealed_at_lock_time": false,
+  "runs": {
+    "run1": {
+      "prediction_items": 398,
+      "prediction_findings": 664,
+      "prediction_item_set_sha256": "0d12a78f42692a36032305bf1861ecfb46659c6b23ab1ee125853bfaceb06fe7",
+      "prediction_finding_set_sha256": "11ca0ab5a79c8709871a9f31c8c55c0684518231416d9aab850ab622cd11522a",
+      "confirmed_count": 23,
+      "llm_derived_confirmed": 0,
+      "methods_run_sha256": "b461756ebdd77eb73ae95fdef20b722962a4ae1b9c67bdd895a05fa0d8447144",
+      "api_attempts": 6157,
+      "total_tokens": 10241458,
+      "transport": "proxy",
+      "operational_failed": 1,
+      "attempted": 14352,
+      "decision_policy_sha256": "8ca41956fa83c84626c131e7b66c4add244e89859d0d0d2afaf5a11b2edc6321"
+    },
+    "run2": {
+      "prediction_items": 403,
+      "prediction_findings": 679,
+      "prediction_item_set_sha256": "6e246628ea0bafb3f762fa3d65d45e160b940a879b07da97afdcb7c808060f98",
+      "prediction_finding_set_sha256": "2249b5ebe86d39ecddc24659ef98a8ad9fb5375c25ae6d0fa51ad58141942c78",
+      "confirmed_count": 23,
+      "llm_derived_confirmed": 0,
+      "methods_run_sha256": "b461756ebdd77eb73ae95fdef20b722962a4ae1b9c67bdd895a05fa0d8447144",
+      "api_attempts": 6152,
+      "total_tokens": 10230586,
+      "transport": "proxy",
+      "operational_failed": 2,
+      "attempted": 14352,
+      "decision_policy_sha256": "8ca41956fa83c84626c131e7b66c4add244e89859d0d0d2afaf5a11b2edc6321"
+    },
+    "run3": {
+      "prediction_items": 400,
+      "prediction_findings": 672,
+      "prediction_item_set_sha256": "2805900838a7dab96bf5c38a8d57aff82d7353233fffe7042cc101eeb33849a9",
+      "prediction_finding_set_sha256": "f9bde4629c8a7c65d4c69dd5b5669eb009262b5dc7d939dd639d414fa76c610a",
+      "confirmed_count": 23,
+      "llm_derived_confirmed": 0,
+      "methods_run_sha256": "b461756ebdd77eb73ae95fdef20b722962a4ae1b9c67bdd895a05fa0d8447144",
+      "api_attempts": 6145,
+      "total_tokens": 10235250,
+      "transport": "proxy",
+      "operational_failed": 5,
+      "attempted": 14352,
+      "decision_policy_sha256": "8ca41956fa83c84626c131e7b66c4add244e89859d0d0d2afaf5a11b2edc6321"
+    }
+  },
+  "cost": {
+    "total_tokens": 30707294,
+    "estimated_cny": 35.6,
+    "hard_cap_cny": 45.0,
+    "within_cap": true
+  },
+  "cross_run_reproducibility": {
+    "run1_run2": {
+      "item_jaccard": 0.9348,
+      "finding_jaccard": 0.8996
+    },
+    "run1_run3": {
+      "item_jaccard": 0.9559,
+      "finding_jaccard": 0.914
+    },
+    "run2_run3": {
+      "item_jaccard": 0.949,
+      "finding_jaccard": 0.9055
+    }
+  }
+}
