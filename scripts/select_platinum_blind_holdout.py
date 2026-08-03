@@ -52,6 +52,12 @@ LAYER_C_NEGATIVE_QUOTAS = {
     "bbh_object_counting": 35,
     "winograd_wsc": 35,
 }
+EXPECTED_CONFIG_TOTALS = {
+    "multiarith": 174, "singleop": 159, "singleq": 109,
+    "drop": 100, "hotpotqa": 100, "squad": 100,
+    "bbh_logical_deduction_three_objects": 35, "bbh_navigate": 35,
+    "bbh_object_counting": 45, "winograd_wsc": 40,
+}
 POSITIVE = frozenset({"revised", "rejected"})
 NEGATIVE = frozenset({"consensus", "verified"})
 FORBIDDEN_PUBLIC_KEYS = frozenset(
@@ -186,7 +192,24 @@ def selection_counts(selected: list[dict[str, str]]) -> dict[str, Any]:
     }
 
 
+def validate_selection(selected: list[dict[str, str]]) -> None:
+    if len(selected) != 897:
+        raise SelectionError(f"selection size mismatch: {len(selected)}")
+    config_counts = Counter(row["config"] for row in selected)
+    if dict(sorted(config_counts.items())) != dict(sorted(EXPECTED_CONFIG_TOTALS.items())):
+        raise SelectionError("config quota mismatch")
+    counts = selection_counts(selected)
+    expected = {
+        "A_arithmetic": {"rows": 442, "revised": 3, "rejected": 22, "positive": 25, "negative": 417},
+        "B_text_qa": {"rows": 300, "revised": 85, "rejected": 85, "positive": 170, "negative": 130},
+        "C_reasoning_coreference": {"rows": 155, "revised": 0, "rejected": 15, "positive": 15, "negative": 140},
+    }
+    if counts != expected:
+        raise SelectionError("layer/status quota mismatch")
+
+
 def build_artifacts(selected: list[dict[str, str]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    validate_selection(selected)
     item_set_sha = hashlib.sha256(stable_bytes(sorted(row["opaque_id"] for row in selected))).hexdigest()
     truth = {
         "schema_version": "platinum-blind-holdout-truth-v1",
