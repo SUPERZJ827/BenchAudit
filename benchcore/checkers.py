@@ -502,20 +502,46 @@ def _looks_like_path(value: str) -> bool:
     return value.startswith(("./", "../", "/")) or value.lower().endswith(suffixes)
 
 
+# Material that can legitimately live inside the task text.  A figure, an
+# uploaded file or a database cannot, so for those the artifact check stands.
+INLINE_CAPABLE_CONTEXT = {"passage": 100, "table": 40}
+
+# Labels that introduce inline material.  Kept because an explicit label is
+# stronger evidence than length alone -- but no longer the only signal, since
+# a phrase list can never be complete: "Context:" was absent and produced 242
+# false "missing context" findings on one held-out benchmark.
+_INLINE_CONTEXT_LABELS = re.compile(
+    r"\b(context|passage|paragraph|article|document|excerpt|snippet|text|table|"
+    r"following information|following passage|passage below|text below|"
+    r"table below|following table)\b\s*[:\-]\s*",
+    re.I,
+)
+
+
 def _has_embedded_context(task: str, context_name: str) -> bool:
-    if context_name == "passage":
-        marker = re.search(
-            r"(following information|following passage|passage below|text below)\s*[:.]?\s*",
-            task,
-            re.I,
-        )
-        if marker and len(task[marker.end() :].strip()) >= 100:
-            return True
-    if context_name == "table":
-        marker = re.search(r"(table below|following table)\s*[:.]?\s*", task, re.I)
-        if marker and len(task[marker.end() :].strip()) >= 40:
-            return True
-    return False
+    """Is the referenced material already present in the task itself?
+
+    The task statement is the most basic context a benchmark can carry, and
+    many datasets ship nothing else.  Looking only for a separate artifact
+    reports every self-contained item as missing its own content, so an
+    inline-capable reference is satisfied by a labelled block or by enough
+    substantive text beyond the sentence that made the reference.
+    """
+
+    minimum = INLINE_CAPABLE_CONTEXT.get(context_name)
+    if minimum is None:
+        return False
+    label = _INLINE_CONTEXT_LABELS.search(task)
+    if label and len(task[label.end():].strip()) >= minimum:
+        return True
+    reference = REFERENCE_PATTERNS[context_name].search(task)
+    if not reference:
+        return False
+    sentence_start = task.rfind(".", 0, reference.start()) + 1
+    sentence_end = task.find(".", reference.end())
+    sentence_end = len(task) if sentence_end == -1 else sentence_end + 1
+    residual = (task[:sentence_start] + task[sentence_end:]).strip()
+    return len(residual) >= minimum
 
 
 def _question_requests_unit_answer(task: str) -> bool:

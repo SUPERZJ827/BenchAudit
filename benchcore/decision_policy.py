@@ -108,6 +108,26 @@ BLIND_SOLVE_DECISION_FIELDS = (
 # so that 0.86 and 0.87 cannot produce two different downstream prompts.
 CONFIDENCE_BUCKET_FIELD = "confidence_band"
 
+
+# --- clarity multi-label ------------------------------------------------------
+#
+# The clarity auditor used to return one mutually exclusive status, so a task
+# with several problems could only report one of them and the others were
+# structurally suppressed.  It now returns a confidence-ranked list.  Scoring
+# still uses the primary (top-ranked) entry only: "any label hits" inflates
+# recall mechanically with the number of labels emitted, while the primary is
+# immune to label count.
+MAX_CLARITY_LABELS = 3
+
+# Deterministic tie-break when two labels report the same confidence.  Without
+# a fixed order the primary label -- and therefore the score -- would depend on
+# dict iteration order.
+CLARITY_LABEL_TIE_BREAK = (
+    "answer_changing_ambiguity",
+    "missing_context",
+    "missing_condition",
+)
+
 # --- runtime-supplied thresholds --------------------------------------------
 
 DEFAULT_LLM_CONFIRM_THRESHOLD = 0.75
@@ -145,6 +165,8 @@ def decision_policy(
         ),
         "cascade_mode": _validated_cascade_mode(cascade_mode),
         "blind_solve_decision_fields": list(BLIND_SOLVE_DECISION_FIELDS),
+        "max_clarity_labels": MAX_CLARITY_LABELS,
+        "clarity_label_tie_break": list(CLARITY_LABEL_TIE_BREAK),
     }
 
 
