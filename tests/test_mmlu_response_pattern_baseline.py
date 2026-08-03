@@ -133,3 +133,28 @@ def test_committed_outputs_are_bound_when_present() -> None:
     assert baseline.sha256_file(output / "REPORT.md") == receipt["outputs"]["report_sha256"]
     assert receipt["execution"]["incremental_api_attempts"] == 0
     assert receipt["execution"]["production_activation"] is False
+
+
+def test_post_result_interpretation_is_hash_bound_and_metric_exact() -> None:
+    output = baseline.ROOT / "reports/mmlu_response_pattern_baseline_20260803"
+    interpretation_path = output / "interpretation.json"
+    if not interpretation_path.is_file():
+        pytest.skip("response-pattern interpretation has not been published yet")
+    interpretation = json.loads(interpretation_path.read_text(encoding="utf-8"))
+    metrics = json.loads((output / "metrics.json").read_text(encoding="utf-8"))
+    bound = interpretation["bound_outputs"]
+    assert baseline.sha256_file(output / "scores.jsonl") == bound["scores_sha256"]
+    assert baseline.sha256_file(output / "metrics.json") == bound["metrics_sha256"]
+    assert baseline.sha256_file(output / "REPORT.md") == bound["report_sha256"]
+    assert baseline.sha256_file(output / "receipt.json") == bound["stable_receipt_sha256"]
+
+    strict_bench = metrics["benchcore"]["endpoints"]["strict_explicit_defect"]
+    strict_response = metrics["response_pattern"]["endpoints"]["strict_explicit_defect"]
+    assert interpretation["broad_strict_endpoint"]["benchcore"]["f1"] == strict_bench["f1"]
+    assert interpretation["broad_strict_endpoint"]["response_pattern_k8"]["f1"] == (
+        strict_response["thresholds"]["8"]["f1"]
+    )
+    assert interpretation["broad_strict_endpoint"]["response_pattern_post_hoc_oracle"]["f1"] == (
+        strict_response["post_hoc_oracle_upper_bound"]["metrics"]["f1"]
+    )
+    assert interpretation["claim_boundary"]["historical_response_generation_cost_zero"] is False
