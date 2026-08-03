@@ -1076,6 +1076,7 @@ def run_audit(args: argparse.Namespace) -> int:
             run_started=run_started,
             started_at=started_at,
             primary_client=client,
+            workers=max(args.workers, 1),
             extra=extra_metadata or None,
         ),
         benchmark_package=benchmark_package.to_dict(),
@@ -1728,6 +1729,7 @@ def collect_run_metadata(
     started_at: datetime,
     primary_client: LLMClient | None,
     verifier_client: LLMClient | None = None,
+    workers: int | None = None,
     extra: dict | None = None,
 ) -> dict:
     metadata = {
@@ -1740,6 +1742,10 @@ def collect_run_metadata(
         # that process; individual hashes also make later diffs diagnosable.
         "implementation": implementation_metadata(),
     }
+    if workers is not None:
+        if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
+            raise ValueError("workers must be a positive integer")
+        metadata["workers"] = workers
     if primary_client is not None:
         metadata["llm"] = primary_client.run_stats()
     if verifier_client is not None:
