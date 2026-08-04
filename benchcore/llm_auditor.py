@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
-from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number
+from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number, answer_values
 from .llm_client import LLMClient
 from .decision_policy import (
     BLIND_SOLVE_DECISION_FIELDS,
@@ -73,6 +73,30 @@ Rules:
 - If the answer depends on a convention, source, jurisdiction, or expert knowledge, return uncertain and needs_expert=true.
 - For medicine, law, psychology, accounting, and other professional domains, mark needs_expert=true when the conclusion depends on a textbook-specific or professional convention rather than a direct formal derivation.
 - Use no_correct_answer only when none of the supplied choices/accepted forms is correct.
+"""
+
+
+ANSWER_MULTIPLICITY_SYSTEM_PROMPT = """You are the Answer Multiplicity Auditor in a benchmark quality audit system.
+A benchmark item declares several accepted answers. Decide what relationship they have.
+
+Return only JSON:
+{
+  "relationship": "same_answer" | "different_answers" | "uncertain",
+  "confidence": 0.0,
+  "distinct_answer_groups": [["answer text", "another wording of it"], ["a different answer"]],
+  "rationale": "under 60 words"
+}
+
+Rules:
+- "same_answer" means every declared answer states the same fact, allowing for wording, abbreviation,
+  granularity, punctuation, units written out, or one answer being a longer span containing the other.
+- "different_answers" means at least two declared answers assert materially different facts, so a
+  responder could satisfy one while contradicting another.
+- Group the declared answers in distinct_answer_groups: one group per distinct fact.
+- Judge the answers as answers to the given task; do not judge which one is best.
+- Extraction spans of different length from the same passage are the same answer when they identify the
+  same entity, quantity, date, or event.
+- Return uncertain when the task is not sufficient to tell whether two answers mean the same thing.
 """
 
 CLARITY_DEFECT_STATUSES = frozenset(CLARITY_LABEL_TIE_BREAK)
@@ -787,6 +811,57 @@ class QuestionClarityLLMAuditor(BaseLLMAuditor):
         )
 
 
+
+class AnswerMultiplicityLLMAuditor(BaseLLMAuditor):
+    """Classify the relationship between several declared accepted answers.
+
+    A benchmark that ships more than one accepted answer is stating a fact
+    about itself, but not which fact: the answers may be several wordings of
+    one answer, or genuinely different answers.  The two cases must route
+    differently downstream, and no rule decides them -- normalization handles
+    "1705" versus "12 may 1705" and fails on a full-sentence extraction span
+    versus a two-word one.  So the judgement is made by the model, and like
+    every model judgement it is capped at review.
+    """
+
+    name = "llm_answer_multiplicity"
+    prompt = ANSWER_MULTIPLICITY_SYSTEM_PROMPT
+
+    def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
+        accepted = declared_accepted_answers(item)
+        if len(accepted) < 2:
+            return []
+        self.last_error = None
+        payload = {
+            "task": item.task,
+            "declared_accepted_answers": accepted,
+        }
+        try:
+            result = self.client.chat_json(
+                self.prompt, json.dumps(payload, ensure_ascii=False, indent=2)
+            )
+        except RuntimeError as exc:
+            self.last_error = str(exc)
+            item.metadata.setdefault("_llm_observations", {})[self.name] = {
+                "audit_failure": str(exc)
+            }
+            return [self.failure_violation(item)]
+        observations = item.metadata.setdefault("_llm_observations", {})
+        observations[self.name] = result
+        # The classification routes later checks even when it is not itself a
+        # finding, so record it whatever the outcome.
+        item.metadata["_answer_multiplicity"] = {
+            "relationship": str(result.get("relationship") or "uncertain"),
+            "confidence": _float(result.get("confidence"), 0.0),
+            "declared_accepted_answers": accepted,
+        }
+        return list(
+            answer_multiplicity_violations(
+                item, result, self.confirm_threshold, self.review_threshold
+            )
+        )
+
+
 class OptionSetLLMAuditor(BaseLLMAuditor):
     name = "llm_option_set"
     prompt = OPTION_SYSTEM_PROMPT
@@ -1044,6 +1119,46 @@ class HolisticSamplingLLMAuditor(BaseLLMAuditor):
 
 # Backward-compatible alias for callers that still request one semantic auditor.
 LLMSemanticChecker = GoldLLMAuditor
+
+
+
+def declared_accepted_answers(item: BenchmarkItem) -> list[str]:
+    """Every answer the benchmark itself declares acceptable, in order.
+
+    The split into a primary gold and secondary aliases is our own; the source
+    usually states a set.  Both are returned so the model sees what the
+    benchmark actually declared.
+    """
+
+    values: list[str] = []
+    for raw in [item.gold, *(item.aliases or [])]:
+        for value in answer_values(raw):
+            text = str(value).strip()
+            if text and text not in values:
+                values.append(text)
+    return values
+
+
+def answer_multiplicity_violations(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+    confirm_threshold: float,
+    review_threshold: float,
+) -> Iterable[Violation]:
+    relationship = str(result.get("relationship") or "uncertain")
+    confidence = _float(result.get("confidence"), 0.0)
+    if relationship != "different_answers" or confidence < review_threshold:
+        return
+    groups = result.get("distinct_answer_groups")
+    yield _llm_violation(
+        item,
+        "multiple_correct_answers",
+        confidence,
+        result,
+        True,
+        "llm_answer_multiplicity",
+        "Declared accepted answers assert materially different facts.",
+    )
 
 
 def build_user_prompt(item: BenchmarkItem) -> str:
@@ -1618,6 +1733,41 @@ def aggregate_gold_evidence(
     }
 
 
+
+def accepted_answer_set(item: BenchmarkItem) -> set[str]:
+    """Normalized forms of every answer the benchmark declares acceptable.
+
+    The split into a primary gold and secondary aliases is ours; comparing a
+    solver's answer against the primary alone reports a defect whenever the
+    solver picked a different declared answer.
+    """
+
+    return {
+        normalized
+        for value in declared_accepted_answers(item)
+        if (normalized := normalize_answer(item, value))
+    }
+
+
+def answers_are_interchangeable(item: BenchmarkItem) -> bool | None:
+    """Did the multiplicity auditor find the declared answers to be one answer?
+
+    ``None`` means the question was never asked, in which case the declared set
+    is honoured as-is: treating unexamined alternatives as wrong is the failure
+    this exists to prevent.
+    """
+
+    verdict = item.metadata.get("_answer_multiplicity")
+    if not isinstance(verdict, dict):
+        return None
+    relationship = verdict.get("relationship")
+    if relationship == "same_answer":
+        return True
+    if relationship == "different_answers":
+        return False
+    return None
+
+
 def defect_from_blind(
     item: BenchmarkItem,
     blind: dict[str, Any],
@@ -1629,8 +1779,12 @@ def defect_from_blind(
         return "no_correct_answer"
     if status == "multiple":
         return "multiple_correct_answers"
-    if status == "solved" and answers and gold not in answers:
-        return "wrong_gold_answer"
+    if status == "solved" and answers:
+        # Compare against everything the benchmark declared acceptable, not
+        # just the entry our adapter happened to put first.
+        accepted = accepted_answer_set(item) or {gold}
+        if not (answers & accepted):
+            return "wrong_gold_answer"
     return ""
 
 

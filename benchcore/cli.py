@@ -51,6 +51,7 @@ from .llm_auditor import (
     OptionSetLLMAuditor,
     PresentationLLMAuditor,
     QuantityConsistencyLLMAuditor,
+    AnswerMultiplicityLLMAuditor,
     QuestionClarityLLMAuditor,
 )
 from .code_verifier import CodeExecVerifier
@@ -945,11 +946,20 @@ def run_audit(args: argparse.Namespace) -> int:
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
             requested = ["gold", "question", "option", "presentation", "quantity", "event"]
-        known = {*auditor_types, "gold"}
+        known = {*auditor_types, "gold", "multiplicity"}
         unknown = [name for name in requested if name not in known]
         if unknown:
             raise ValueError(f"Unknown LLM auditors: {', '.join(unknown)}")
         for name in requested:
+            if name == "multiplicity":
+                checkers.append(
+                    AnswerMultiplicityLLMAuditor(
+                        client,
+                        confirm_threshold=args.llm_confirm_threshold,
+                        review_threshold=args.llm_review_threshold,
+                    )
+                )
+                continue
             if name == "gold":
                 checkers.append(
                     EvidenceGoldLLMAuditor(
