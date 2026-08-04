@@ -41,6 +41,9 @@ from .decision_policy import (
 from .comparison import compare_report, write_comparison_markdown
 from .forensic import build_forensic_bundle, write_forensic_json, write_forensic_markdown
 from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_study_markdown
+from dataclasses import replace
+
+from .benchmark_profile import BenchmarkProfileStore, profile_benchmark
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
     DirectLLMAuditor,
@@ -174,6 +177,15 @@ def main(argv: list[str] | None = None) -> int:
         choices=list(CASCADE_MODES),
         default=DEFAULT_CASCADE_MODE,
         help="Cascade ablation arm; 'full' is the unmodified pipeline",
+    )
+    audit_parser.add_argument(
+        "--benchmark-profiles",
+        help="JSONL store of per-schema reading profiles (default: benchmark_profiles.jsonl)",
+    )
+    audit_parser.add_argument(
+        "--no-benchmark-profile",
+        action="store_true",
+        help="Do not consult or derive a per-schema profile",
     )
     audit_parser.add_argument("--llm-confirm-threshold", type=float, default=0.75)
     audit_parser.add_argument("--llm-review-threshold", type=float, default=0.45)
@@ -715,6 +727,89 @@ def main(argv: list[str] | None = None) -> int:
     return args.func(args)
 
 
+
+DEFAULT_PROFILE_STORE = "benchmark_profiles.jsonl"
+
+
+def _profile_client(args: argparse.Namespace) -> LLMClient | None:
+    """A client for schema profiling, or None when profiling is not available."""
+
+    if getattr(args, "no_benchmark_profile", False):
+        return None
+    if not getattr(args, "llm_config", None):
+        return None
+    try:
+        config = load_llm_config(Path(args.llm_config))
+    except (OSError, ValueError):
+        return None
+    if getattr(args, "llm_cache", None):
+        config = replace(config, cache_path=args.llm_cache)
+    return LLMClient(config)
+
+
+def _apply_benchmark_profile(
+    args: argparse.Namespace,
+    source_rows: list[dict],
+    mapping: FieldMapping,
+) -> tuple[FieldMapping, dict]:
+    """Let a memoized per-schema profile refine an inferred field mapping.
+
+    Only roles the name-list inference left unresolved are filled in.  A
+    profile that disagrees with a resolved role is recorded but not applied:
+    the profile is itself a model judgement, and silently overriding a mapping
+    would change what every later check reads on the strength of one call.
+    """
+
+    store = BenchmarkProfileStore(
+        Path(getattr(args, "benchmark_profiles", None) or DEFAULT_PROFILE_STORE)
+    )
+    client = _profile_client(args)
+    profile, status = profile_benchmark(
+        source_rows,
+        store,
+        client,
+        model=client.config.model if client else None,
+        today=datetime.now(timezone.utc).date().isoformat(),
+    )
+    metadata: dict[str, Any] = {
+        "status": status,
+        "store_path": str(store.path),
+        "store_entries": len(store),
+    }
+    if profile is None:
+        return mapping, metadata
+
+    metadata.update({
+        "fingerprint": profile.fingerprint,
+        "provenance": profile.provenance,
+        "gold_semantics": profile.gold_semantics,
+        "components": list(profile.components),
+        "suggested_checks": [dict(entry) for entry in profile.suggested_checks],
+    })
+
+    filled: dict[str, str] = {}
+    disagreements: dict[str, dict[str, str]] = {}
+    updates: dict[str, str] = {}
+    # A stored profile can outlive the shape it was derived from, so a role is
+    # applied only when the field is present in the data actually being read.
+    present = {str(key) for row in source_rows[:20] if isinstance(row, dict) for key in row}
+    for role in ("task", "gold", "choices"):
+        proposed = profile.field_roles.get(role)
+        if not proposed or proposed not in present:
+            continue
+        current = getattr(mapping, role, None)
+        if current in (None, "", []):
+            updates[role] = proposed
+            filled[role] = proposed
+        elif current != proposed:
+            disagreements[role] = {"inferred": str(current), "profile": proposed}
+    if updates:
+        mapping = replace(mapping, **updates)
+    metadata["roles_filled"] = filled
+    metadata["roles_disagreeing"] = disagreements
+    return mapping, metadata
+
+
 def run_audit(args: argparse.Namespace) -> int:
     run_started = time.monotonic()
     started_at = datetime.now(timezone.utc)
@@ -724,6 +819,7 @@ def run_audit(args: argparse.Namespace) -> int:
     if args.mapping and (args.adapter_spec or args.adapter_registry):
         raise ValueError("--mapping cannot be combined with an adapter")
     adapter_metadata = None
+    benchmark_profile_metadata: dict | None = None
     if args.adapter_spec or args.adapter_registry:
         profile = build_schema_profile(source_rows, max_examples_per_path=0)
         if args.adapter_spec:
@@ -771,6 +867,10 @@ def run_audit(args: argparse.Namespace) -> int:
         }
     else:
         mapping = load_mapping(Path(args.mapping) if args.mapping else None, source_rows)
+        if args.mapping is None:
+            mapping, benchmark_profile_metadata = _apply_benchmark_profile(
+                args, source_rows, mapping
+            )
     if args.manifest:
         rows, source_indices = load_rows_with_source_indices_from_manifest(
             source_rows, input_path, Path(args.manifest),
@@ -1099,6 +1199,7 @@ def run_audit(args: argparse.Namespace) -> int:
             started_at=started_at,
             primary_client=client,
             workers=max(args.workers, 1),
+            benchmark_profile=benchmark_profile_metadata,
             decision_policy=decision_policy_snapshot(
                 llm_confirm_threshold=args.llm_confirm_threshold,
                 llm_review_threshold=args.llm_review_threshold,
@@ -1156,6 +1257,13 @@ def _remote_egress_manifest(
             "attachment_content": attachment_content,
         })
 
+    # Schema profiling sends a bounded sample before any checker runs, so it
+    # must appear here for consent to stay fail-closed.
+    if getattr(args, "llm_config", None) and not getattr(args, "no_benchmark_profile", False):
+        add(
+            "benchmark_schema_profile",
+            ("field_names", "value_shapes", "bounded_row_sample"),
+        )
     if args.execution_evaluator_audit:
         add(
             "execution_evaluator_audit",
@@ -1761,6 +1869,7 @@ def collect_run_metadata(
     primary_client: LLMClient | None,
     verifier_client: LLMClient | None = None,
     workers: int | None = None,
+    benchmark_profile: dict | None = None,
     decision_policy: dict | None = None,
     extra: dict | None = None,
 ) -> dict:
@@ -1778,6 +1887,8 @@ def collect_run_metadata(
         if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
             raise ValueError("workers must be a positive integer")
         metadata["workers"] = workers
+    if benchmark_profile is not None:
+        metadata["benchmark_profile"] = benchmark_profile
     if decision_policy is not None:
         metadata["decision_policy"] = decision_policy
     if primary_client is not None:
