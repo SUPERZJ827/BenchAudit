@@ -183,15 +183,16 @@ class TaskSpecChecker(Checker):
         # A benchmark that declares a context field has stated the material is
         # a separate artifact, so an empty field is a checkable omission and
         # stays here.
-        declares_empty_slot = declares_empty_context_slot(item)
         for context_name, pattern in REFERENCE_PATTERNS.items():
             if not pattern.search(task):
                 continue
             # Material that cannot live in prose -- an image, an upload, a
-            # database -- is missing whenever nothing is attached.  Material
-            # that can be inline is only decidable here when the benchmark
-            # declared a slot for it and left the slot empty.
-            if context_name in INLINE_CAPABLE_CONTEXT and not declares_empty_slot:
+            # database -- is missing whenever nothing is attached, which is a
+            # factual observation.  Material that can be inline is left to the
+            # clarity auditor: deciding whether prose *is* the passage or only
+            # describes it needs semantics, and a key-name match cannot stand
+            # in for that.
+            if context_name in INLINE_CAPABLE_CONTEXT:
                 continue
             source = locate_referenced_context(item, task, context_name)
             if source != "not_found":
@@ -204,7 +205,6 @@ class TaskSpecChecker(Checker):
                 {
                     "reference_type": context_name,
                     "context_source": source,
-                    "declared_empty_slot": declares_empty_slot,
                     "task_excerpt": task[:240],
                 },
                 repair=f"Attach the referenced {context_name} or remove the reference.",
@@ -584,29 +584,6 @@ def _has_embedded_context(task: str, context_name: str) -> bool:
     label = _INLINE_CONTEXT_LABELS.search(task)
     return bool(label and len(task[label.end():].strip()) >= minimum)
 
-
-
-_CONTEXT_SLOT_NAMES = frozenset().union(*CONTEXT_ALIASES.values())
-
-
-def declares_empty_context_slot(item: BenchmarkItem) -> bool:
-    """Does the source row declare a slot for material and leave it empty?
-
-    This is the one presence question a deterministic rule can answer.  A
-    benchmark that declares a context field has stated that the material lives
-    in a separate artifact, so an empty field is a checkable omission.  A
-    benchmark with no such field is self-contained, and deciding whether its
-    prose *is* the material or merely describes it needs semantics.
-    """
-
-    raw = item.raw if isinstance(item.raw, dict) else {}
-    for key, value in raw.items():
-        key_lower = str(key).lower()
-        if not any(name in key_lower for name in _CONTEXT_SLOT_NAMES):
-            continue
-        if value in (None, "", [], {}):
-            return True
-    return False
 
 
 def locate_referenced_context(
