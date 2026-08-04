@@ -112,3 +112,105 @@ def test_malformed_rows_are_skipped_rather_than_trusted(tmp_path):
 def test_profiles_default_to_inferred_provenance():
     """Promotion downgrades findings that depend on an inferred mapping."""
     assert _profile("x").provenance == "llm_inferred"
+
+
+# --- derivation ---------------------------------------------------------------
+
+from benchcore.benchmark_profile import (  # noqa: E402
+    build_profile_prompt,
+    derive_profile,
+    profile_benchmark,
+)
+
+
+class _Client:
+    """Stands in for an LLM client; records what it was asked."""
+
+    def __init__(self, response):
+        self.response = response
+        self.calls = 0
+        self.last_prompt = None
+
+    def chat_json(self, system, user):
+        self.calls += 1
+        self.last_prompt = user
+        if isinstance(self.response, Exception):
+            raise self.response
+        return self.response
+
+
+GOOD = {
+    "field_roles": {"task": "question", "gold": "targets", "choices": None, "context": None},
+    "gold_semantics": {"shape": "set_of_equally_acceptable_answers", "why": "alternatives"},
+    "components": ["open-ended question answering"],
+    "suggested_checks": [{"concern": "targets may disagree", "why": "several annotators"}],
+}
+
+
+def test_roles_naming_absent_fields_are_dropped():
+    """A role bound to a missing field would silently read nothing."""
+    client = _Client({**GOOD, "field_roles": {"task": "question", "gold": "no_such_field"}})
+    profile = derive_profile(ROWS, client)
+    assert profile.field_roles["task"] == "question"
+    assert profile.field_roles["gold"] is None
+
+
+def test_response_with_no_usable_role_is_rejected():
+    client = _Client({**GOOD, "field_roles": {"task": "nope", "gold": "nope"}})
+    assert derive_profile(ROWS, client) is None
+
+
+def test_unknown_gold_shape_falls_back_to_unclear():
+    client = _Client({**GOOD, "gold_semantics": {"shape": "invented", "why": "x"}})
+    assert derive_profile(ROWS, client).gold_semantics["shape"] == "unclear"
+
+
+def test_provider_failure_yields_no_profile():
+    assert derive_profile(ROWS, _Client(RuntimeError("boom"))) is None
+
+
+def test_non_mapping_response_yields_no_profile():
+    assert derive_profile(ROWS, _Client(["not", "a", "mapping"])) is None
+
+
+def test_derived_profiles_are_marked_inferred():
+    assert derive_profile(ROWS, _Client(GOOD)).provenance == "llm_inferred"
+
+
+def test_prompt_carries_shape_and_samples_but_stays_bounded():
+    prompt = build_profile_prompt(ROWS)
+    assert "question" in prompt and "value_shapes" in prompt
+    assert len(prompt) <= 12000
+
+
+def test_prompt_does_not_grow_with_the_stored_table(tmp_path):
+    """The table is looked up in code and never shown to the model."""
+    store = BenchmarkProfileStore(tmp_path / "profiles.jsonl")
+    for index in range(50):
+        store.put(_profile(f"filler-{index}"))
+    client = _Client(GOOD)
+    profile_benchmark(ROWS, store, client)
+    assert all(f"filler-{index}" not in client.last_prompt for index in range(50))
+
+
+def test_second_dataset_with_the_same_schema_costs_no_call(tmp_path):
+    store = BenchmarkProfileStore(tmp_path / "profiles.jsonl")
+    client = _Client(GOOD)
+    _, first = profile_benchmark(ROWS, store, client)
+    other = [dict(row, question="different wording entirely") for row in ROWS]
+    _, second = profile_benchmark(other, store, client)
+    assert (first, second) == ("derived", "cache_hit")
+    assert client.calls == 1
+
+
+def test_derivation_failure_leaves_the_table_untouched(tmp_path):
+    store = BenchmarkProfileStore(tmp_path / "profiles.jsonl")
+    _, status = profile_benchmark(ROWS, store, _Client(RuntimeError("boom")))
+    assert status == "derivation_failed"
+    assert len(store) == 0
+
+
+def test_absent_client_is_reported_rather_than_guessed(tmp_path):
+    store = BenchmarkProfileStore(tmp_path / "profiles.jsonl")
+    profile, status = profile_benchmark(ROWS, store, None)
+    assert (profile, status) == (None, "no_client")
