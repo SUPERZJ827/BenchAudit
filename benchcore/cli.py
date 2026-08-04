@@ -784,7 +784,6 @@ def _apply_benchmark_profile(
         "provenance": profile.provenance,
         "gold_semantics": profile.gold_semantics,
         "components": list(profile.components),
-        "suggested_checks": [dict(entry) for entry in profile.suggested_checks],
     })
 
     filled: dict[str, str] = {}

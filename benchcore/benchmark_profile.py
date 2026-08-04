@@ -82,7 +82,6 @@ class BenchmarkProfile:
     field_roles: dict[str, Any] = field(default_factory=dict)
     gold_semantics: dict[str, Any] = field(default_factory=dict)
     components: tuple[str, ...] = ()
-    suggested_checks: tuple[dict[str, Any], ...] = ()
     provenance: str = "llm_inferred"
     model: str | None = None
     first_seen: str | None = None
@@ -95,7 +94,6 @@ class BenchmarkProfile:
             "field_roles": self.field_roles,
             "gold_semantics": self.gold_semantics,
             "components": list(self.components),
-            "suggested_checks": [dict(entry) for entry in self.suggested_checks],
             "provenance": self.provenance,
             "model": self.model,
             "first_seen": self.first_seen,
@@ -109,10 +107,6 @@ class BenchmarkProfile:
             field_roles=dict(payload.get("field_roles") or {}),
             gold_semantics=dict(payload.get("gold_semantics") or {}),
             components=tuple(payload.get("components") or ()),
-            suggested_checks=tuple(
-                dict(entry) for entry in (payload.get("suggested_checks") or ())
-                if isinstance(entry, Mapping)
-            ),
             provenance=str(payload.get("provenance") or "llm_inferred"),
             model=payload.get("model"),
             first_seen=payload.get("first_seen"),
@@ -190,11 +184,7 @@ Return only JSON:
     "shape": "single_value" | "set_of_equally_acceptable_answers" | "unclear",
     "why": "under 25 words"
   },
-  "components": ["short structural facts about this benchmark"],
-  "suggested_checks": [
-    {"concern": "what could be wrong in a benchmark shaped like this",
-     "why": "under 20 words"}
-  ]
+  "components": ["short structural facts about this benchmark"]
 }
 
 Rules:
@@ -300,20 +290,12 @@ def derive_profile(
         for entry in (response.get("components") or [])
         if isinstance(entry, (str, int, float))
     )[:12]
-    checks = tuple(
-        {"concern": str(entry.get("concern") or "")[:200],
-         "why": str(entry.get("why") or "")[:200]}
-        for entry in (response.get("suggested_checks") or [])
-        if isinstance(entry, Mapping) and entry.get("concern")
-    )[:12]
-
     return BenchmarkProfile(
         fingerprint=fingerprint or schema_fingerprint(rows),
         field_names=tuple(sorted(known)),
         field_roles=roles,
         gold_semantics=semantics,
         components=components,
-        suggested_checks=checks,
         provenance="llm_inferred",
         model=model,
         first_seen=today,
