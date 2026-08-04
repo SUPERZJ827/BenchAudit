@@ -24,7 +24,17 @@ from .coverage import AuditEligibility
 
 REFERENCE_PATTERNS = {
     "passage": re.compile(r"\b(passage|article|paragraph|text above|above text)\b", re.I),
-    "figure": re.compile(r"\b(figure|diagram|chart|plot|screenshot)\b|\b(attached|shown|following)\s+image\b", re.I),
+    # A demonstrative is required, as for tables: "figure" is an ordinary
+    # English word ("figure skating", "figure out", "a public figure") and a
+    # bare match produced false findings on prose that referenced no artifact.
+    "figure": re.compile(
+        r"\b(figure|diagram|chart|plot|screenshot|image)\s+"
+        r"(above|below|shown|provided|attached)\b|"
+        r"\b(attached|provided|following|shown|uploaded)\s+"
+        r"(figure|diagram|chart|plot|screenshot|image)\b|"
+        r"\bin\s+(figure|diagram|chart)\s*\d",
+        re.I,
+    ),
     "table": re.compile(r"\b(spreadsheet|csv|excel)\b|\b(table\s+(above|below|shown|provided|attached))\b", re.I),
     "file": re.compile(
         r"\b(attached|provided|following|uploaded)\s+(file|attachment|document|pdf)\b|"
@@ -161,20 +171,44 @@ class TaskSpecChecker(Checker):
                 repair="Add a question, instruction, or problem statement.",
             )
             return
+        # Only the declared-but-empty case is decided here.
+        #
+        # Whether prose *is* the referenced material or merely describes it
+        # needs semantics, and "figure" is an ordinary English word; three
+        # rounds of pattern work on one held-out benchmark went 244 -> 242 ->
+        # 240 -> 137 false findings without converging.  That judgement now
+        # belongs to the clarity auditor, which reports `missing_context` and no
+        # longer has to win a single status slot to do so.
+        #
+        # A benchmark that declares a context field has stated the material is
+        # a separate artifact, so an empty field is a checkable omission and
+        # stays here.
+        declares_empty_slot = declares_empty_context_slot(item)
         for context_name, pattern in REFERENCE_PATTERNS.items():
-            if (
-                pattern.search(task)
-                and not _has_context(item, context_name)
-                and not _has_embedded_context(task, context_name)
-            ):
-                yield _violation(
-                    item,
-                    "missing_context",
-                    0.85,
-                    f"Task references {context_name}, but no matching context artifact was found.",
-                    {"reference_type": context_name, "task_excerpt": task[:240]},
-                    repair=f"Attach the referenced {context_name} or remove the reference.",
-                )
+            if not pattern.search(task):
+                continue
+            # Material that cannot live in prose -- an image, an upload, a
+            # database -- is missing whenever nothing is attached.  Material
+            # that can be inline is only decidable here when the benchmark
+            # declared a slot for it and left the slot empty.
+            if context_name in INLINE_CAPABLE_CONTEXT and not declares_empty_slot:
+                continue
+            source = locate_referenced_context(item, task, context_name)
+            if source != "not_found":
+                continue
+            yield _violation(
+                item,
+                "missing_context",
+                0.85,
+                f"Task references {context_name}, but it is neither attached nor in the task text.",
+                {
+                    "reference_type": context_name,
+                    "context_source": source,
+                    "declared_empty_slot": declares_empty_slot,
+                    "task_excerpt": task[:240],
+                },
+                repair=f"Attach the referenced {context_name} or remove the reference.",
+            )
         if not self.check_ambiguity:
             return
         for pattern in AMBIGUITY_PATTERNS:
@@ -510,38 +544,89 @@ INLINE_CAPABLE_CONTEXT = {"passage": 100, "table": 40}
 # stronger evidence than length alone -- but no longer the only signal, since
 # a phrase list can never be complete: "Context:" was absent and produced 242
 # false "missing context" findings on one held-out benchmark.
+# A labelled material block is `<material word> [optional ordinal] <separator>`.
+# The rule is structural rather than a phrase list: enumerating labels never
+# converges -- "Context:" was missing and cost 244 false findings, then
+# "Paragraph A:" was missing and cost 236 more.  The ordinal group covers
+# "Paragraph A:", "Document 1:", "Passage II:", "Source (b):" in one rule.
+#
+# It still cannot cover unlabelled inline material, non-English labels, or
+# blocks delimited only by rules such as "---".  That is the ceiling of a
+# deterministic layer here, not a gap to be closed by another pattern.
+_MATERIAL_WORDS = (
+    "context|passage|paragraph|article|document|excerpt|snippet|text|table|source"
+)
+_MATERIAL_ORDINAL = r"(?:\s*(?:[a-z0-9]{1,3}|\([a-z0-9]{1,3}\)|\[[a-z0-9]{1,3}\]|#\d{1,3}))?"
 _INLINE_CONTEXT_LABELS = re.compile(
-    r"\b(context|passage|paragraph|article|document|excerpt|snippet|text|table|"
-    r"following information|following passage|passage below|text below|"
-    r"table below|following table)\b\s*[:\-]\s*",
+    rf"\b(?:{_MATERIAL_WORDS})\b{_MATERIAL_ORDINAL}\s*[:\-\u2013\u2014]\s*"
+    r"|\b(?:following information|following passage|passage below|text below|"
+    r"table below|following table)\b\s*[:.\-]?\s*",
     re.I,
 )
 
 
 def _has_embedded_context(task: str, context_name: str) -> bool:
-    """Is the referenced material already present in the task itself?
+    """Is the referenced material present in the task itself, under a label?
 
-    The task statement is the most basic context a benchmark can carry, and
-    many datasets ship nothing else.  Looking only for a separate artifact
-    reports every self-contained item as missing its own content, so an
-    inline-capable reference is satisfied by a labelled block or by enough
-    substantive text beyond the sentence that made the reference.
+    The task statement is the most basic context a benchmark can carry and many
+    datasets ship nothing else, so this is checked before any attached
+    artifact.  Only an explicit label counts.  An earlier version also accepted
+    "enough text remains after removing the referencing sentence", but length
+    is a bad proxy for presence: a task that merely *describes* a passage at
+    length passed, hiding a genuine omission, while a short inline passage
+    still failed.  Deciding whether prose *is* the material or merely talks
+    about it needs semantics, which belongs to the LLM layer.
     """
 
     minimum = INLINE_CAPABLE_CONTEXT.get(context_name)
     if minimum is None:
         return False
     label = _INLINE_CONTEXT_LABELS.search(task)
-    if label and len(task[label.end():].strip()) >= minimum:
-        return True
-    reference = REFERENCE_PATTERNS[context_name].search(task)
-    if not reference:
-        return False
-    sentence_start = task.rfind(".", 0, reference.start()) + 1
-    sentence_end = task.find(".", reference.end())
-    sentence_end = len(task) if sentence_end == -1 else sentence_end + 1
-    residual = (task[:sentence_start] + task[sentence_end:]).strip()
-    return len(residual) >= minimum
+    return bool(label and len(task[label.end():].strip()) >= minimum)
+
+
+
+_CONTEXT_SLOT_NAMES = frozenset().union(*CONTEXT_ALIASES.values())
+
+
+def declares_empty_context_slot(item: BenchmarkItem) -> bool:
+    """Does the source row declare a slot for material and leave it empty?
+
+    This is the one presence question a deterministic rule can answer.  A
+    benchmark that declares a context field has stated that the material lives
+    in a separate artifact, so an empty field is a checkable omission.  A
+    benchmark with no such field is self-contained, and deciding whether its
+    prose *is* the material or merely describes it needs semantics.
+    """
+
+    raw = item.raw if isinstance(item.raw, dict) else {}
+    for key, value in raw.items():
+        key_lower = str(key).lower()
+        if not any(name in key_lower for name in _CONTEXT_SLOT_NAMES):
+            continue
+        if value in (None, "", [], {}):
+            return True
+    return False
+
+
+def locate_referenced_context(
+    item: BenchmarkItem, task: str, context_name: str
+) -> str:
+    """Where the referenced material was found: task text, artifact, or nowhere.
+
+    Whether an attached artifact is the *right* material cannot be decided
+    without semantics, so any non-empty match counts as present.  Requiring the
+    key name to correspond exactly would make this layer assert something it
+    cannot determine -- the same mistake that produced the alias false
+    positives.  A deterministic checker may claim "nothing is here"; it may not
+    claim "the wrong thing is here".
+    """
+
+    if _has_embedded_context(task, context_name):
+        return "task_text"
+    if _has_context(item, context_name):
+        return "attached_artifact"
+    return "not_found"
 
 
 def _question_requests_unit_answer(task: str) -> bool:
