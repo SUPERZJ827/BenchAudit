@@ -143,7 +143,6 @@ GOOD = {
     "field_roles": {"task": "question", "gold": "targets", "choices": None, "context": None},
     "gold_semantics": {"shape": "set_of_equally_acceptable_answers", "why": "alternatives"},
     "components": ["open-ended question answering"],
-    "suggested_checks": [{"concern": "targets may disagree", "why": "several annotators"}],
 }
 
 
