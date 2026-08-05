@@ -80,7 +80,10 @@ class BenchmarkProfile:
     fingerprint: str
     field_names: tuple[str, ...]
     field_roles: dict[str, Any] = field(default_factory=dict)
-    gold_semantics: dict[str, Any] = field(default_factory=dict)
+    task_shape: str = "other"
+    answer_cardinality: str = "not_applicable"
+    modality: str = "other"
+    scoring: dict[str, Any] = field(default_factory=dict)
     components: tuple[str, ...] = ()
     provenance: str = "llm_inferred"
     model: str | None = None
@@ -92,7 +95,10 @@ class BenchmarkProfile:
             "fingerprint": self.fingerprint,
             "field_names": list(self.field_names),
             "field_roles": self.field_roles,
-            "gold_semantics": self.gold_semantics,
+            "task_shape": self.task_shape,
+            "answer_cardinality": self.answer_cardinality,
+            "modality": self.modality,
+            "scoring": self.scoring,
             "components": list(self.components),
             "provenance": self.provenance,
             "model": self.model,
@@ -105,7 +111,10 @@ class BenchmarkProfile:
             fingerprint=str(payload["fingerprint"]),
             field_names=tuple(payload.get("field_names") or ()),
             field_roles=dict(payload.get("field_roles") or {}),
-            gold_semantics=dict(payload.get("gold_semantics") or {}),
+            task_shape=str(payload.get("task_shape") or "other"),
+            answer_cardinality=str(payload.get("answer_cardinality") or "not_applicable"),
+            modality=str(payload.get("modality") or "other"),
+            scoring=dict(payload.get("scoring") or {}),
             components=tuple(payload.get("components") or ()),
             provenance=str(payload.get("provenance") or "llm_inferred"),
             model=payload.get("model"),
@@ -183,9 +192,15 @@ Return only JSON:
     "deliverable_artifacts": "<field name or null>",
     "rubric": "<field name or null>"
   },
-  "gold_semantics": {
-    "shape": "single_value" | "set_of_equally_acceptable_answers" | "unclear",
-    "why": "under 25 words"
+  "task_shape": "multiple_choice" | "open_ended_qa" | "artifact_production"
+                | "code_generation" | "multi_turn_task" | "other",
+  "answer_cardinality": "single" | "multiple" | "compound" | "not_applicable",
+  "modality": "text" | "text_and_image" | "text_and_code" | "other",
+  "scoring": {
+    "comparison": "exact_match" | "numeric_tolerance" | "any_of_accepted"
+                  | "test_execution" | "rubric_graded" | "state_check"
+                  | "model_judged" | "structured_match" | "other",
+    "why": "under 20 words"
   },
   "components": ["short structural facts about this benchmark"]
 }
@@ -193,9 +208,23 @@ Return only JSON:
 Rules:
 - Every field name you return must appear verbatim in the supplied field list.
 - Return null for a role this benchmark does not have; do not invent one.
-- Decide gold_semantics from the observed values, not from the field's name.
-- Say set_of_equally_acceptable_answers only when the values are alternative
-  answers to one question rather than parts of one answer.
+- Decide every dimension from the observed values, not from field names.
+- The four dimensions are independent. An image-bearing single-choice question
+  is multiple_choice, single, text_and_image, exact_match.
+- answer_cardinality: "multiple" means several options are each correct and all
+  must be selected; "compound" means one answer must contain several values,
+  such as "list three causes"; "single" means one value answers the question,
+  even when the source records several wordings of it.
+- comparison is how the benchmark decides an answer is right:
+  any_of_accepted when several recorded answers are alternatives and matching
+  one suffices; test_execution when the answer is run against tests;
+  rubric_graded when written criteria replace a reference answer;
+  state_check when what is graded is the end state after acting;
+  model_judged when a model scores the response;
+  structured_match when a structure such as a call and its arguments must
+  correspond rather than the text matching.
+- Choose "other" rather than forcing a poor fit; a dimension that is often
+  "other" tells us the vocabulary needs extending.
 - Not every benchmark is question-and-answer shaped. Some ask for a file to be
   produced and grade it against written criteria; those have no gold. Use
   reference_artifacts for input files supplied to the solver,
@@ -217,7 +246,20 @@ _ROLE_KEYS = (
     "deliverable_artifacts",
     "rubric",
 )
-_GOLD_SHAPES = {"single_value", "set_of_equally_acceptable_answers", "unclear"}
+# Four independent dimensions.  Keeping them separate stops the vocabulary
+# from multiplying: an image-bearing single-choice question is described by
+# four values rather than needing its own name.  Every dimension carries
+# "other", and a dimension that is often "other" is telling us to extend it.
+TASK_SHAPES = frozenset({
+    "multiple_choice", "open_ended_qa", "artifact_production",
+    "code_generation", "multi_turn_task", "other",
+})
+ANSWER_CARDINALITIES = frozenset({"single", "multiple", "compound", "not_applicable"})
+MODALITIES = frozenset({"text", "text_and_image", "text_and_code", "other"})
+SCORING_COMPARISONS = frozenset({
+    "exact_match", "numeric_tolerance", "any_of_accepted", "test_execution",
+    "rubric_graded", "state_check", "model_judged", "structured_match", "other",
+})
 
 
 def _bounded_sample(rows: list[Mapping[str, Any]], *, limit: int = 3) -> list[dict[str, Any]]:
@@ -295,13 +337,19 @@ def derive_profile(
     if not any(roles.get(key) for key in _ROLE_KEYS):
         return None
 
-    raw_semantics = response.get("gold_semantics")
-    semantics: dict[str, Any] = {"shape": "unclear", "why": ""}
-    if isinstance(raw_semantics, Mapping):
-        shape_value = str(raw_semantics.get("shape") or "")
-        semantics = {
-            "shape": shape_value if shape_value in _GOLD_SHAPES else "unclear",
-            "why": str(raw_semantics.get("why") or "")[:200],
+    def _one_of(value: Any, allowed: frozenset[str], fallback: str) -> str:
+        """An unrecognised value falls back rather than being trusted."""
+        text = str(value or "")
+        return text if text in allowed else fallback
+
+    raw_scoring = response.get("scoring")
+    scoring: dict[str, Any] = {"comparison": "other", "why": ""}
+    if isinstance(raw_scoring, Mapping):
+        scoring = {
+            "comparison": _one_of(
+                raw_scoring.get("comparison"), SCORING_COMPARISONS, "other"
+            ),
+            "why": str(raw_scoring.get("why") or "")[:200],
         }
 
     components = tuple(
@@ -313,7 +361,12 @@ def derive_profile(
         fingerprint=fingerprint or schema_fingerprint(rows),
         field_names=tuple(sorted(known)),
         field_roles=roles,
-        gold_semantics=semantics,
+        task_shape=_one_of(response.get("task_shape"), TASK_SHAPES, "other"),
+        answer_cardinality=_one_of(
+            response.get("answer_cardinality"), ANSWER_CARDINALITIES, "not_applicable"
+        ),
+        modality=_one_of(response.get("modality"), MODALITIES, "other"),
+        scoring=scoring,
         components=components,
         provenance="llm_inferred",
         model=model,

@@ -59,7 +59,8 @@ def _profile(fingerprint: str) -> BenchmarkProfile:
         fingerprint=fingerprint,
         field_names=("id", "question", "targets"),
         field_roles={"task": "question", "gold": "targets"},
-        gold_semantics={"shape": "set_of_equally_acceptable_answers"},
+        task_shape="open_ended_qa",
+        scoring={"comparison": "any_of_accepted"},
     )
 
 
@@ -70,7 +71,7 @@ def test_miss_then_hit(tmp_path):
     store.put(_profile(fingerprint))
     _, again = store.lookup(ROWS)
     assert again is not None
-    assert again.gold_semantics["shape"] == "set_of_equally_acceptable_answers"
+    assert again.scoring["comparison"] == "any_of_accepted"
 
 
 def test_store_survives_reload(tmp_path):
@@ -141,7 +142,10 @@ class _Client:
 
 GOOD = {
     "field_roles": {"task": "question", "gold": "targets", "choices": None, "context": None},
-    "gold_semantics": {"shape": "set_of_equally_acceptable_answers", "why": "alternatives"},
+    "task_shape": "open_ended_qa",
+    "answer_cardinality": "single",
+    "modality": "text",
+    "scoring": {"comparison": "any_of_accepted", "why": "alternatives"},
     "components": ["open-ended question answering"],
 }
 
@@ -159,9 +163,14 @@ def test_response_with_no_usable_role_is_rejected():
     assert derive_profile(ROWS, client) is None
 
 
-def test_unknown_gold_shape_falls_back_to_unclear():
-    client = _Client({**GOOD, "gold_semantics": {"shape": "invented", "why": "x"}})
-    assert derive_profile(ROWS, client).gold_semantics["shape"] == "unclear"
+def test_unknown_vocabulary_values_fall_back():
+    """An invented value must not enter the recorded profile."""
+    client = _Client({**GOOD, "task_shape": "invented", "modality": "invented",
+                      "scoring": {"comparison": "invented"}})
+    profile = derive_profile(ROWS, client)
+    assert profile.task_shape == "other"
+    assert profile.modality == "other"
+    assert profile.scoring["comparison"] == "other"
 
 
 def test_provider_failure_yields_no_profile():
@@ -213,3 +222,67 @@ def test_absent_client_is_reported_rather_than_guessed(tmp_path):
     store = BenchmarkProfileStore(tmp_path / "profiles.jsonl")
     profile, status = profile_benchmark(ROWS, store, None)
     assert (profile, status) == (None, "no_client")
+
+
+# --- the four dimensions ------------------------------------------------------
+
+from benchcore.benchmark_profile import (  # noqa: E402
+    ANSWER_CARDINALITIES,
+    MODALITIES,
+    SCORING_COMPARISONS,
+    TASK_SHAPES,
+)
+
+
+def test_the_dimensions_are_independent():
+    """An image-bearing single-choice question needs no vocabulary of its own."""
+    client = _Client({
+        **GOOD,
+        "task_shape": "multiple_choice",
+        "answer_cardinality": "single",
+        "modality": "text_and_image",
+        "scoring": {"comparison": "exact_match", "why": "one label"},
+    })
+    profile = derive_profile(ROWS, client)
+    assert profile.task_shape == "multiple_choice"
+    assert profile.answer_cardinality == "single"
+    assert profile.modality == "text_and_image"
+    assert profile.scoring["comparison"] == "exact_match"
+
+
+def test_every_dimension_carries_an_escape_value():
+    """A dimension that is often the escape value is asking to be extended."""
+    assert "other" in TASK_SHAPES
+    assert "other" in MODALITIES
+    assert "other" in SCORING_COMPARISONS
+    assert "not_applicable" in ANSWER_CARDINALITIES
+
+
+def test_scoring_covers_the_ways_current_benchmarks_decide_correctness():
+    for comparison in (
+        "exact_match",        # MMLU, ARC
+        "numeric_tolerance",  # GSM8K, MATH
+        "any_of_accepted",    # SQuAD, HotpotQA
+        "test_execution",     # HumanEval, SWE-bench
+        "rubric_graded",      # GDPval
+        "state_check",        # Terminal-Bench, OSWorld
+        "model_judged",       # MT-Bench, Arena-Hard
+        "structured_match",   # function calling
+    ):
+        assert comparison in SCORING_COMPARISONS
+
+
+def test_a_missing_scoring_block_does_not_invent_one():
+    profile = derive_profile(ROWS, _Client({**GOOD, "scoring": "not a mapping"}))
+    assert profile.scoring["comparison"] == "other"
+
+
+def test_dimensions_survive_a_store_round_trip(tmp_path):
+    path = tmp_path / "profiles.jsonl"
+    client = _Client({**GOOD, "task_shape": "code_generation",
+                      "scoring": {"comparison": "test_execution", "why": "tests"}})
+    store = BenchmarkProfileStore(path)
+    profile_benchmark(ROWS, store, client)
+    reloaded = BenchmarkProfileStore(path).get(schema_fingerprint(ROWS))
+    assert reloaded.task_shape == "code_generation"
+    assert reloaded.scoring["comparison"] == "test_execution"

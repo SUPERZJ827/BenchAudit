@@ -782,7 +782,10 @@ def _apply_benchmark_profile(
     metadata.update({
         "fingerprint": profile.fingerprint,
         "provenance": profile.provenance,
-        "gold_semantics": profile.gold_semantics,
+        "task_shape": profile.task_shape,
+        "answer_cardinality": profile.answer_cardinality,
+        "modality": profile.modality,
+        "scoring": profile.scoring,
         "components": list(profile.components),
     })
 
