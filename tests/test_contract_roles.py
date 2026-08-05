@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from test_gdpval_objective import make_row, rubric_item  # noqa: E402
 
-from benchcore.gdpval_objective import (  # noqa: E402
+from benchcore.artifact_contract import (  # noqa: E402
     CONTRACT_ROLE_DEFAULTS,
     _contract_facts,
     _role_field,
