@@ -977,18 +977,47 @@ def _extract_output_formats(text: str, *, source: str, source_path: str) -> list
     return claims
 
 
-def _contract_facts(row: Mapping[str, Any]) -> list[ObjectiveFact]:
-    task = str(row.get("prompt") or "")
+# The field names a record uses for each role.  The defaults are GDPval's, but
+# the checks themselves are not about GDPval: "the task names a file the
+# artifact manifest does not contain" is true of any benchmark that ships input
+# materials and expects deliverables.  Supplying a role map lets the same
+# checks run on such a benchmark without another copy of this file.
+CONTRACT_ROLE_DEFAULTS = {
+    "task": "prompt",
+    "rubric": "rubric_json",
+    "reference_artifacts": "reference_files",
+    "deliverable_artifacts": "deliverable_files",
+}
+
+
+def _role_field(roles: Mapping[str, Any] | None, role: str) -> str:
+    """The field holding a role, falling back to the default field name."""
+
+    if roles:
+        declared = roles.get(role)
+        if isinstance(declared, str) and declared:
+            return declared
+    return CONTRACT_ROLE_DEFAULTS[role]
+
+
+
+def _contract_facts(
+    row: Mapping[str, Any],
+    roles: Mapping[str, Any] | None = None,
+) -> list[ObjectiveFact]:
+    task_field = _role_field(roles, "task")
+    rubric_field = _role_field(roles, "rubric")
+    task = str(row.get(task_field) or "")
     try:
-        rubrics = _rubric_entries(row.get("rubric_json"))
+        rubrics = _rubric_entries(row.get(rubric_field))
     except ValueError:
         return []
-    task_names = _extract_filename_claims(task, source="task", source_path="prompt")
-    task_formats = _extract_output_formats(task, source="task", source_path="prompt")
+    task_names = _extract_filename_claims(task, source="task", source_path=task_field)
+    task_formats = _extract_output_formats(task, source="task", source_path=task_field)
     rubric_names: list[dict[str, Any]] = []
     rubric_formats: list[dict[str, Any]] = []
     for entry in rubrics:
-        path = f"rubric_json[{entry.index}].criterion"
+        path = f"{rubric_field}[{entry.index}].criterion"
         for claim in _extract_filename_claims(entry.criterion, source="rubric", source_path=path):
             claim["rubric_item_id"] = entry.rubric_item_id
             claim["rubric_index"] = entry.index
@@ -998,8 +1027,16 @@ def _contract_facts(row: Mapping[str, Any]) -> list[ObjectiveFact]:
             claim["rubric_index"] = entry.index
             rubric_formats.append(claim)
 
-    reference_names = [_normalize_basename(value) for value in row.get("reference_files", []) if isinstance(value, str)]
-    deliverable_names = [_normalize_basename(value) for value in row.get("deliverable_files", []) if isinstance(value, str)]
+    reference_names = [
+        _normalize_basename(value)
+        for value in row.get(_role_field(roles, "reference_artifacts"), [])
+        if isinstance(value, str)
+    ]
+    deliverable_names = [
+        _normalize_basename(value)
+        for value in row.get(_role_field(roles, "deliverable_artifacts"), [])
+        if isinstance(value, str)
+    ]
     facts: list[ObjectiveFact] = []
 
     def filename_mismatch(
@@ -1219,18 +1256,28 @@ def _entity_facts(row: Mapping[str, Any]) -> list[ObjectiveFact]:
 def collect_record_facts(
     row: Mapping[str, Any],
     dataset_revision: str = DEFAULT_GDPVAL_REVISION,
+    roles: Mapping[str, Any] | None = None,
 ) -> list[ObjectiveFact]:
-    """Collect deterministic and explicitly review-only facts for one row."""
+    """Collect deterministic and explicitly review-only facts for one row.
 
-    schema_facts = _schema_facts(row)
-    if schema_facts:
-        return schema_facts
+    ``roles`` names the field holding each contract role.  Omitted, the GDPval
+    field names apply, so existing callers are unaffected.
+    """
+
+    # GDPval schema conformance is the one genuinely benchmark-specific check
+    # here, and it short-circuits the rest so a malformed row is never
+    # interpreted.  A declared role map means the row belongs to a different
+    # benchmark, whose schema this predicate says nothing about.
+    if roles is None:
+        schema_facts = _schema_facts(row)
+        if schema_facts:
+            return schema_facts
     facts = [
         *_representation_facts(row),
         *_manifest_facts(row, dataset_revision),
         *_rubric_structure_facts(row),
         *_column_facts(row),
-        *_contract_facts(row),
+        *_contract_facts(row, roles),
         *_entity_facts(row),
     ]
     # Stable root-cause order, independent of worker scheduling.
@@ -1582,17 +1629,25 @@ def replay_record_fact(
         and fact.evidence_level == evidence.get("evidence_level")
         and fact.signature == signature
         and dict(fact.atom) == evidence.get("atom")
-        for fact in collect_record_facts(item.raw, dataset_revision)
+        for fact in collect_record_facts(
+            item.raw, dataset_revision, getattr(item, "_gdpval_contract_roles", None)
+        )
     )
 
 
 class GDPValRecordIntegrityChecker(Checker):
     name = "gdpval_objective"
 
-    def __init__(self, *, dataset_revision: str = DEFAULT_GDPVAL_REVISION) -> None:
+    def __init__(
+        self,
+        *,
+        dataset_revision: str = DEFAULT_GDPVAL_REVISION,
+        roles: Mapping[str, Any] | None = None,
+    ) -> None:
         if not re.fullmatch(r"[0-9a-f]{40}", dataset_revision):
             raise ValueError("GDPval dataset revision must be a 40-character commit hash")
         self.dataset_revision = dataset_revision
+        self.roles = dict(roles) if roles else None
 
     def audit_eligibility(
         self,
@@ -1611,7 +1666,11 @@ class GDPValRecordIntegrityChecker(Checker):
     ) -> Iterable[Violation]:
         del root
         setattr(item, "_gdpval_dataset_revision", self.dataset_revision)
-        for fact in collect_record_facts(item.raw, self.dataset_revision):
+        # The promotion validator recomputes these facts from the live row and
+        # must resolve roles exactly as the checker did, or a correct finding
+        # would fail its own replay.
+        setattr(item, "_gdpval_contract_roles", self.roles)
+        for fact in collect_record_facts(item.raw, self.dataset_revision, self.roles):
             yield _violation(
                 item,
                 fact.defect_type,

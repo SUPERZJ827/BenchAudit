@@ -178,7 +178,10 @@ Return only JSON:
     "task": "<field name or null>",
     "gold": "<field name or null>",
     "choices": "<field name or null>",
-    "context": "<field name or null>"
+    "context": "<field name or null>",
+    "reference_artifacts": "<field name or null>",
+    "deliverable_artifacts": "<field name or null>",
+    "rubric": "<field name or null>"
   },
   "gold_semantics": {
     "shape": "single_value" | "set_of_equally_acceptable_answers" | "unclear",
@@ -193,11 +196,27 @@ Rules:
 - Decide gold_semantics from the observed values, not from the field's name.
 - Say set_of_equally_acceptable_answers only when the values are alternative
   answers to one question rather than parts of one answer.
+- Not every benchmark is question-and-answer shaped. Some ask for a file to be
+  produced and grade it against written criteria; those have no gold. Use
+  reference_artifacts for input files supplied to the solver,
+  deliverable_artifacts for files the solver must produce, and rubric for
+  written grading criteria.
 - Describe components as structural facts, not as the name of a known benchmark.
 - Do not state a scoring implementation that the data does not show."""
 
 MAX_PROFILE_PROMPT_CHARS = 12000
-_ROLE_KEYS = ("task", "gold", "choices", "context")
+# Question-answering roles plus the roles an artifact-producing benchmark
+# needs.  A benchmark that asks for a spreadsheet has no gold, so describing it
+# with answer roles alone leaves every check reading nothing.
+_ROLE_KEYS = (
+    "task",
+    "gold",
+    "choices",
+    "context",
+    "reference_artifacts",
+    "deliverable_artifacts",
+    "rubric",
+)
 _GOLD_SHAPES = {"single_value", "set_of_equally_acceptable_answers", "unclear"}
 
 
