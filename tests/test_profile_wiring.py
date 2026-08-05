@@ -53,7 +53,8 @@ def _seed(store_path, roles):
             fingerprint=fingerprint,
             field_names=("uid", "problem_text", "expected_result"),
             field_roles=roles,
-            gold_semantics={"shape": "single_value", "why": "one value"},
+            task_shape="open_ended_qa",
+            scoring={"comparison": "numeric_tolerance"},
         )
     )
 
