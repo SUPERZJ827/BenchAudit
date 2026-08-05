@@ -731,6 +731,53 @@ def main(argv: list[str] | None = None) -> int:
 DEFAULT_PROFILE_STORE = "benchmark_profiles.jsonl"
 
 
+
+# Which checkers a profiled shape calls for.  Every entry adds; nothing here
+# removes.  A wrong "this benchmark needs X" costs a few review-tier candidates,
+# while a wrong "this benchmark does not need X" is silent -- the audit reports
+# nothing and no one can tell whether that means clean or unexamined.
+PROFILE_CHECKER_RULES: tuple[tuple[str, str, str], ...] = (
+    ("scoring.comparison", "any_of_accepted", "llm:multiplicity"),
+    ("scoring.comparison", "rubric_graded", "artifact_contract"),
+    ("task_shape", "artifact_production", "artifact_contract"),
+    ("task_shape", "multiple_choice", "llm:option"),
+)
+
+
+def _profile_dimension(profile, dimension: str) -> str:
+    if dimension == "scoring.comparison":
+        return str((profile.scoring or {}).get("comparison") or "")
+    return str(getattr(profile, dimension, "") or "")
+
+
+def checkers_called_for(profile) -> list[dict[str, str]]:
+    """Checkers the profiled shape calls for, each with the reason it applies."""
+
+    if profile is None:
+        return []
+    called: dict[str, str] = {}
+    for dimension, value, checker in PROFILE_CHECKER_RULES:
+        if _profile_dimension(profile, dimension) == value:
+            called.setdefault(checker, f"{dimension}={value}")
+    return [{"checker": name, "because": why} for name, why in sorted(called.items())]
+
+
+
+def _profile_added_checker(name: str, args: argparse.Namespace):
+    """Build a checker a profile called for, or None when it cannot run here.
+
+    Returning None rather than raising keeps a profile from breaking an audit:
+    a checker needing an LLM cannot run without one, and that is a coverage
+    gap to record, not a reason to stop.
+    """
+
+    if name == "artifact_contract":
+        from .gdpval_objective import GDPValRecordIntegrityChecker
+
+        return GDPValRecordIntegrityChecker()
+    return None
+
+
 def _profile_client(args: argparse.Namespace) -> LLMClient | None:
     """A client for schema profiling, or None when profiling is not available."""
 
@@ -778,6 +825,7 @@ def _apply_benchmark_profile(
     }
     if profile is None:
         return mapping, metadata
+    metadata["_profile"] = profile
 
     metadata.update({
         "fingerprint": profile.fingerprint,
@@ -997,6 +1045,30 @@ def run_audit(args: argparse.Namespace) -> int:
         ))
     if args.profile == "auto":
         checkers = [checker for checker in checkers if checker.name in selected_methods]
+
+    # A profiled shape can add checkers the base set would not have run.  The
+    # additions are recorded with the dimension that called for each one, so an
+    # audit can be compared with another only when both enabled the same set.
+    profile_additions: list[dict[str, str]] = []
+    profile_called_auditors: list[dict[str, str]] = []
+    if benchmark_profile_metadata:
+        profiled = benchmark_profile_metadata.pop("_profile", None)
+        enabled = {checker.name for checker in checkers}
+        for entry in checkers_called_for(profiled):
+            name = entry["checker"]
+            if name.startswith("llm:"):
+                profile_called_auditors.append(entry)
+                profile_additions.append(entry)
+                continue
+            if name in enabled:
+                continue
+            checker = _profile_added_checker(name, args)
+            if checker is None:
+                continue
+            checkers.append(checker)
+            enabled.add(name)
+            profile_additions.append(entry)
+        benchmark_profile_metadata["checkers_added"] = profile_additions
     dataset_checkers = []
     if not args.basic_only:
         method_checkers = list(DEFAULT_METHOD_CHECKERS)
@@ -1048,6 +1120,12 @@ def run_audit(args: argparse.Namespace) -> int:
         requested = [name.strip() for name in args.llm_auditors.split(",") if name.strip()]
         if requested == ["all"]:
             requested = ["gold", "question", "option", "presentation", "quantity", "event"]
+        # A profiled shape can call for an auditor the caller did not request.
+        # They join the same list so there is one construction path, and the
+        # additions are recorded next to the dimension that called for them.
+        for entry in profile_called_auditors:
+            if entry["checker"].removeprefix("llm:") not in requested:
+                requested.append(entry["checker"].removeprefix("llm:"))
         known = {*auditor_types, "gold", "multiplicity"}
         unknown = [name for name in requested if name not in known]
         if unknown:
