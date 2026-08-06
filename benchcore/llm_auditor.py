@@ -720,7 +720,7 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
             and defect_from_blind(
                 item,
                 blind,
-                normalize_answer_set(item, blind.get("valid_answers", [])),
+                normalize_answer_set(item, blind_derived_answers(blind)),
                 normalize_answer(item, item.gold),
             ) == SEMANTIC_REVIEW_REQUIRED
             and blind_answer_is_a_wording_difference(
@@ -1671,10 +1671,14 @@ def option_applicability_violations(
 
 def aggregate_gold_evidence(
     item: BenchmarkItem,
-    blind: dict[str, Any],
+    option_evidence: dict[str, Any],
     defender: dict[str, Any] | None,
     challenger: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    # Named for what every caller passes: the option-evidence stage's own
+    # normalized verdict, not the raw blind solve.  The two use different keys
+    # for their answers, so the distinction matters.
+    blind = option_evidence
     gold = normalize_answer(item, item.gold)
     blind_answers = normalize_answer_set(item, blind.get("valid_answers", []))
     blind_defect = defect_from_blind(item, blind, blind_answers, gold)
@@ -1796,6 +1800,23 @@ SEMANTIC_REVIEW_REQUIRED = "requires_semantic_review"
 
 
 
+
+def blind_derived_answers(blind: Mapping[str, Any]) -> list[Any]:
+    """The answers a blind solve produced.
+
+    The solver's schema names them ``derived_answers``; ``valid_answers`` is
+    the name the option-evidence stage gives its own normalized set later.
+    Reading only the latter off a raw blind solve yields an empty set, which
+    silently reads as "nothing to disagree with".
+    """
+
+    for key in ("valid_answers", "derived_answers"):
+        values = blind.get(key)
+        if isinstance(values, list) and values:
+            return values
+    return []
+
+
 def blind_answer_is_a_wording_difference(
     client: Any,
     item: BenchmarkItem,
@@ -1812,7 +1833,7 @@ def blind_answer_is_a_wording_difference(
     """
 
     declared = declared_accepted_answers(item)
-    solver = [str(value).strip() for value in (blind.get("valid_answers") or []) if str(value).strip()]
+    solver = [str(value).strip() for value in blind_derived_answers(blind) if str(value).strip()]
     if not declared or not solver:
         return False
     payload = {
