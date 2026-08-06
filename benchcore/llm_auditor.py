@@ -5,12 +5,13 @@ import json
 import re
 import threading
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from .checkers import Checker, _violation
 from .evaluators import CHOICE_LABELS, choice_label_to_index, parse_number, answer_values
 from .llm_client import LLMClient
 from .decision_policy import (
+    ANSWER_EQUIVALENCE_MIN_CONFIDENCE,
     BLIND_SOLVE_DECISION_FIELDS,
     CLARITY_LABEL_TIE_BREAK,
     MAX_CLARITY_LABELS,
@@ -75,6 +76,30 @@ Rules:
 - Use no_correct_answer only when none of the supplied choices/accepted forms is correct.
 """
 
+
+
+ANSWER_EQUIVALENCE_SYSTEM_PROMPT = """You are the Answer Equivalence Auditor in a benchmark quality audit system.
+A solver answered a task without seeing the declared answers. Its answer does not match any
+of them as text. Decide whether it says the same thing.
+
+Return only JSON:
+{
+  "relation": "same_answer" | "different_answer" | "uncertain",
+  "confidence": 0.0,
+  "matched_answer": "the declared answer it agrees with, or null",
+  "rationale": "under 40 words"
+}
+
+Rules:
+- "same_answer" means the solver's answer states the same fact as one of the declared
+  answers, allowing for wording, notation, abbreviation, units written out, digit
+  grouping, rounding that does not change the stated value, or one answer being a
+  longer span containing the other.
+- "2 million", "2,000,000" and "two million" are the same answer.
+- "different_answer" means it states a materially different fact, so accepting one
+  would contradict the other.
+- Judge the answers as answers to the given task; do not judge which is better written.
+- Return uncertain when the task does not settle whether the two mean the same thing."""
 
 ANSWER_MULTIPLICITY_SYSTEM_PROMPT = """You are the Answer Multiplicity Auditor in a benchmark quality audit system.
 A benchmark item declares several accepted answers. Decide what relationship they have.
@@ -686,6 +711,32 @@ class EvidenceGoldLLMAuditor(BaseLLMAuditor):
             applicability,
         )
         observations["llm_programmatic_answer_set"] = option_evidence
+        # A free-form answer that matched no declared answer as text is more
+        # often a difference of wording than a defect.  Settle that with one
+        # question before running an adversarial cascade whose fan-out is the
+        # main source of run-to-run instability.
+        if (
+            not item.choices
+            and defect_from_blind(
+                item,
+                blind,
+                normalize_answer_set(item, blind.get("valid_answers", [])),
+                normalize_answer(item, item.gold),
+            ) == SEMANTIC_REVIEW_REQUIRED
+            and blind_answer_is_a_wording_difference(
+                self.client, item, blind, observations
+            )
+        ):
+            result = aggregate_gold_evidence(item, option_evidence, None, None)
+            return list(
+                gold_violations(
+                    item,
+                    result,
+                    self.confirm_threshold,
+                    self.review_threshold,
+                    blind_vote_fraction,
+                )
+            )
         if (
             self.mode == "cascade"
             and not cascade_gate_is_bypassed(self.cascade_mode)
@@ -1742,6 +1793,48 @@ def aggregate_gold_evidence(
 # A literal mismatch between a blind answer and every declared answer is not
 # yet a defect; it is a question about meaning that a later stage answers.
 SEMANTIC_REVIEW_REQUIRED = "requires_semantic_review"
+
+
+
+def blind_answer_is_a_wording_difference(
+    client: Any,
+    item: BenchmarkItem,
+    blind: dict[str, Any],
+    observations: dict[str, Any],
+) -> bool:
+    """Does the blind answer say what a declared answer says?
+
+    Asked only when the two failed to match as text, and only for free-form
+    answers.  Most such mismatches are wording -- 55 of 66 measured items that
+    ship several answers ship wordings of one answer -- and settling that here
+    ends the audit of this item without running an adversarial cascade whose
+    fan-out is the main source of run-to-run instability.
+    """
+
+    declared = declared_accepted_answers(item)
+    solver = [str(value).strip() for value in (blind.get("valid_answers") or []) if str(value).strip()]
+    if not declared or not solver:
+        return False
+    payload = {
+        "task": item.task,
+        "solver_answer": solver[0],
+        "declared_accepted_answers": declared,
+    }
+    try:
+        result = client.chat_json(
+            ANSWER_EQUIVALENCE_SYSTEM_PROMPT,
+            json.dumps(payload, ensure_ascii=False, indent=2),
+        )
+    except RuntimeError as exc:
+        observations["llm_answer_equivalence"] = {"audit_failure": str(exc)}
+        return False
+    observations["llm_answer_equivalence"] = result
+    if not isinstance(result, Mapping):
+        return False
+    return (
+        str(result.get("relation") or "") == "same_answer"
+        and _float(result.get("confidence"), 0.0) >= ANSWER_EQUIVALENCE_MIN_CONFIDENCE
+    )
 
 
 def accepted_answer_set(item: BenchmarkItem) -> set[str]:
