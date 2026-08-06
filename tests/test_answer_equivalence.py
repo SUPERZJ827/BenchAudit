@@ -90,3 +90,32 @@ def test_the_verdict_is_recorded_either_way():
 def test_the_threshold_is_part_of_the_policy_hash():
     base = dp.decision_policy()
     assert base["answer_equivalence_min_confidence"] == dp.ANSWER_EQUIVALENCE_MIN_CONFIDENCE
+
+
+def test_a_blind_solve_is_read_through_its_own_schema():
+    """The solver names its answers derived_answers.
+
+    valid_answers is what the option-evidence stage calls its own normalized
+    set later. Reading only that off a raw blind solve returns nothing, which
+    reads as "no disagreement" and silently disables every check downstream of
+    it.
+    """
+    from benchcore.llm_auditor import blind_derived_answers
+
+    assert blind_derived_answers({"derived_answers": ["5"]}) == ["5"]
+    assert blind_derived_answers({"valid_answers": ["5"]}) == ["5"]
+    assert blind_derived_answers({}) == []
+    assert blind_derived_answers({"derived_answers": []}) == []
+
+
+def test_an_empty_solve_is_not_read_as_agreement():
+    from benchcore.llm_auditor import (
+        SEMANTIC_REVIEW_REQUIRED,
+        defect_from_blind,
+        normalize_answer,
+    )
+
+    item = _item()
+    blind = {"solution_status": "solved", "derived_answers": []}
+    verdict = defect_from_blind(item, blind, set(), normalize_answer(item, item.gold))
+    assert verdict != SEMANTIC_REVIEW_REQUIRED
