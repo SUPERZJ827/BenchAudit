@@ -19,6 +19,7 @@ from benchcore.llm_auditor import (
     declared_accepted_answers,
     defect_from_blind,
     normalize_answer,
+    SEMANTIC_REVIEW_REQUIRED,
 )
 from benchcore.schema import BenchmarkItem
 
@@ -47,10 +48,23 @@ def test_solver_answer_matching_an_alias_is_not_a_wrong_gold():
     assert defect_from_blind(item, blind, answers, gold) == ""
 
 
-def test_unrelated_solver_answer_still_reports():
+def test_a_free_form_mismatch_defers_to_meaning():
+    """This step cannot tell an unrelated answer from another wording of the
+    same one, which is exactly why it does not decide."""
     item = _item()
     blind = {"solution_status": "solved", "valid_answers": ["seventeen"]}
     answers = {normalize_answer(item, "seventeen")}
+    gold = normalize_answer(item, item.gold)
+    assert defect_from_blind(item, blind, answers, gold) == SEMANTIC_REVIEW_REQUIRED
+
+
+def test_a_labelled_mismatch_is_decided_here():
+    """With a fixed option set the answer is a label, so a literal mismatch is
+    a real disagreement rather than a difference of wording."""
+    item = _item(gold="A", aliases=[])
+    item.choices = ["A", "B", "C"]
+    blind = {"solution_status": "solved", "valid_answers": ["B"]}
+    answers = {normalize_answer(item, "B")}
     gold = normalize_answer(item, item.gold)
     assert defect_from_blind(item, blind, answers, gold) == "wrong_gold_answer"
 
