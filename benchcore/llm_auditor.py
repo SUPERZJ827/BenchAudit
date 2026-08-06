@@ -1635,7 +1635,12 @@ def aggregate_gold_evidence(
         evidence_requires_external_validation(blind, source_sensitive),
     ]
 
-    if blind_defect:
+    if blind_defect == SEMANTIC_REVIEW_REQUIRED:
+        # The blind answer did not match any declared answer literally, which
+        # is as often a formatting difference as a defect.  Withhold the vote
+        # and let the later stages decide on meaning.
+        votes.append("uncertain")
+    elif blind_defect:
         votes.append(blind_defect)
     else:
         votes.append("none")
@@ -1734,6 +1739,11 @@ def aggregate_gold_evidence(
 
 
 
+# A literal mismatch between a blind answer and every declared answer is not
+# yet a defect; it is a question about meaning that a later stage answers.
+SEMANTIC_REVIEW_REQUIRED = "requires_semantic_review"
+
+
 def accepted_answer_set(item: BenchmarkItem) -> set[str]:
     """Normalized forms of every answer the benchmark declares acceptable.
 
@@ -1784,7 +1794,18 @@ def defect_from_blind(
         # just the entry our adapter happened to put first.
         accepted = accepted_answer_set(item) or {gold}
         if not (answers & accepted):
-            return "wrong_gold_answer"
+            if item.choices:
+                # With a fixed option set the answer is a label, so a literal
+                # mismatch is a real disagreement rather than a difference of
+                # wording.
+                return "wrong_gold_answer"
+            # Free-form answers are another matter.  Normalization settles
+            # punctuation and case and nothing else: "2 million", "2,000,000"
+            # and "two million" are three unequal strings for one number, and
+            # most benchmarks shipping several answers ship wordings of one
+            # answer -- 55 of 66 measured.  Deciding which this is needs
+            # meaning, so the later stages decide.
+            return SEMANTIC_REVIEW_REQUIRED
     return ""
 
 
