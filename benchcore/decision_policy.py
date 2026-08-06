@@ -128,6 +128,10 @@ CLARITY_LABEL_TIE_BREAK = (
     "missing_condition",
 )
 
+# Below this, a same-answer verdict is not trusted to end the audit early and
+# the adversarial cascade runs as before.
+ANSWER_EQUIVALENCE_MIN_CONFIDENCE = 0.8
+
 # --- runtime-supplied thresholds --------------------------------------------
 
 DEFAULT_LLM_CONFIRM_THRESHOLD = 0.75
@@ -165,6 +169,7 @@ def decision_policy(
         ),
         "cascade_mode": _validated_cascade_mode(cascade_mode),
         "blind_solve_decision_fields": list(BLIND_SOLVE_DECISION_FIELDS),
+        "answer_equivalence_min_confidence": ANSWER_EQUIVALENCE_MIN_CONFIDENCE,
         "max_clarity_labels": MAX_CLARITY_LABELS,
         "clarity_label_tie_break": list(CLARITY_LABEL_TIE_BREAK),
     }
