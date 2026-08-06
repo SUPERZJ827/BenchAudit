@@ -93,11 +93,41 @@ def _arithmetic_replay(violation: Violation, item: BenchmarkItem | None) -> bool
     )
 
 
+
+# An evaluator claim is only about the benchmark when the benchmark's own
+# scoring is available to run.  For most benchmarks it is not: `item.evaluator`
+# is a short label our adapter wrote ({"type": "numeric_exact_match"}), and
+# `evaluate_answer` is our implementation of what we took that label to mean.
+# Replaying that pair proves our description is self-consistent, not that the
+# benchmark rejects anything -- which is how 23 findings claiming an overstrict
+# evaluator reached `confirmed` against a benchmark that accepts every answer
+# it ships.
+#
+# Executable scoring is different: code benchmarks carry real tests, and
+# running them observes the benchmark's own verdict.
+EXECUTABLE_EVALUATOR_PROOFS = frozenset({
+    "execution_replay",
+    "execution_differential",
+    "execution_kill_matrix",
+})
+
+
+def evaluator_claim_is_observable(violation: Violation) -> bool:
+    """Was the benchmark's own scoring actually run to reach this claim?"""
+
+    return violation.detection_method in EXECUTABLE_EVALUATOR_PROOFS
+
+
 def _declared_evaluator_replay(
     violation: Violation, item: BenchmarkItem | None,
 ) -> bool:
     evidence = violation.evidence
     if item is None or evidence.get("gold") != item.gold:
+        return False
+    if not evaluator_claim_is_observable(violation):
+        # Self-consistency of our own description is not evidence about the
+        # benchmark, so this cannot confirm.  The finding still stands for
+        # review.
         return False
     from .evaluators import evaluate_answer
 
