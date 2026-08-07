@@ -44,7 +44,8 @@ from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_stu
 from dataclasses import replace
 
 from .benchmark_profile import BenchmarkProfileStore, profile_benchmark
-from .evaluators import ITEM_SCORING_KEY, contract_basis_census
+from .benchmark_profile import ITEM_TASK_SHAPE_KEY
+from .evaluators import ITEM_GOLD_COVERAGE_KEY, ITEM_SCORING_KEY, contract_basis_census
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
     DirectLLMAuditor,
@@ -72,10 +73,7 @@ from .evaluator_execution import ExecutionEvaluatorAuditChecker
 from .execution import ContainerRunner, ExecutionPolicy, LocalProcessRunner
 from .package_scan import add_canonical_item_artifacts, scan_benchmark_package
 from .planning import (
-    apply_family_policy,
     build_audit_plan,
-    detect_benchmark_family,
-    family_from_profile,
     plan_for_executed_methods,
     write_audit_plan_markdown,
 )
@@ -117,7 +115,9 @@ def main(argv: list[str] | None = None) -> int:
         "--profile",
         choices=("auto", "generic", "swebench", "workspacebench", "terminalbench"),
         default="auto",
-        help="Benchmark-family profile; auto detects the family and executes its audit plan",
+        help="Explicit declaration of the benchmark kind, used only where a "
+             "stored rule set is scoped to one; nothing is inferred from the data's "
+             "field names. 'auto' declares nothing.",
     )
     audit_parser.add_argument("--mapping", help="Optional field mapping JSON")
     audit_adapter_group = audit_parser.add_mutually_exclusive_group()
@@ -860,6 +860,7 @@ def _apply_benchmark_profile(
     metadata["roles_filled"] = filled
     metadata["roles_disagreeing"] = disagreements
     metadata["scoring_for_items"] = dict(profile.scoring or {})
+    metadata["task_shape_for_items"] = profile.task_shape
     return mapping, metadata
 
 
@@ -939,11 +940,18 @@ def run_audit(args: argparse.Namespace) -> int:
         rows = [source_rows[index] for index in source_indices]
     scoring_verdict = (benchmark_profile_metadata or {}).get("scoring_for_items")
     items = build_items(rows, mapping, source_indices=source_indices)
-    if scoring_verdict:
-        # The checkers see only items, so the profile's verdict on how this
-        # benchmark decides correctness has to travel with them.
-        for item in items:
+    # An item checker sees one row and cannot tell a benchmark that scores
+    # without reference answers from one that lost a gold on this row.  Whether
+    # any row in the benchmark has one is the distinction, so it travels with
+    # them, as the profile's verdict on scoring and task shape do.
+    benchmark_has_any_gold = any(item.gold not in (None, "") for item in items)
+    task_shape = (benchmark_profile_metadata or {}).get("task_shape_for_items")
+    for item in items:
+        item.metadata[ITEM_GOLD_COVERAGE_KEY] = benchmark_has_any_gold
+        if scoring_verdict:
             item.metadata[ITEM_SCORING_KEY] = dict(scoring_verdict)
+        if task_shape:
+            item.metadata[ITEM_TASK_SHAPE_KEY] = task_shape
     if args.canonical_out:
         write_canonical_jsonl(args.canonical_out, canonicalize_rows(rows, mapping))
     root = Path(args.root) if args.root else input_path.parent
@@ -958,18 +966,11 @@ def run_audit(args: argparse.Namespace) -> int:
 
     benchmark_package = scan_benchmark_package(input_path)
     add_canonical_item_artifacts(benchmark_package, items)
-    detected_family, _, _ = detect_benchmark_family(benchmark_package, items)
-    # A profiled shape is derived from the rows; the name-based detector knows
-    # three benchmarks by their field names and calls everything else generic.
-    # Where the profile speaks it decides, and its verdict is recorded so an
-    # audit that skipped a checker can say on whose authority.
-    profiled_family = family_from_profile(profiled_benchmark)
-    if profiled_family is not None:
-        if benchmark_profile_metadata is not None:
-            benchmark_profile_metadata["family_from_profile"] = profiled_family
-            benchmark_profile_metadata["family_from_names"] = detected_family
-        detected_family = profiled_family
-    effective_profile = _effective_profile(args.profile, detected_family)
+    # Nothing infers a benchmark's identity any more.  Every checker declares
+    # what it needs against the profile derived from the rows, and rules itself
+    # out per item with a recorded reason.  `--profile` remains as an explicit
+    # declaration by whoever runs the audit; "auto" declares nothing.
+    effective_profile = "generic" if args.profile == "auto" else args.profile
     visibility_index = None
     visibility_metadata = None
     if (
@@ -1031,13 +1032,12 @@ def run_audit(args: argparse.Namespace) -> int:
             "internal safety invariant failed: an LLM-backed checker has no declared "
             "remote-data egress capability"
         )
-    audit_plan = apply_family_policy(build_audit_plan(
+    audit_plan = build_audit_plan(
         benchmark_package,
         items=items,
-        family_override=None if args.profile == "auto" else effective_profile,
         available_llm=llm_requested,
         available_execution=execution_available,
-    ))
+    )
     selected_methods = {
         check.name for check in audit_plan.checks if check.status == "selected"
     }
@@ -1046,24 +1046,13 @@ def run_audit(args: argparse.Namespace) -> int:
     # longer replace the entire checker set (the former SWE-bench behavior lost
     # every structural defect detector).
     checkers = list(DEFAULT_CHECKERS)
-    if effective_profile in {"workspacebench", "terminalbench"}:
-        profile_checkers = []
-        for checker in checkers:
-            if checker.name == "oracle_ground_truth":
-                continue
-            if checker.name == "task_specification":
-                profile_checkers.append(TaskSpecChecker(check_ambiguity=False))
-                continue
-            if checker.name == "context_attachment":
-                profile_checkers.append(ContextChecker(check_version_risk=False))
-                continue
-            profile_checkers.append(checker)
-        checkers = profile_checkers
-    if effective_profile == "workspacebench":
-        checkers.append(WorkspaceArtifactInvariantChecker(
-            allowed_roots=workspace_allowed_roots,
-            visibility_index=visibility_index,
-        ))
+    # Offered unconditionally: it declares the Workspace artifact schema as its
+    # precondition and reports itself inapplicable, with a reason, on a
+    # benchmark that does not ship one.
+    checkers.append(WorkspaceArtifactInvariantChecker(
+        allowed_roots=workspace_allowed_roots,
+        visibility_index=visibility_index,
+    ))
     if args.profile == "auto":
         checkers = [checker for checker in checkers if checker.name in selected_methods]
 
@@ -1198,12 +1187,11 @@ def run_audit(args: argparse.Namespace) -> int:
                     review_threshold=args.llm_review_threshold,
                 )
             )
-    if effective_profile == "swebench" or args.swe_leak_audit or args.swe_leak_llm_confirm:
-        checkers.append(
-            SolutionLeakChecker(
-                client if args.swe_leak_llm_confirm else None,
-            )
+    checkers.append(
+        SolutionLeakChecker(
+            client if args.swe_leak_llm_confirm else None,
         )
+    )
     if args.cross_artifact_audit:
         checkers.append(
             CrossArtifactConsistencyChecker(
@@ -1319,16 +1307,6 @@ def run_audit(args: argparse.Namespace) -> int:
     if args.print_summary:
         print(json.dumps(report["summary"], indent=2, ensure_ascii=False))
     return 0
-
-
-def _effective_profile(requested: str, detected: str) -> str:
-    if requested != "auto":
-        return requested
-    if detected in {"swebench", "workspacebench", "terminalbench"}:
-        return detected
-    if detected == "rubric":
-        return "workspacebench"
-    return "generic"
 
 
 def _remote_egress_manifest(

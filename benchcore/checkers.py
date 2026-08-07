@@ -16,7 +16,11 @@ from .evaluators import (
     normalize_choice_for_duplicate,
     normalize_loose,
     parse_number,
+    scores_a_scalar_answer,
+    scoring_comparison,
+    NON_SCALAR_COMPARISONS,
 )
+from .benchmark_profile import task_is_a_question
 from .schema import BenchmarkItem, Violation
 from .taxonomy import DEFECTS
 from .promotion import enforce_promotion_policy
@@ -153,9 +157,6 @@ class Checker:
 class TaskSpecChecker(Checker):
     name = "task_specification"
 
-    def __init__(self, *, check_ambiguity: bool = True) -> None:
-        self.check_ambiguity = check_ambiguity
-
     def audit_eligibility(self, item, root=None) -> AuditEligibility:
         return AuditEligibility.applicable(
             "task presence and specification integrity are defined for every canonical item"
@@ -212,7 +213,9 @@ class TaskSpecChecker(Checker):
                 },
                 repair=f"Attach the referenced {context_name} or remove the reference.",
             )
-        if not self.check_ambiguity:
+        # Time-sensitive wording only threatens an answer when the task asks
+        # for one.  In an instruction, "the current release" specifies the work.
+        if task_is_a_question(item) is False:
             return
         for pattern in AMBIGUITY_PATTERNS:
             if pattern.search(task) and not any(k in item.metadata for k in ("source", "version", "date", "domain")):
@@ -228,9 +231,6 @@ class TaskSpecChecker(Checker):
 
 class ContextChecker(Checker):
     name = "context_attachment"
-
-    def __init__(self, *, check_version_risk: bool = True) -> None:
-        self.check_version_risk = check_version_risk
 
     def audit_eligibility(self, item, root=None) -> AuditEligibility:
         return AuditEligibility.applicable(
@@ -258,7 +258,7 @@ class ContextChecker(Checker):
                         {"field": key, "path": candidate},
                         repair="Fix the attachment path or include the missing artifact.",
                     )
-        if not self.check_version_risk:
+        if task_is_a_question(item) is False:
             return
         task = _text(item.task)
         if re.search(r"\b(as of|version|release|updated|latest|current)\b", task, re.I):
@@ -338,6 +338,21 @@ class OracleChecker(Checker):
     name = "oracle_ground_truth"
 
     def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        # This checker audits a scalar reference answer.  A benchmark scored by
+        # running tests, applying a rubric, or inspecting an end state has none
+        # by design, and reporting that absence would be a false finding on
+        # every one of its rows.  Two things can establish that, and the ledger
+        # should say which one did.
+        if scoring_comparison(item_scoring(item)) in NON_SCALAR_COMPARISONS:
+            return AuditEligibility.not_applicable(
+                "the benchmark's profiled scoring judges no scalar answer, so "
+                "there is no reference oracle for this checker to audit"
+            )
+        if scores_a_scalar_answer(item) is False:
+            return AuditEligibility.not_applicable(
+                "no record in this benchmark carries a gold, so it is not "
+                "scored against reference answers"
+            )
         return AuditEligibility.applicable(
             "oracle presence and basic validity are defined for every scalar-answer item profile"
         )

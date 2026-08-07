@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
+from .coverage import AuditEligibility
 from .llm_client import LLMClient
 from .schema import BenchmarkItem, Violation
 
@@ -62,6 +63,16 @@ class SolutionLeakChecker(Checker):
         self.issue_chars = issue_chars
         self.patch_chars = patch_chars
         self.report_hints_only = report_hints_only
+
+    def audit_eligibility(self, item, root=None) -> AuditEligibility:
+        # Leakage is gold-patch lines appearing in the visible statement.  With
+        # no patch there is nothing that could leak, and returning no findings
+        # would read as "looked and found nothing" instead of "did not apply".
+        if not (item.raw or {}).get("patch") and not item.metadata.get("patch"):
+            return AuditEligibility.not_applicable(
+                "the record declares no gold patch, so no patch content can leak"
+            )
+        return AuditEligibility.applicable("a gold patch is present to compare against")
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         scan = scan_item(item)
