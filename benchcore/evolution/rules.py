@@ -123,6 +123,9 @@ class DeclarativeRuleChecker(Checker):
             self.spec.defect_type,
             self.spec.message,
             evidence,
+            # Written by the model that proposed this rule and parsed out of
+            # the rule JSON, so it is a reported score like any other.
+            confidence=self.spec.confidence,
             review_only=True,
             repair=self.spec.repair or None,
             method="learned_declarative_rule",

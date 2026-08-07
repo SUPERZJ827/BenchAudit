@@ -114,3 +114,43 @@ def test_a_report_states_no_confidence_rather_than_inventing_one(tmp_path):
     assert "output_format_overstrict_risk" in text
     assert "confidence=0.00" not in text, "a missing score must not render as zero"
     assert "confidence=" not in text, "a deterministic finding has no score to print"
+
+
+def test_a_synthesised_rule_keeps_the_confidence_its_proposer_wrote():
+    """A learned rule's score comes from the model that proposed the rule.
+
+    `RuleSpec.from_dict` parses it out of the rule JSON the synthesiser
+    returns, so it belongs with the model-reported half, not with the literals.
+    """
+
+    from benchcore.auditor import audit_items_with_ledger
+    from benchcore.evolution import DeclarativeRuleChecker, RuleSpec
+    from benchcore.loader import build_items, load_mapping
+
+    spec = RuleSpec.from_dict({
+        "schema_version": "benchcore-declarative-rule-v1",
+        "rule_id": "rubric_type_count_mismatch",
+        "version": 1,
+        "family": "generic",
+        "defect_type": "schema_drift",
+        "description": "Rubric and rubric-type list lengths differ.",
+        "message": "Rubric and rubric-type cardinalities differ.",
+        "repair": "Provide exactly one type for every rubric.",
+        "conditions": [{
+            "left": {"source": "raw", "path": ["rubrics"],
+                     "transforms": ["parse_jsonish", "length"]},
+            "operator": "ne",
+            "right": {"operand": {"source": "raw", "path": ["rubric_types"],
+                                  "transforms": ["parse_jsonish", "length"]}},
+        }],
+        "match": "all",
+        "confidence": 0.85,
+    })
+    rows = [{"item_id": "v", "task": "x", "rubrics": ["a"], "rubric_types": []}]
+    items = build_items(rows, load_mapping(None, rows))
+    result = audit_items_with_ledger(
+        items,
+        checkers=[DeclarativeRuleChecker(spec, registry_receipt="r")],
+        dataset_checkers=[],
+    )
+    assert [v.confidence for v in result.violations] == [0.85]
