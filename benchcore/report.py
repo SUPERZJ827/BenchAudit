@@ -190,10 +190,6 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
     if audit_plan:
         lines.append("## Audit Coverage")
         lines.append("")
-        lines.append(
-            f"- Detected family: `{audit_plan.get('family', 'unknown')}` "
-            f"(confidence={audit_plan.get('family_confidence', 0):.2f})"
-        )
         plan_summary = audit_plan.get("summary") or {}
         lines.append(f"- Executed checks: `{plan_summary.get('executed', 0)}`")
         lines.append(f"- Partially executed checks: `{plan_summary.get('partial', 0)}`")

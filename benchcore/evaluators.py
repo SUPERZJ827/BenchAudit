@@ -91,6 +91,39 @@ _SCORING_COMPARISON_KINDS = {
 
 _SET_COMPARISONS = frozenset({"any_of_accepted"})
 
+# Comparisons that judge something other than a reference answer: a test suite
+# passing, criteria being graded, an end state being inspected.  A benchmark
+# scored this way has no scalar gold, so checks written against one do not
+# apply to it -- its absence is the design, not a defect.
+NON_SCALAR_COMPARISONS = frozenset({"test_execution", "rubric_graded", "state_check"})
+
+
+# Whether any record in this benchmark carries a gold.  A benchmark where none
+# does is not scored against reference answers -- observable from the rows
+# alone, without a model and without knowing what the benchmark is called.
+ITEM_GOLD_COVERAGE_KEY = "_benchmark_has_any_gold"
+
+
+def scores_a_scalar_answer(item: Any) -> bool | None:
+    """Whether this benchmark judges a reference answer, or None if unjudged.
+
+    A profile decides where it has ruled.  Failing that, a benchmark in which
+    not one record carries a gold is not judging reference answers; one where
+    some do and some do not has a gap worth reporting, which is the distinction
+    a per-item check cannot draw on its own.
+
+    None is not False: with neither source, nothing has ruled on the shape and
+    a check must not assume one either way.
+    """
+
+    comparison = scoring_comparison(item_scoring(item))
+    if comparison:
+        return comparison not in NON_SCALAR_COMPARISONS
+    metadata = getattr(item, "metadata", None)
+    if isinstance(metadata, Mapping) and ITEM_GOLD_COVERAGE_KEY in metadata:
+        return bool(metadata[ITEM_GOLD_COVERAGE_KEY])
+    return None
+
 
 def scoring_comparison(scoring: Any) -> str:
     """The comparison a profile settled on, or "" when it settled on none."""

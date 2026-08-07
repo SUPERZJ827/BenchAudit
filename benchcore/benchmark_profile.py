@@ -261,6 +261,38 @@ SCORING_COMPARISONS = frozenset({
     "rubric_graded", "state_check", "model_judged", "structured_match", "other",
 })
 
+# Shapes whose task is a question the record answers.  Heuristics about the
+# answer moving with time, or depending on an unstated source, reason about a
+# question; on an instruction to produce something they read ordinary
+# specification wording as a defect.
+ANSWER_BEARING_SHAPES = frozenset({"multiple_choice", "open_ended_qa"})
+
+# The checkers see only items, so the profile's verdict on task shape has to
+# travel with them, as its verdict on scoring already does.
+ITEM_TASK_SHAPE_KEY = "_task_shape"
+
+
+def item_task_shape(item: Any) -> str:
+    """The profiled shape of this benchmark's tasks, or "" when unprofiled."""
+
+    metadata = getattr(item, "metadata", None)
+    if not isinstance(metadata, Mapping):
+        return ""
+    return str(metadata.get(ITEM_TASK_SHAPE_KEY) or "")
+
+
+def task_is_a_question(item: Any) -> bool | None:
+    """Whether the task asks something, or None when no profile has ruled.
+
+    None is not False: with nothing profiled, a check must not assume a shape
+    in either direction.
+    """
+
+    shape = item_task_shape(item)
+    if not shape:
+        return None
+    return shape in ANSWER_BEARING_SHAPES
+
 
 def _bounded_sample(rows: list[Mapping[str, Any]], *, limit: int = 3) -> list[dict[str, Any]]:
     """A few rows with long values clipped, so the prompt stays bounded."""

@@ -217,7 +217,7 @@ def test_score_injections_command_writes_recall(tmp_path: Path):
     assert json.loads(output.read_text(encoding="utf-8"))["recall"] == 1.0
 
 
-def test_auto_profile_detects_swebench_and_keeps_structural_checkers(tmp_path: Path):
+def test_a_patch_bearing_benchmark_gets_leak_detection_and_structural_checks(tmp_path: Path):
     source = tmp_path / "opaque.jsonl"
     source.write_text(json.dumps({
         "instance_id": "repo__1",
@@ -240,13 +240,12 @@ def test_auto_profile_detects_swebench_and_keeps_structural_checkers(tmp_path: P
 
     assert exit_code == 0
     report = json.loads(output.read_text(encoding="utf-8"))
-    assert report["audit_plan"]["family"] == "swebench"
     assert "solution_leak" in report["methods_run"]
     assert "task_specification" in report["methods_run"]
     assert "evaluator" in report["methods_run"]
 
 
-def test_auto_terminal_profile_does_not_require_scalar_gold(tmp_path: Path):
+def test_a_benchmark_with_no_golds_at_all_is_not_audited_for_a_missing_one(tmp_path: Path):
     source = tmp_path / "opaque.jsonl"
     source.write_text(json.dumps({
         "item_id": "terminal-1",
@@ -263,9 +262,14 @@ def test_auto_terminal_profile_does_not_require_scalar_gold(tmp_path: Path):
     ]) == 0
 
     report = json.loads(output.read_text(encoding="utf-8"))
-    assert report["audit_plan"]["family"] == "terminalbench"
-    assert "oracle_ground_truth" not in report["methods_run"]
+    # The checker is offered and rules itself out, with the reason recorded --
+    # not switched off from outside on the strength of a guessed family name.
     assert not any(v["defect_type"] == "missing_oracle" for v in report["violations"])
+    skipped = [
+        entry for entry in report["coverage_ledger"]
+        if entry["checker"] == "oracle_ground_truth"
+    ]
+    assert skipped and all(entry["status"] == "ineligible" for entry in skipped)
 
 
 def test_plan_loads_record_semantics_and_canonical_artifacts(tmp_path: Path):
@@ -285,7 +289,6 @@ def test_plan_loads_record_semantics_and_canonical_artifacts(tmp_path: Path):
     assert main(["plan", str(source), "--out", str(output)]) == 0
 
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["audit_plan"]["family"] == "workspacebench"
     assert payload["audit_plan"]["artifact_coverage"]["evaluator_tests_rubric"] == "present"
     assert payload["audit_plan"]["artifact_coverage"]["expected_output"] == "present"
 
