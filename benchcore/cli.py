@@ -44,7 +44,7 @@ from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_stu
 from dataclasses import replace
 
 from .benchmark_profile import BenchmarkProfileStore, profile_benchmark
-from .evaluators import ITEM_SCORING_KEY
+from .evaluators import ITEM_SCORING_KEY, contract_basis_census
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
     DirectLLMAuditor,
@@ -1301,6 +1301,7 @@ def run_audit(args: argparse.Namespace) -> int:
             primary_client=client,
             workers=max(args.workers, 1),
             benchmark_profile=benchmark_profile_metadata,
+            contract_basis=contract_basis_census(items),
             decision_policy=decision_policy_snapshot(
                 llm_confirm_threshold=args.llm_confirm_threshold,
                 llm_review_threshold=args.llm_review_threshold,
@@ -1971,6 +1972,7 @@ def collect_run_metadata(
     verifier_client: LLMClient | None = None,
     workers: int | None = None,
     benchmark_profile: dict | None = None,
+    contract_basis: dict | None = None,
     decision_policy: dict | None = None,
     extra: dict | None = None,
 ) -> dict:
@@ -1990,6 +1992,8 @@ def collect_run_metadata(
         metadata["workers"] = workers
     if benchmark_profile is not None:
         metadata["benchmark_profile"] = benchmark_profile
+    if contract_basis is not None:
+        metadata["contract_basis"] = contract_basis
     if decision_policy is not None:
         metadata["decision_policy"] = decision_policy
     if primary_client is not None:

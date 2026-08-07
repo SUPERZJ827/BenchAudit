@@ -101,6 +101,15 @@ def scoring_comparison(scoring: Any) -> str:
 
 
 
+# Where a contract decision came from.  The three sources disagree -- gold
+# "1500" is compared numerically with no label and exactly with one saying
+# exact_match -- so which was used changes what counts as correct, and until
+# now no artifact recorded it.
+CONTRACT_BASIS_PROFILE = "profile"   # derived from the benchmark's own rows
+CONTRACT_BASIS_LABEL = "adapter_label"  # a string our adapter wrote
+CONTRACT_BASIS_GUESS = "gold_shape"  # inferred from the gold alone
+
+
 ITEM_SCORING_KEY = "_scoring"
 
 
@@ -130,6 +139,7 @@ def answer_contract(
     """
 
     comparison = scoring_comparison(scoring)
+    basis = CONTRACT_BASIS_LABEL
     evaluator_text = normalize_contract_value(evaluator)
     output_text = normalize_contract_value(output_contract)
     combined = f"{evaluator_text} {output_text}".strip()
@@ -144,8 +154,10 @@ def answer_contract(
         cardinality = "set"
     if comparison in _SCORING_COMPARISON_KINDS and not choices:
         kind = _SCORING_COMPARISON_KINDS[comparison]
+        basis = CONTRACT_BASIS_PROFILE
     elif choices:
         kind = "choice"
+        basis = CONTRACT_BASIS_LABEL
     elif "ratio" in evaluator_text:
         kind = "ratio"
     elif "numeric" in evaluator_text or "number" in evaluator_text:
@@ -158,8 +170,10 @@ def answer_contract(
         kind = "exact"
     elif len(values) == 1 and parse_number(values[0]) is not None:
         kind = "numeric"
+        basis = CONTRACT_BASIS_GUESS
     else:
         kind = "normalized_exact"
+        basis = CONTRACT_BASIS_GUESS if not evaluator_text else CONTRACT_BASIS_LABEL
     accepts_explanatory_text = any(
         token in combined
         for token in (
@@ -176,6 +190,7 @@ def answer_contract(
         "kind": kind,
         "cardinality": cardinality,
         "accepts_explanatory_text": accepts_explanatory_text,
+        "basis": basis,
     }
 
 
@@ -197,6 +212,30 @@ def evaluator_accepts_aliases(evaluator: Any = None) -> bool:
     """
 
     return "alias" in normalize_contract_value(evaluator)
+
+
+
+def contract_basis_census(items: Any) -> dict[str, int]:
+    """How many items had their comparison decided by each basis.
+
+    A run reporting mostly `gold_shape` or `adapter_label` rested on inference
+    rather than on anything the benchmark stated, which is worth knowing when
+    reading its findings.
+    """
+
+    counts: dict[str, int] = {}
+    for item in items or ():
+        contract = answer_contract(
+            getattr(item, "gold", None),
+            getattr(item, "choices", None),
+            getattr(item, "evaluator", None),
+            getattr(item, "output_contract", None),
+            scoring=item_scoring(item),
+        )
+        basis = str(contract.get("basis") or "")
+        if basis:
+            counts[basis] = counts.get(basis, 0) + 1
+    return counts
 
 
 def evaluate_answer(
