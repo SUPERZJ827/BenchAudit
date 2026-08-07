@@ -271,6 +271,32 @@ ANSWER_BEARING_SHAPES = frozenset({"multiple_choice", "open_ended_qa"})
 # travel with them, as its verdict on scoring already does.
 ITEM_TASK_SHAPE_KEY = "_task_shape"
 
+# Which field of this benchmark holds which artifact.  The profiler decides
+# this for every benchmark from its own rows; without it a check has to guess
+# at spellings, and finds nothing on a benchmark that chose another word.
+ITEM_ROLES_KEY = "_field_roles"
+
+
+def item_field_role(item: Any, role: str) -> str:
+    """The field bound to ``role``, or "" when none is bound or it is absent.
+
+    A stored profile can outlive the shape it was derived from, so a role
+    naming a field this record does not have is treated as unbound: the caller
+    falls back rather than reading nothing while appearing configured.
+    """
+
+    metadata = getattr(item, "metadata", None)
+    if not isinstance(metadata, Mapping):
+        return ""
+    roles = metadata.get(ITEM_ROLES_KEY)
+    if not isinstance(roles, Mapping):
+        return ""
+    field_name = str(roles.get(role) or "")
+    raw = getattr(item, "raw", None)
+    if not field_name or not isinstance(raw, Mapping) or field_name not in raw:
+        return ""
+    return field_name
+
 
 def item_task_shape(item: Any) -> str:
     """The profiled shape of this benchmark's tasks, or "" when unprofiled."""

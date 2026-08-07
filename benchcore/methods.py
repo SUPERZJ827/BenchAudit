@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 from .checkers import Checker, _SAFE_BINOPS, _SAFE_UNARY, _violation
 from .evaluators import (
+    scores_a_scalar_answer,
     item_scoring,
     CHOICE_LABELS,
     answer_contract,
@@ -141,22 +142,25 @@ class EvaluatorMutationChecker(Checker):
 
 
 def _is_scalar_answer_contract(item: BenchmarkItem) -> bool:
+    """Whether this record is judged on a single answer value.
+
+    The profiled scoring answers this for any benchmark.  Without one, fall
+    back to the record's own declarations -- a container contract or a rubric
+    evaluator says the same thing in the cases we can recognise by shape.
+    """
+
+    profiled = scores_a_scalar_answer(item)
+    if profiled is not None:
+        return profiled and item.gold not in (None, "", [], {})
     contract_type = (
         str(item.output_contract.get("type") or "").casefold()
         if isinstance(item.output_contract, dict)
         else ""
     )
-    evaluator_type = (
-        str(item.evaluator.get("type") or "").casefold()
-        if isinstance(item.evaluator, dict)
-        else ""
-    )
     return bool(
         item.gold not in (None, "", [], {})
+        and "rubric" not in normalize_text(item.evaluator)
         and contract_type not in {"workspace_files", "workspace", "artifact_files"}
-        and evaluator_type not in {
-            "workspacebench_rubric", "agent_as_a_judge", "rubric_judge",
-        }
     )
 
 

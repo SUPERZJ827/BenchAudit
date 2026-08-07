@@ -11,6 +11,7 @@ from .checkers import Checker, _violation
 from .coverage import AuditSecurityBlocked
 from .file_reader import read_file, search_file
 from .llm_client import LLMClient
+from .benchmark_profile import item_field_role
 from .schema import BenchmarkItem, Violation
 
 
@@ -1876,7 +1877,15 @@ def format_rubrics(item: BenchmarkItem) -> str:
 
 def extract_rubrics(item: BenchmarkItem) -> list[str]:
     raw = item.raw or {}
-    for key in ("rubrics", "rubric", "criteria", "grading_rubric"):
+    # A profile decides which field holds this benchmark's rubric, whatever its
+    # authors called it.  The spellings below are only what remains when
+    # nothing has been profiled: they find a rubric named in ordinary English
+    # and nothing at all otherwise.
+    bound = item_field_role(item, "rubric")
+    keys = (bound, "rubrics", "rubric", "criteria", "grading_rubric") if bound else (
+        "rubrics", "rubric", "criteria", "grading_rubric"
+    )
+    for key in keys:
         if key in raw:
             parsed = parse_maybe_json(raw[key])
             if isinstance(parsed, list):

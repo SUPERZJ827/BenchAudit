@@ -44,7 +44,7 @@ from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_stu
 from dataclasses import replace
 
 from .benchmark_profile import BenchmarkProfileStore, profile_benchmark
-from .benchmark_profile import ITEM_TASK_SHAPE_KEY
+from .benchmark_profile import ITEM_ROLES_KEY, ITEM_TASK_SHAPE_KEY
 from .evaluators import ITEM_GOLD_COVERAGE_KEY, ITEM_SCORING_KEY, contract_basis_census
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
@@ -861,6 +861,12 @@ def _apply_benchmark_profile(
     metadata["roles_disagreeing"] = disagreements
     metadata["scoring_for_items"] = dict(profile.scoring or {})
     metadata["task_shape_for_items"] = profile.task_shape
+    # Roles beyond the three that refine the field mapping: a check reading an
+    # artifact by role finds it under whatever this benchmark calls it.
+    metadata["roles_for_items"] = {
+        role: name for role, name in profile.field_roles.items()
+        if name and name in present
+    }
     return mapping, metadata
 
 
@@ -946,12 +952,15 @@ def run_audit(args: argparse.Namespace) -> int:
     # them, as the profile's verdict on scoring and task shape do.
     benchmark_has_any_gold = any(item.gold not in (None, "") for item in items)
     task_shape = (benchmark_profile_metadata or {}).get("task_shape_for_items")
+    field_roles = (benchmark_profile_metadata or {}).get("roles_for_items")
     for item in items:
         item.metadata[ITEM_GOLD_COVERAGE_KEY] = benchmark_has_any_gold
         if scoring_verdict:
             item.metadata[ITEM_SCORING_KEY] = dict(scoring_verdict)
         if task_shape:
             item.metadata[ITEM_TASK_SHAPE_KEY] = task_shape
+        if field_roles:
+            item.metadata[ITEM_ROLES_KEY] = dict(field_roles)
     if args.canonical_out:
         write_canonical_jsonl(args.canonical_out, canonicalize_rows(rows, mapping))
     root = Path(args.root) if args.root else input_path.parent
