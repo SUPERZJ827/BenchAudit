@@ -131,8 +131,8 @@ Solve the task without access to its declared gold answer.
 
 Return only JSON:
 {
-  "solution_status": "solved" | "ambiguous" | "uncertain",
-  "derived_answers": ["the answer in open-ended form"],
+  "solution_status": "solved" | "contradictory" | "ambiguous" | "uncertain",
+  "derived_answers": ["the final answer to the question asked, in open-ended form"],
   "confidence": 0.0,
   "needs_expert": false,
   "assumption_risk": "none" | "conventional" | "answer_changing",
@@ -148,6 +148,19 @@ Return only JSON:
 }
 
 Rules:
+- Solve the task and state the final answer. When the task is answerable,
+  solution_status is "solved" and derived_answers holds that answer.
+- derived_answers holds only what answers the question asked. Quantities computed
+  on the way there do not belong in it: if the question asks how many more were
+  added than deleted and you compute 110 total, 86 deleted and answer 3, then
+  derived_answers is ["3"], not ["86"].
+- Use "contradictory" when the task's own premises cannot all hold, such as a
+  count that must be negative or a total smaller than one of its parts. Use
+  "ambiguous" when the wording admits several readings that give different
+  answers, and "uncertain" when you cannot determine the answer for another
+  reason.
+- For any status other than "solved", leave derived_answers empty. Reporting a
+  number you have just called impossible states a fact you do not hold.
 - The answer choices and declared benchmark gold are deliberately hidden. Do not infer them.
 - Preserve notation and definitions introduced by the task.
 - Solve the task in open-ended form and state the most precise answer justified by the question.
@@ -160,8 +173,8 @@ Rules:
   final, and rate-duration statements from already-produced quantities.
 - Irrelevant numbers are allowed and should simply be ignored when the task remains internally consistent.
 - If the question itself has multiple genuinely different answers, return ambiguous.
-- If the premises are internally contradictory or arithmetically impossible and no unique answer is
-  justified, return ambiguous with assumption_risk=answer_changing.
+- If the premises are internally contradictory or arithmetically impossible, return
+  contradictory with assumption_risk=answer_changing.
 - Put standard notation or universally conventional definitions under assumption_risk=conventional.
 - Use assumption_risk=answer_changing only for an unstated choice that could materially change the answer.
 - Expose answer-changing assumptions instead of silently selecting one.
@@ -1545,7 +1558,13 @@ def option_match_evidence(
 
     accepted = equivalent | independently_acceptable
     uncertain |= independently_uncertain
-    if uncertain or blind.get("solution_status") in {"ambiguous", "uncertain"}:
+    # A solver that found the premises inconsistent has not failed to answer;
+    # it has reported something about the task.  Left out of this set it fell
+    # through as if solved, and the model had no status to put it under, so it
+    # returned "solved" with an impossible number in the answer field.
+    if uncertain or blind.get("solution_status") in {
+        "ambiguous", "uncertain", "contradictory"
+    }:
         status = "uncertain"
     elif not accepted:
         status = "none"
