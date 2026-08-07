@@ -10,6 +10,7 @@ from typing import Any, Iterable
 
 from .checkers import Checker, _SAFE_BINOPS, _SAFE_UNARY, _violation
 from .evaluators import (
+    item_scoring,
     CHOICE_LABELS,
     answer_contract,
     answer_variants,
@@ -38,7 +39,7 @@ class EvaluatorReplayChecker(Checker):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, "") or item.evaluator in (None, "", [], {}):
             return []
-        if not evaluate_answer(item.gold, item.gold, item.choices, item.evaluator):
+        if not evaluate_answer(item.gold, item.gold, item.choices, item.evaluator, scoring=item_scoring(item)):
             yield _violation(
                 item,
                 "gold_rejected_by_evaluator",
@@ -71,7 +72,10 @@ class MetamorphicAnswerChecker(Checker):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, ""):
             return []
-        contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
+        contract = answer_contract(
+            item.gold, item.choices, item.evaluator, item.output_contract,
+            scoring=item_scoring(item),
+        )
         kind = (
             contract["cardinality"]
             if contract["cardinality"] in {"set", "compound"}
@@ -80,7 +84,7 @@ class MetamorphicAnswerChecker(Checker):
         expected_variants = _semantics_preserving_variants(item, kind)
         rejected = []
         for description, variant in expected_variants:
-            if not evaluate_answer(variant, item.gold, item.choices, item.evaluator):
+            if not evaluate_answer(variant, item.gold, item.choices, item.evaluator, scoring=item_scoring(item)):
                 rejected.append({"transformation": description, "variant": variant})
         if rejected:
             yield _violation(
@@ -118,7 +122,7 @@ class EvaluatorMutationChecker(Checker):
             return []
         accepted = []
         for mutation_name, mutation in _wrong_answer_mutations(item):
-            if evaluate_answer(mutation, item.gold, item.choices, item.evaluator):
+            if evaluate_answer(mutation, item.gold, item.choices, item.evaluator, scoring=item_scoring(item)):
                 accepted.append({"mutation": mutation_name, "value": mutation})
         if accepted:
             yield _violation(
