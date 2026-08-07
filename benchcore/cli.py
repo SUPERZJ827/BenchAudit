@@ -44,6 +44,7 @@ from .gold_study import build_gold_study, write_gold_study_jsonl, write_gold_stu
 from dataclasses import replace
 
 from .benchmark_profile import BenchmarkProfileStore, profile_benchmark
+from .evaluators import ITEM_SCORING_KEY
 from .loader import build_items, load_mapping, load_rows
 from .llm_auditor import (
     DirectLLMAuditor,
@@ -857,6 +858,7 @@ def _apply_benchmark_profile(
         mapping = replace(mapping, **updates)
     metadata["roles_filled"] = filled
     metadata["roles_disagreeing"] = disagreements
+    metadata["scoring_for_items"] = dict(profile.scoring or {})
     return mapping, metadata
 
 
@@ -932,7 +934,13 @@ def run_audit(args: argparse.Namespace) -> int:
             list(range(len(source_rows))), args.offset, args.limit,
         )
         rows = [source_rows[index] for index in source_indices]
+    scoring_verdict = (benchmark_profile_metadata or {}).get("scoring_for_items")
     items = build_items(rows, mapping, source_indices=source_indices)
+    if scoring_verdict:
+        # The checkers see only items, so the profile's verdict on how this
+        # benchmark decides correctness has to travel with them.
+        for item in items:
+            item.metadata[ITEM_SCORING_KEY] = dict(scoring_verdict)
     if args.canonical_out:
         write_canonical_jsonl(args.canonical_out, canonicalize_rows(rows, mapping))
     root = Path(args.root) if args.root else input_path.parent

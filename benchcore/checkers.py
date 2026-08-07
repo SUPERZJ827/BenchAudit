@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .evaluators import (
+    item_scoring,
     answer_contract,
     answer_variants,
     choice_label_to_index,
@@ -418,7 +419,10 @@ class EvaluatorChecker(Checker):
         )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
-        contract = answer_contract(item.gold, item.choices, item.evaluator, item.output_contract)
+        contract = answer_contract(
+            item.gold, item.choices, item.evaluator, item.output_contract,
+            scoring=item_scoring(item),
+        )
         inferred = (
             contract["cardinality"]
             if contract["cardinality"] in {"set", "compound"}
@@ -464,7 +468,7 @@ class EvaluatorChecker(Checker):
             item.evaluator,
             item.output_contract,
         ):
-            if not evaluate_answer(variant, item.gold, item.choices, item.evaluator):
+            if not evaluate_answer(variant, item.gold, item.choices, item.evaluator, scoring=item_scoring(item)):
                 rejected.append({"variant_description": description, "variant": variant})
         alias_rejected = []
         if contract["cardinality"] != "set":

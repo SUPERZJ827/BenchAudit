@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import string
-from typing import Any
+from typing import Any, Mapping
 
 
 CHOICE_LABELS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -75,13 +75,61 @@ def answer_values(value: Any) -> list[Any]:
     return [value]
 
 
+# What a profiled scoring verdict means for how answers are compared.  The
+# verdict is derived from the benchmark's own rows, so it decides ahead of the
+# evaluator label, which our adapter writes from a hand-maintained table.
+#
+# Verdicts with no bearing on comparing two answer strings -- tests being run,
+# criteria being graded, an end state being inspected, a model judging -- are
+# absent on purpose: for those the label's own inference is no worse.
+_SCORING_COMPARISON_KINDS = {
+    "exact_match": "exact",
+    "numeric_tolerance": "numeric",
+    "any_of_accepted": "normalized_exact",
+    "structured_match": "normalized_exact",
+}
+
+_SET_COMPARISONS = frozenset({"any_of_accepted"})
+
+
+def scoring_comparison(scoring: Any) -> str:
+    """The comparison a profile settled on, or "" when it settled on none."""
+
+    if not isinstance(scoring, Mapping):
+        return ""
+    return str(scoring.get("comparison") or "")
+
+
+
+ITEM_SCORING_KEY = "_scoring"
+
+
+def item_scoring(item: Any) -> Any:
+    """The profile's scoring verdict carried on an item, if one was attached."""
+
+    metadata = getattr(item, "metadata", None)
+    if not isinstance(metadata, Mapping):
+        return None
+    verdict = metadata.get(ITEM_SCORING_KEY)
+    return verdict if isinstance(verdict, Mapping) else None
+
+
 def answer_contract(
     gold: Any,
     choices: list[Any] | None,
     evaluator: Any = None,
     output_contract: Any = None,
+    scoring: Any = None,
 ) -> dict[str, Any]:
-    """Infer generic answer-contract properties from benchmark artifacts."""
+    """Infer generic answer-contract properties from benchmark artifacts.
+
+    ``scoring`` is a profile's verdict on how this benchmark decides
+    correctness, derived from its own rows.  Where it speaks it decides; where
+    it is absent or says nothing about comparing answers, the evaluator label
+    is read as before.
+    """
+
+    comparison = scoring_comparison(scoring)
     evaluator_text = normalize_contract_value(evaluator)
     output_text = normalize_contract_value(output_contract)
     combined = f"{evaluator_text} {output_text}".strip()
@@ -92,7 +140,11 @@ def answer_contract(
     if any(token in combined for token in ("set", "list", "multi", "multiple", "all answers", "denotation")):
         if cardinality != "compound":
             cardinality = "set"
-    if choices:
+    if comparison in _SET_COMPARISONS and cardinality != "compound":
+        cardinality = "set"
+    if comparison in _SCORING_COMPARISON_KINDS and not choices:
+        kind = _SCORING_COMPARISON_KINDS[comparison]
+    elif choices:
         kind = "choice"
     elif "ratio" in evaluator_text:
         kind = "ratio"
@@ -153,8 +205,9 @@ def evaluate_answer(
     choices: list[Any] | None,
     evaluator: Any = None,
     aliases: list[Any] | None = None,
+    scoring: Any = None,
 ) -> bool:
-    contract = answer_contract(gold, choices, evaluator)
+    contract = answer_contract(gold, choices, evaluator, scoring=scoring)
     kind = contract["kind"]
     if contract["cardinality"] == "set":
         accepted = _evaluate_answer_set(
