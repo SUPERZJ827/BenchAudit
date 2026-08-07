@@ -75,6 +75,7 @@ from .planning import (
     apply_family_policy,
     build_audit_plan,
     detect_benchmark_family,
+    family_from_profile,
     plan_for_executed_methods,
     write_audit_plan_markdown,
 )
@@ -872,6 +873,7 @@ def run_audit(args: argparse.Namespace) -> int:
         raise ValueError("--mapping cannot be combined with an adapter")
     adapter_metadata = None
     benchmark_profile_metadata: dict | None = None
+    profiled_benchmark = None
     if args.adapter_spec or args.adapter_registry:
         profile = build_schema_profile(source_rows, max_examples_per_path=0)
         if args.adapter_spec:
@@ -923,6 +925,7 @@ def run_audit(args: argparse.Namespace) -> int:
             mapping, benchmark_profile_metadata = _apply_benchmark_profile(
                 args, source_rows, mapping
             )
+            profiled_benchmark = (benchmark_profile_metadata or {}).get("_profile")
     if args.manifest:
         rows, source_indices = load_rows_with_source_indices_from_manifest(
             source_rows, input_path, Path(args.manifest),
@@ -956,6 +959,16 @@ def run_audit(args: argparse.Namespace) -> int:
     benchmark_package = scan_benchmark_package(input_path)
     add_canonical_item_artifacts(benchmark_package, items)
     detected_family, _, _ = detect_benchmark_family(benchmark_package, items)
+    # A profiled shape is derived from the rows; the name-based detector knows
+    # three benchmarks by their field names and calls everything else generic.
+    # Where the profile speaks it decides, and its verdict is recorded so an
+    # audit that skipped a checker can say on whose authority.
+    profiled_family = family_from_profile(profiled_benchmark)
+    if profiled_family is not None:
+        if benchmark_profile_metadata is not None:
+            benchmark_profile_metadata["family_from_profile"] = profiled_family
+            benchmark_profile_metadata["family_from_names"] = detected_family
+        detected_family = profiled_family
     effective_profile = _effective_profile(args.profile, detected_family)
     visibility_index = None
     visibility_metadata = None

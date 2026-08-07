@@ -99,6 +99,45 @@ CORE_CAPABILITIES: tuple[CheckerCapability, ...] = (
 )
 
 
+
+# What a profiled shape says about which family policy applies.
+#
+# detect_benchmark_family scores three particular benchmarks by their field and
+# file names, so anything outside that list is "generic" -- SVAMP, MMLU and
+# Platinum all are.  That verdict disables the scalar-gold checker, adds
+# workspace-specific ones, and selects which learned rules load, and a disabled
+# checker is a silent outcome: an audit reporting nothing reads the same
+# whether the data was clean or never examined.
+#
+# A profile describes shape from the rows themselves, so where it speaks it
+# decides.  Where it does not, it abstains rather than forcing a benchmark into
+# a family, and the name-based detector stays in charge.
+_PROFILE_FAMILY_RULES: tuple[tuple[str, str, str], ...] = (
+    ("artifact_production", "rubric_graded", "workspacebench"),
+    ("multi_turn_task", "state_check", "terminalbench"),
+    ("code_generation", "test_execution", "swebench"),
+)
+
+# Shapes that carry a reference answer: the scalar-gold checker applies and
+# must not be disabled.
+_ANSWER_BEARING_SHAPES = frozenset({"open_ended_qa", "multiple_choice"})
+
+
+def family_from_profile(profile: Any) -> str | None:
+    """The family a profiled shape implies, or None when it implies none."""
+
+    if profile is None:
+        return None
+    shape = str(getattr(profile, "task_shape", "") or "")
+    comparison = str((getattr(profile, "scoring", None) or {}).get("comparison") or "")
+    for want_shape, want_comparison, family in _PROFILE_FAMILY_RULES:
+        if shape == want_shape and comparison == want_comparison:
+            return family
+    if shape in _ANSWER_BEARING_SHAPES:
+        return "generic"
+    return None
+
+
 def detect_benchmark_family(
     package: BenchmarkPackage,
     items: Iterable[BenchmarkItem] | None = None,
