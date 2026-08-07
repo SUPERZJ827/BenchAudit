@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .checkers import Checker, _violation
+from .benchmark_profile import item_field_role
 from .schema import BenchmarkItem, Violation
 from .workspace_visibility import WorkspaceRunnerVisibilityIndex
 from .coverage import AuditEligibility
@@ -79,11 +80,33 @@ def logical_input_name(path: Path) -> str:
     return name
 
 
+
+def _declares_gradable_artifacts(item: BenchmarkItem) -> bool:
+    """Whether this record carries anything these invariants can check.
+
+    Only two of the inputs below have a general counterpart -- the rubric and
+    the declared reference artifacts -- and those are found by role, under
+    whatever name the benchmark chose.  ``data_manifest``, ``file_dep_graph``,
+    ``workspace_inventory`` and ``rubric_types`` are named literally because
+    they are structures with no general equivalent; inventing a role for them
+    would make an abstraction out of a single implementation.
+    """
+
+    evaluator = item.evaluator if isinstance(item.evaluator, dict) else {}
+    return bool(
+        item_field_role(item, "rubric")
+        or item_field_role(item, "reference_artifacts")
+        or isinstance(evaluator.get("rubrics"), list)
+        or {"rubrics", "data_manifest", "file_dep_graph"}.intersection(item.raw)
+    )
+
+
 def workspace_rubrics(item: BenchmarkItem) -> list[str]:
     evaluator = item.evaluator if isinstance(item.evaluator, dict) else {}
     value = evaluator.get("rubrics")
     if not isinstance(value, list):
-        value = parse_jsonish(item.raw.get("rubrics"), [])
+        bound = item_field_role(item, "rubric")
+        value = parse_jsonish(item.raw.get(bound or "rubrics"), [])
     return [str(row) for row in value] if isinstance(value, list) else []
 
 
@@ -170,7 +193,7 @@ def workspace_input_path_records(
     both values; experiment drivers are then responsible for their own trust
     gate.  Existing symlinks are resolved before containment is checked.
     """
-    values = item.raw.get("input_files") or []
+    values = item.raw.get(item_field_role(item, "reference_artifacts") or "input_files") or []
     if not isinstance(values, list):
         return []
     roots = (
@@ -457,19 +480,17 @@ class WorkspaceArtifactInvariantChecker(Checker):
 
     def audit_eligibility(self, item, root=None) -> AuditEligibility:
         evaluator = item.evaluator if isinstance(item.evaluator, dict) else {}
-        if (
-            evaluator.get("type") == "workspacebench_rubric"
-            or {"rubrics", "data_manifest", "file_dep_graph"}.intersection(item.raw)
-        ):
-            return AuditEligibility.applicable("Workspace artifact schema is present")
-        return AuditEligibility.not_applicable("item is not a Workspace artifact benchmark")
+        if _declares_gradable_artifacts(item):
+            return AuditEligibility.applicable(
+                "the record declares rubric or artifact structures to check"
+            )
+        return AuditEligibility.not_applicable(
+            "the record declares neither a rubric nor artifact structures"
+        )
 
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         evaluator = item.evaluator if isinstance(item.evaluator, dict) else {}
-        if (
-            evaluator.get("type") != "workspacebench_rubric"
-            and not {"rubrics", "data_manifest", "file_dep_graph"}.intersection(item.raw)
-        ):
+        if not _declares_gradable_artifacts(item):
             return
         root_values = (
             self.allowed_roots

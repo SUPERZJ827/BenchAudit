@@ -760,6 +760,12 @@ def _find_executable_checks(value: Any, path: str = "") -> list[tuple[str, list[
 
 def _find_final_marked_value(raw: dict[str, Any], source_path: str) -> Any:
     if source_path.endswith("executable_checks"):
+        # Keep, despite naming one dataset: gsm8k_platinum records carry both
+        # `executable_checks` and `platinum_executable_checks`, and the
+        # `original_final_answer` beside them belongs to the original.  Pairing
+        # it with the revised checks would compare evidence against an answer
+        # it was never derived from.  Both paths end in "executable_checks", so
+        # the suffix test alone cannot tell them apart.
         if source_path.endswith("platinum_executable_checks"):
             return None
         metadata = raw.get("metadata", {})

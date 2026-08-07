@@ -1354,6 +1354,10 @@ def common_item_payload(item: BenchmarkItem) -> dict[str, Any]:
 
 
 def strip_verified_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    # Names of fields that must never reach a blind solver.  Some name one
+    # dataset; they stay.  Over-inclusion costs a field the solver did not need,
+    # under-inclusion hands it the answer, so this list is not a place to trade
+    # specificity for tidiness.  `blocked_fragments` below catches the rest.
     blocked = {
         "_llm_observations",
         "audit_label",

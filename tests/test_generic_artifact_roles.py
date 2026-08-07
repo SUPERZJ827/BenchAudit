@@ -79,3 +79,48 @@ def test_a_scalar_benchmark_is_still_checked():
         metadata={ITEM_SCORING_KEY: {"comparison": "exact_match"}},
     )
     assert ContractConsistencyChecker().audit_eligibility(item).eligible is True
+
+
+# --- artifact invariants -----------------------------------------------------
+
+def test_declared_input_artifacts_are_found_under_any_field_name():
+    """A benchmark declaring input artifacts that do not exist is broken
+    whatever it calls the field; only two of this checker's inputs have a
+    general counterpart, and this is one."""
+
+    from benchcore.workspace_invariants import workspace_input_path_records
+
+    item = BenchmarkItem(
+        item_id="x",
+        raw={"provided_documents": ["inputs/a.csv"]},
+        task="t",
+        metadata={ITEM_ROLES_KEY: {"reference_artifacts": "provided_documents"}},
+    )
+    assert [r["declared"] for r in workspace_input_path_records(item)] == ["inputs/a.csv"]
+
+
+def test_a_rubric_reaches_the_artifact_checks_under_any_field_name():
+    from benchcore.workspace_invariants import workspace_rubrics
+
+    item = BenchmarkItem(
+        item_id="x", raw={"scoring_checklist": ["States the total."]}, task="t",
+        metadata={ITEM_ROLES_KEY: {"rubric": "scoring_checklist"}},
+    )
+    assert workspace_rubrics(item) == ["States the total."]
+
+
+def test_a_rubric_bearing_benchmark_is_eligible_under_any_field_name():
+    from benchcore.workspace_invariants import WorkspaceArtifactInvariantChecker
+
+    item = BenchmarkItem(
+        item_id="x", raw={"scoring_checklist": ["States the total."]}, task="t",
+        metadata={ITEM_ROLES_KEY: {"rubric": "scoring_checklist"}},
+    )
+    assert WorkspaceArtifactInvariantChecker().audit_eligibility(item).eligible is True
+
+
+def test_a_benchmark_with_neither_is_still_ruled_out():
+    from benchcore.workspace_invariants import WorkspaceArtifactInvariantChecker
+
+    item = BenchmarkItem(item_id="x", raw={"question": "q"}, task="t")
+    assert WorkspaceArtifactInvariantChecker().audit_eligibility(item).eligible is False
