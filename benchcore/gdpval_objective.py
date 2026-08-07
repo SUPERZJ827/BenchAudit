@@ -1280,7 +1280,6 @@ class GDPValRecordIntegrityChecker(Checker):
             yield _violation(
                 item,
                 fact.defect_type,
-                fact.confidence,
                 fact.message,
                 fact.evidence(item.raw, self.dataset_revision),
                 severity=fact.severity,
@@ -1375,7 +1374,6 @@ class GDPValWorkbookReplayChecker(Checker):
             yield _violation(
                 item,
                 fact.defect_type,
-                fact.confidence,
                 fact.message,
                 row.evidence(item.raw, self.resolver.revision),
                 severity=fact.severity,
@@ -1434,7 +1432,6 @@ class GDPValDatasetIntegrityChecker(DatasetChecker):
             yield _violation(
                 source,
                 "duplicate_rubric_item_id",
-                1.0,
                 "The same rubric_item_id appears in multiple live GDPval records.",
                 {
                     "proof_schema_version": "1.0",

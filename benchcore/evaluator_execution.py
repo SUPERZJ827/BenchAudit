@@ -901,7 +901,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                 )
                 return
             yield _violation(
-                item, "gold_rejected_by_evaluator", 0.97,
+                item, "gold_rejected_by_evaluator", 
                 "The evaluator replay in the configured audit environment rejects the benchmark's reference solution.",
                 {"harness": gold, "gold_exec": report.get("gold_exec"),
                  "instrumented_harness": report.get("instrumented_gold"),
@@ -1004,7 +1004,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                 if harness.get("pass") is False:
                     confirmed = implementation_independent and same_inputs
                     yield _violation(
-                        item, "overstrict_evaluator", 0.9 if confirmed else 0.58,
+                        item, "overstrict_evaluator", 
                         (
                             "Harness rejects an implementation whose outputs are strictly identical "
                             "to the reference's on every intercepted harness input."
@@ -1043,7 +1043,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
 
                 elif harness.get("string_pass") is False:
                     yield _violation(
-                        item, "output_format_overstrict_risk", 0.6,
+                        item, "output_format_overstrict_risk", 
                         "Surface-constraint check (test_string) rejects a behaviorally "
                         "identical implementation.",
                         {"probe_id": pr["id"], "probe_code": pr.get("code"),
@@ -1064,7 +1064,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                         # This remains true even when exec_test happens to read `ans`.
                         by_design = multiplicity.triage == "by_design"
                         yield _violation(
-                            item, "underconstrained_evaluator_risk", 0.15 if by_design else 0.4,
+                            item, "underconstrained_evaluator_risk", 
                             (
                                 "Harness accepts an output that differs from the reference, but the "
                                 "task itself declares multiple outputs are acceptable "
@@ -1098,7 +1098,7 @@ class ExecutionEvaluatorAuditChecker(Checker):
                             method="execution_kill_matrix")
                         continue
                     yield _violation(
-                        item, "evaluator_mutation_survived", 0.9,
+                        item, "evaluator_mutation_survived", 
                         "Harness accepts a mutant whose output provably differs from the "
                         "reference's on the harness's own test input.",
                         {"probe_id": pr["id"], "probe_code": pr.get("code"),
@@ -1144,7 +1144,6 @@ class ExecutionEvaluatorAuditChecker(Checker):
         return _violation(
             item,
             "llm_audit_failure",
-            0.25,
             "Execution evaluator audit was inconclusive: " + evidence["fatal"],
             evidence,
             severity="review",

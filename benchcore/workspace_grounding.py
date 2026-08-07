@@ -1638,7 +1638,6 @@ class WorkspaceRubricGroundingChecker(Checker):
                 yield _violation(
                     item,
                     "llm_audit_failure",
-                    1.0,
                     (
                         "Workspace rubric grounding did not complete for rubric "
                         f"index {decision.rubric_index}."
@@ -1672,7 +1671,6 @@ class WorkspaceRubricGroundingChecker(Checker):
             yield _violation(
                 item,
                 "task_rubric_mismatch",
-                min(0.95, max(0.55, decision.confidence)),
                 decision.reason,
                 {
                     "rubric_index": decision.rubric_index,
@@ -1709,6 +1707,7 @@ class WorkspaceRubricGroundingChecker(Checker):
                         else "llm_grounded_with_adversarial_verifier"
                     ),
                 },
+                confidence=min(0.95, max(0.55, decision.confidence)),
                 severity="review",
                 review_only=True,
                 repair="Remove the hidden constraint or expose/derive it in the task inputs.",

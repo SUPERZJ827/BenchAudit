@@ -43,7 +43,6 @@ class EvaluatorReplayChecker(Checker):
             yield _violation(
                 item,
                 "gold_rejected_by_evaluator",
-                0.98,
                 "Declared evaluator contract rejects the benchmark's own gold answer.",
                 {
                     "gold": item.gold,
@@ -90,7 +89,6 @@ class MetamorphicAnswerChecker(Checker):
             yield _violation(
                 item,
                 "metamorphic_inconsistency",
-                0.72 if item.evaluator else 0.5,
                 "Semantics-preserving answer transformations change the evaluation result.",
                 {
                     "gold": item.gold,
@@ -128,7 +126,6 @@ class EvaluatorMutationChecker(Checker):
             yield _violation(
                 item,
                 "evaluator_mutation_survived",
-                0.6,
                 "The modeled evaluator accepts one or more intentionally wrong answer mutations.",
                 {
                     "gold": item.gold,
@@ -200,7 +197,6 @@ class ContractConsistencyChecker(Checker):
             yield _violation(
                 item,
                 "output_evaluator_contract_mismatch",
-                0.85,
                 mismatch,
                 {
                     "output_contract": item.output_contract,
@@ -247,7 +243,6 @@ class TaskIntegrityChecker(Checker):
             yield _violation(
                 item,
                 "temporal_scope_missing",
-                0.82,
                 "Time-sensitive wording lacks an explicit reference date or version.",
                 {
                     "matched_phrase": temporal_match.group(0),
@@ -272,7 +267,6 @@ class TaskIntegrityChecker(Checker):
             yield _violation(
                 item,
                 "source_reference_missing",
-                0.8,
                 "The task depends on an unnamed study/report and provides no source context.",
                 {"matched_phrase": source_match.group(0), "task_excerpt": task[:300]},
                 severity="review",
@@ -292,7 +286,6 @@ class TaskIntegrityChecker(Checker):
             yield _violation(
                 item,
                 "incomplete_task_instruction",
-                0.9,
                 "The task appears to contain a missing blank or truncated instruction.",
                 {"signals": instruction_signals, "task_excerpt": task[:300]},
                 severity="review",
@@ -316,7 +309,6 @@ class TaskIntegrityChecker(Checker):
             yield _violation(
                 item,
                 "presentation_corruption",
-                0.92,
                 "Visible encoding or formatting corruption was detected.",
                 {"signals": presentation_signals, "text_excerpt": combined[:400]},
                 severity="review",
@@ -365,7 +357,6 @@ class ExecutableEvidenceChecker(Checker):
                     yield _violation(
                         item,
                         "invalid_executable_evidence",
-                        0.99,
                         "Executable evidence does not reproduce its declared expected value.",
                         {
                             "source_path": source_path,
@@ -385,7 +376,6 @@ class ExecutableEvidenceChecker(Checker):
                 yield _violation(
                     item,
                     "executable_evidence_gold_conflict",
-                    0.98,
                     "Final answer associated with executable evidence disagrees with the gold answer.",
                     {
                         "source_path": source_path,
@@ -432,12 +422,12 @@ class DifferentialCandidateChecker(Checker):
             yield _violation(
                 item,
                 "solver_gold_disagreement",
-                min(0.95, max(0.5, max_confidence)),
                 "One or more independent candidate solver outputs disagree with the gold answer.",
                 {"gold": item.gold, "disagreements": disagreements},
                 severity="review",
                 review_only=True,
                 repair="Replay or independently verify the candidate solution before changing the gold.",
+                confidence=min(0.95, max(0.5, max_confidence)),
                 method="differential_solver",
             )
 
@@ -479,7 +469,6 @@ class DuplicateConflictChecker(DatasetChecker):
             yield _violation(
                 group[0],
                 "duplicate_item_id",
-                1.0,
                 "Multiple records share the same item identifier.",
                 {
                     "item_id": item_id,
@@ -501,7 +490,6 @@ class DuplicateConflictChecker(DatasetChecker):
                 yield _violation(
                     group[0],
                     "conflicting_duplicate_oracle",
-                    0.99,
                     "Equivalent task records declare conflicting gold answers.",
                     {
                         "item_ids": ids,
@@ -517,7 +505,6 @@ class DuplicateConflictChecker(DatasetChecker):
                 yield _violation(
                     group[0],
                     "duplicate_task",
-                    0.9,
                     "Equivalent task records appear multiple times in the benchmark.",
                     {
                         "item_ids": ids,
@@ -558,7 +545,6 @@ class SchemaDriftChecker(DatasetChecker):
         yield _violation(
             items[0],
             "schema_drift",
-            min(0.95, 0.5 + ratio),
             "Core artifact availability differs across records in the same benchmark sample.",
             {
                 "dominant_pattern": dominant,

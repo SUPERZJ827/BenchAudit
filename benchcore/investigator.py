@@ -171,7 +171,9 @@ class Investigation:
     artifact: str
     defect_type: str
     detection_method: str
-    original_confidence: float
+    # None when the finding came from a deterministic detector, which reports
+    # no score.  Recording 0.0 there would read as a confident zero.
+    original_confidence: float | None
     original_message: str
     verdict: str
     confidence: float
@@ -417,6 +419,13 @@ def validate_report_source_identity(
         )
 
 
+
+def origin_text(row: dict[str, Any]) -> str:
+    """How the finding's pre-verification score reads, including its absence."""
+
+    value = row.get("original_confidence")
+    return "none reported" if value is None else f"{value:.2f}"
+
 def select_violations(
     violations: list[dict[str, Any]],
     *,
@@ -432,12 +441,17 @@ def select_violations(
             continue
         if include_methods and violation.get("detection_method") not in include_methods:
             continue
-        try:
-            confidence = float(violation.get("confidence", 0.0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        if confidence < min_confidence:
-            continue
+        # A deterministic finding carries no confidence.  It is not a
+        # low-confidence finding: this filter selects among self-reported
+        # scores, and a record without one is outside its scope.
+        raw_confidence = violation.get("confidence")
+        if raw_confidence is not None:
+            try:
+                confidence = float(raw_confidence)
+            except (TypeError, ValueError):
+                confidence = 0.0
+            if confidence < min_confidence:
+                continue
         selected.append(violation)
     start = max(offset, 0)
     if limit is None:
@@ -785,7 +799,10 @@ def investigation_from_result(
         artifact=str(violation.get("artifact", "")),
         defect_type=str(violation.get("defect_type", "")),
         detection_method=str(violation.get("detection_method", "")),
-        original_confidence=to_float(violation.get("confidence"), 0.0),
+        original_confidence=(
+            None if violation.get("confidence") is None
+            else to_float(violation.get("confidence"), 0.0)
+        ),
         original_message=str(violation.get("message", "")),
         verdict=verdict,
         confidence=bounded_float(result.get("confidence"), 0.0),
@@ -1003,7 +1020,7 @@ def write_investigation_markdown(path: Path, report: dict[str, Any]) -> None:
             lines.append(
                 f"- `{row['verdict']}` / `{row['issue_category']}` / "
                 f"`{row['defect_type']}` / `{row['detection_method']}` "
-                f"(confidence={row['confidence']:.2f}, original={row['original_confidence']:.2f})"
+                f"(confidence={row['confidence']:.2f}, original={origin_text(row)})"
             )
             if row.get("pass_count"):
                 lines.append(

@@ -594,7 +594,6 @@ class BaseLLMAuditor(Checker):
         return _violation(
             item,
             "llm_audit_failure",
-            1.0,
             f"{self.name} failed to produce a usable result.",
             {"auditor": self.name, "error": self.last_error},
             severity="review",
@@ -1660,11 +1659,11 @@ def option_applicability_violations(
             yield _violation(
                 item,
                 "multiple_correct_answers",
-                confidence,
                 "Independent option checks found multiple choices that satisfy the task.",
                 {"option_evidence": option_evidence},
                 severity="review",
                 review_only=True,
+                confidence=confidence,
                 repair=repair_for_defect("multiple_correct_answers"),
                 method="llm_option_applicability",
             )
@@ -1672,11 +1671,11 @@ def option_applicability_violations(
         yield _violation(
             item,
             "no_correct_answer",
-            confidence,
             "Independent option checks found no choice that satisfies the task.",
             {"option_evidence": option_evidence},
             severity="review",
             review_only=True,
+            confidence=confidence,
             repair=repair_for_defect("no_correct_answer"),
             method="llm_option_applicability",
         )
@@ -2575,7 +2574,6 @@ def presentation_violations(
         yield _violation(
             item,
             "presentation_corruption",
-            confidence,
             (
                 "Understanding the artifact requires an implicit formatting or "
                 "OCR repair."
@@ -2584,6 +2582,7 @@ def presentation_violations(
                 "presentation_issue": issue,
                 "llm_result": result,
             },
+            confidence=confidence,
             severity="review",
             review_only=True,
             repair=(
@@ -2639,9 +2638,9 @@ def _llm_violation(
     return _violation(
         item,
         defect_type,
-        confidence,
         message,
         {"llm_result": result, "gold": item.gold, "choices": item.choices},
+        confidence=confidence,
         severity=severity,
         review_only=review_only,
         repair=repair_for_defect(defect_type),

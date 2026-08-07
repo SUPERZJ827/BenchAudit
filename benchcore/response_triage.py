@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from .comparison import candidate_tier, compute_item_risk_score
+from .comparison import candidate_tier, compute_item_risk_score, reported_confidence
 
 
 SUPPORTED_SUFFIXES = {".json", ".jsonl"}
@@ -296,8 +296,16 @@ def _audit_scores(
         elif mode == "risk":
             scores[item_id] = compute_item_risk_score(violations)
         else:
+            # This mode ranks by what models reported about themselves, so an
+            # item whose findings are all deterministic has nothing to rank on
+            # and sorts last.  That is the mode's scope, not a judgement about
+            # the evidence -- use "risk" or "priority-risk" to rank those.
             scores[item_id] = max(
-                (float(row.get("confidence", 0.0) or 0.0) for row in violations),
+                (
+                    score
+                    for score in (reported_confidence(row) for row in violations)
+                    if score is not None
+                ),
                 default=0.0,
             )
     report_item_ids = {

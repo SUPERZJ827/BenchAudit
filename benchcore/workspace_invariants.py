@@ -527,7 +527,6 @@ class WorkspaceArtifactInvariantChecker(Checker):
             yield _violation(
                 item,
                 issue.defect_type,
-                0.99 if not issue.review_only else 0.75,
                 issue.message,
                 issue.evidence,
                 severity=issue.severity,

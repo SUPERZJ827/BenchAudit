@@ -85,7 +85,6 @@ class SolutionLeakChecker(Checker):
                     yield _violation(
                         item,
                         "llm_audit_failure",
-                        0.3,
                         "LLM semantic confirmation failed for solution leak candidate.",
                         {
                             "source_field": "problem_statement",
@@ -102,7 +101,6 @@ class SolutionLeakChecker(Checker):
             yield _violation(
                 item,
                 "hints_only_solution_leak",
-                0.65,
                 (
                     "Gold patch added lines appear in hints_text rather than the visible "
                     "problem_statement; this is tracked separately from task-visible leakage."
@@ -123,7 +121,6 @@ class SolutionLeakChecker(Checker):
         return _violation(
             item,
             "solution_leak",
-            literal_confidence(scan),
             "Gold patch added lines appear verbatim in the visible problem_statement.",
             {
                 "source_field": "problem_statement",
@@ -147,7 +144,6 @@ class SolutionLeakChecker(Checker):
         return _violation(
             item,
             "solution_leak",
-            max(0.8, literal_confidence(scan)),
             "The visible problem_statement directly provides gold patch repair code.",
             {
                 "source_field": "problem_statement",
