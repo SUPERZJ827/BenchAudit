@@ -217,8 +217,8 @@ class IntegrityAndFusionTest(unittest.TestCase):
         violation = _violation(
             item,
             "wrong_gold_answer",
-            0.9,
             "conflict",
+            confidence=0.9,
             method="llm_gold_audit",
         )
         fused = fuse_llm_evidence([violation], [item])
@@ -256,15 +256,15 @@ class IntegrityAndFusionTest(unittest.TestCase):
         gold_violation = _violation(
             item,
             "wrong_gold_answer",
-            0.9,
             "gold finding",
+            confidence=0.9,
             method="llm_gold_audit",
         )
         option_violation = _violation(
             item,
             "no_correct_answer",
-            0.9,
             "option finding",
+            confidence=0.9,
             method="llm_option_set",
         )
 

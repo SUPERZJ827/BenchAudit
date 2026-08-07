@@ -93,9 +93,13 @@ def _has_context(item: BenchmarkItem, name: str | None = None) -> bool:
 def _violation(
     item: BenchmarkItem,
     defect_type: str,
-    confidence: float,
     message: str,
     evidence: dict[str, Any] | None = None,
+    *,
+    # Keyword-only and absent by default: a detector that cannot name a model
+    # as the source of a number has no confidence to report, and cannot supply
+    # one by accident.
+    confidence: float | None = None,
     severity: str | None = None,
     review_only: bool | None = None,
     repair: str | None = None,
@@ -163,7 +167,6 @@ class TaskSpecChecker(Checker):
             yield _violation(
                 item,
                 "missing_task",
-                1.0,
                 "Task specification is missing.",
                 {
                     "evidence_level": "canonical_task_absence",
@@ -201,7 +204,6 @@ class TaskSpecChecker(Checker):
             yield _violation(
                 item,
                 "missing_context",
-                0.85,
                 f"Task references {context_name}, but it is neither attached nor in the task text.",
                 {
                     "reference_type": context_name,
@@ -217,7 +219,6 @@ class TaskSpecChecker(Checker):
                 yield _violation(
                     item,
                     "ambiguous_goal",
-                    0.45,
                     "Task contains context-sensitive wording but lacks source/version/domain metadata.",
                     {"matched_pattern": pattern.pattern, "task_excerpt": task[:240]},
                     severity="review",
@@ -253,7 +254,6 @@ class ContextChecker(Checker):
                     yield _violation(
                         item,
                         "inaccessible_attachment",
-                        0.95,
                         f"Referenced attachment does not exist: {candidate}",
                         {"field": key, "path": candidate},
                         repair="Fix the attachment path or include the missing artifact.",
@@ -267,7 +267,6 @@ class ContextChecker(Checker):
                 yield _violation(
                     item,
                     "context_version_mismatch_risk",
-                    0.4,
                     "Task appears version-sensitive but no source/version metadata was found.",
                     {"task_excerpt": task[:240]},
                     severity="review",
@@ -292,7 +291,6 @@ class OutputContractChecker(Checker):
             yield _violation(
                 item,
                 "missing_output_contract",
-                0.55,
                 "No explicit output format/answer contract was found.",
                 severity="review",
                 review_only=True,
@@ -309,7 +307,6 @@ class OutputContractChecker(Checker):
             yield _violation(
                 item,
                 "output_format_overstrict_risk",
-                0.8,
                 "Task requests an approximate answer, but the evaluator requires exact numeric equality.",
                 {
                     "gold": item.gold,
@@ -330,7 +327,6 @@ class OutputContractChecker(Checker):
                 yield _violation(
                     item,
                     "missing_accepted_alternatives",
-                    0.45,
                     "Numeric task mentions units, but the output contract does not state unit handling.",
                     {"gold": item.gold, "task_excerpt": task[:240]},
                     severity="review",
@@ -351,7 +347,6 @@ class OracleChecker(Checker):
             yield _violation(
                 item,
                 "missing_oracle",
-                1.0,
                 "Gold answer/reference oracle is missing.",
                 repair="Add gold answer, target state, reference solution, or accepted alternatives.",
             )
@@ -362,7 +357,6 @@ class OracleChecker(Checker):
                 yield _violation(
                     item,
                     "invalid_choice_gold",
-                    0.98,
                     "Gold choice cannot be mapped to the available answer choices.",
                     {
                         "gold": item.gold,
@@ -384,7 +378,6 @@ class OracleChecker(Checker):
                 yield _violation(
                     item,
                     "duplicate_choices",
-                    0.75,
                     "Two or more choices normalize to the same text.",
                     {"duplicates": duplicates, "choices": item.choices},
                     severity="review",
@@ -396,7 +389,6 @@ class OracleChecker(Checker):
             yield _violation(
                 item,
                 "wrong_gold_answer",
-                0.95,
                 "Simple executable arithmetic evidence disagrees with the gold answer.",
                 {
                     "gold": item.gold,
@@ -446,7 +438,6 @@ class EvaluatorChecker(Checker):
             yield _violation(
                 item,
                 "missing_evaluator",
-                0.95 if is_agent_contract else 0.5,
                 (
                     "An output contract is declared, but no evaluator/tests/rubric can determine success."
                     if is_agent_contract
@@ -485,7 +476,6 @@ class EvaluatorChecker(Checker):
             yield _violation(
                 item,
                 "overstrict_evaluator",
-                0.9,
                 "Evaluator rejects declared accepted answer aliases.",
                 {
                     "aliases_rejected": alias_rejected,
@@ -500,7 +490,6 @@ class EvaluatorChecker(Checker):
             yield _violation(
                 item,
                 "output_format_overstrict_risk",
-                0.65,
                 "Exact evaluator rejects format-preserving variants of the gold answer.",
                 {"rejected_variants": rejected[:5], "gold": item.gold, "evaluator": item.evaluator},
                 severity="review",
@@ -510,7 +499,6 @@ class EvaluatorChecker(Checker):
             yield _violation(
                 item,
                 "underconstrained_evaluator_risk",
-                0.4,
                 "No evaluator or output contract is available to determine task success.",
                 {"gold": item.gold},
                 severity="review",

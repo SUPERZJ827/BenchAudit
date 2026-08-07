@@ -121,7 +121,6 @@ class DeclarativeRuleChecker(Checker):
         yield _violation(
             item,
             self.spec.defect_type,
-            self.spec.confidence,
             self.spec.message,
             evidence,
             review_only=True,

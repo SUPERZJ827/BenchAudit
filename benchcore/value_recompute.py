@@ -697,7 +697,6 @@ class ValueRecomputeChecker(Checker):
             yield _violation(
                 item,
                 "llm_audit_failure",
-                0.25,
                 "Value-recompute code generation failed.",
                 {"rubric_index": index, "rubric": rubric, "error": f"{type(exc).__name__}: {exc}"},
                 severity="review",
@@ -756,7 +755,6 @@ class ValueRecomputeChecker(Checker):
             yield _violation(
                 item,
                 "rubric_target_error",
-                self.confidence,
                 "Rubric's asserted target value(s) not reproduced by independent recompute from inputs.",
                 {
                     "rubric_index": index,
@@ -793,7 +791,6 @@ class ValueRecomputeChecker(Checker):
         return _violation(
             item,
             "llm_audit_failure",
-            0.25,
             f"Value-recompute execution was inconclusive: {message[:500]}",
             evidence,
             severity="review",

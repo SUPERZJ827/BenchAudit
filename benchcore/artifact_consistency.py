@@ -587,7 +587,6 @@ class CrossArtifactConsistencyChecker(Checker):
             yield _violation(
                 item,
                 "llm_audit_failure",
-                0.25,
                 "Cross-artifact consistency audit failed.",
                 {"error": f"{type(exc).__name__}: {exc}"},
                 severity="review",
@@ -727,7 +726,6 @@ class GroundedRubricConsistencyChecker(Checker):
             _violation(
                 item,
                 "task_rubric_mismatch",
-                min(0.9, confidence),
                 result.get("evidence")
                 or "Rubric imposes an over-strict requirement not clearly supported by the task.",
                 {
@@ -741,6 +739,7 @@ class GroundedRubricConsistencyChecker(Checker):
                     "votes": result.get("votes", []),
                     "llm_results": result.get("results", []),
                 },
+                confidence=min(0.9, confidence),
                 severity="review",
                 review_only=True,
                 method="grounded_rubric_consistency",
@@ -773,7 +772,6 @@ class GroundedRubricConsistencyChecker(Checker):
                 _violation(
                     item,
                     "llm_audit_failure",
-                    0.25,
                     "Grounded rubric data extraction failed.",
                     {
                         "rubric_index": index,
@@ -839,7 +837,6 @@ class GroundedRubricConsistencyChecker(Checker):
             _violation(
                 item,
                 "artifact_data_gap",
-                min(0.9, confidence),
                 result.get("reason")
                 or "Rubric appears to require source data absent from the provided context.",
                 {
@@ -851,6 +848,7 @@ class GroundedRubricConsistencyChecker(Checker):
                     "votes": result.get("votes", []),
                     "llm_results": result.get("results", []),
                 },
+                confidence=min(0.9, confidence),
                 severity="major",
                 review_only=True,
                 method="grounded_rubric_consistency",
@@ -930,7 +928,6 @@ class RubricOutputContractConsistencyChecker(Checker):
             _violation(
                 item,
                 "output_evaluator_contract_mismatch",
-                min(0.9, max(self.review_threshold, confidence)),
                 message,
                 {
                     "output_contract": item.output_contract,
@@ -940,6 +937,7 @@ class RubricOutputContractConsistencyChecker(Checker):
                     "votes": result.get("votes", []),
                     "llm_results": result.get("results", []),
                 },
+                confidence=min(0.9, max(self.review_threshold, confidence)),
                 severity=severity,
                 review_only=True,
                 method="rubric_output_contract_consistency",
@@ -997,7 +995,6 @@ class RubricCoverageChecker(Checker):
             _violation(
                 item,
                 "underconstrained_evaluator_risk",
-                min(0.9, max(self.review_threshold, confidence)),
                 f"Rubric/evaluator may under-cover central task requirement(s): {evidence}",
                 {
                     "coverage_check": "task_obligations_vs_rubric",
@@ -1006,6 +1003,7 @@ class RubricCoverageChecker(Checker):
                     "votes": result.get("votes", []),
                     "llm_results": result.get("results", []),
                 },
+                confidence=min(0.9, max(self.review_threshold, confidence)),
                 severity="review",
                 review_only=True,
                 method="rubric_coverage",
@@ -1057,9 +1055,9 @@ def consistency_violations(
             _violation(
                 item,
                 "artifact_data_gap",
-                common["confidence"],
                 common["message"],
                 common["evidence"],
+                confidence=common["confidence"],
                 severity=common["severity"],
                 review_only=True,
                 method=common["method"],
@@ -1070,9 +1068,9 @@ def consistency_violations(
             _violation(
                 item,
                 "ambiguous_goal",
-                common["confidence"],
                 common["message"],
                 common["evidence"],
+                confidence=common["confidence"],
                 severity="review",
                 review_only=True,
                 method=common["method"],
@@ -1091,9 +1089,9 @@ def consistency_violations(
             _violation(
                 item,
                 defect_type,
-                common["confidence"],
                 issue.get("detail") or common["message"],
                 issue_evidence,
+                confidence=common["confidence"],
                 severity=common["severity"],
                 review_only=True,
                 method=common["method"],

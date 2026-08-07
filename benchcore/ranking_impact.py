@@ -179,12 +179,16 @@ def load_investigation_task_set(
             continue
         if categories_norm and str(row.get("issue_category", "")).strip() not in categories_norm:
             continue
-        try:
-            confidence = float(row.get("confidence", 0.0))
-        except (TypeError, ValueError):
-            confidence = 0.0
-        if confidence < min_confidence:
-            continue
+        # No confidence means a deterministic detector, not a weak signal;
+        # scoring it as 0.0 would drop exactly the findings we trust most.
+        raw_confidence = row.get("confidence")
+        if raw_confidence is not None:
+            try:
+                confidence = float(raw_confidence)
+            except (TypeError, ValueError):
+                confidence = 0.0
+            if confidence < min_confidence:
+                continue
         value = row.get("task_id") or row.get("item_id")
         if value:
             task_ids.add(str(value))

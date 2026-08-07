@@ -727,7 +727,6 @@ def fuse_llm_evidence(
                 _violation(
                     item,
                     "auditor_contradiction",
-                    1.0,
                     "LLM auditors produced mutually inconsistent conclusions.",
                     {
                         "reasons": [

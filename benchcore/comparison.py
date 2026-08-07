@@ -38,6 +38,23 @@ def _substantive_violations(violations: list[dict[str, Any]]) -> list[dict[str, 
     ]
 
 
+def reported_confidence(violation: dict[str, Any]) -> float | None:
+    """The model's self-reported score, or None when none was reported.
+
+    Deterministic detectors report nothing.  Reading that as 0.0 would put the
+    strongest evidence in the report below the weakest model guess, so callers
+    must distinguish the two rather than coalescing them.
+    """
+
+    value = violation.get("confidence")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def candidate_tier(violations: list[dict[str, Any]]) -> str:
     """Classify an item as priority or exploratory from its evidence strength."""
     substantive = _substantive_violations(violations)
@@ -57,7 +74,12 @@ def candidate_tier(violations: list[dict[str, Any]]) -> str:
             or v.get("defect_type") in _STRONG_DEFECTS
         )
         and v.get("detection_method") not in _NONMATERIAL_METHODS
-        and float(v.get("confidence", 0.0) or 0.0) >= STRONG_SIGNAL_MIN_CONFIDENCE
+        # The threshold screens out unsupported model claims.  A detector that
+        # reported no score made no claim to screen.
+        and (
+            reported_confidence(v) is None
+            or reported_confidence(v) >= STRONG_SIGNAL_MIN_CONFIDENCE
+        )
         for v in substantive
     )
     has_corroboration = len(methods) >= CORROBORATION_MIN_METHODS or any(
@@ -93,8 +115,11 @@ def compute_item_risk_score(violations: list[dict[str, Any]]) -> float:
     confirmed = [v for v in substantive if not v.get("review_only", False)]
     tier = candidate_tier(substantive)
     score = 0.72 if confirmed else (0.52 if tier == "priority" else 0.12)
-    max_confidence = max(float(v.get("confidence", 0.0) or 0.0) for v in substantive)
-    score += 0.12 * max_confidence
+    # Taken over reported scores only: an absent one is not a zero, and letting
+    # it act as one would penalise deterministic evidence.
+    reported = [c for c in map(reported_confidence, substantive) if c is not None]
+    if reported:
+        score += 0.12 * max(reported)
 
     llm_methods = {
         v["detection_method"].split("+")[0]

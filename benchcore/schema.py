@@ -48,7 +48,10 @@ class Violation:
     mechanism: str
     defect_type: str
     severity: str
-    confidence: float
+    # A model's self-reported belief, or None.  Deterministic detectors fire or
+    # they do not; the numbers they used to carry were hand-picked, drove no
+    # decision, and reached the report reading as calibrated scores.
+    confidence: float | None
     message: str
     detection_method: str = "unknown"
     defect_scope: str = "substantive"

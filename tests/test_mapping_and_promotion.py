@@ -31,7 +31,7 @@ def test_conflicting_dense_candidates_make_mapping_dependent_finding_unknown():
     # adapter cannot prove which dense field is the actual task, it must not be
     # automatically confirmed.
     finding = _violation(
-        items[0], "missing_condition", 1.0, "task-derived contradiction",
+        items[0], "missing_condition", "task-derived contradiction",
         method="static_rule",
     )
 
@@ -66,9 +66,9 @@ def test_llm_confidence_and_votes_cannot_self_confirm():
     finding = _violation(
         item,
         "wrong_gold_answer",
-        1.0,
         "three model votes agree",
         {"llm_result": {"confidence": 1.0}, "votes": ["bad", "bad", "bad"]},
+        confidence=1.0,
         review_only=False,
         method="llm_gold_audit",
     )
@@ -90,7 +90,6 @@ def test_self_reported_executed_proof_cannot_confirm():
     finding = _violation(
         item,
         "gold_rejected_by_evaluator",
-        1.0,
         "official harness rejects gold",
         {
             "evidence_level": "executed_harness",
@@ -117,7 +116,6 @@ def test_method_name_alone_never_grants_confirmation():
     finding = _violation(
         item,
         "wrong_gold_answer",
-        1.0,
         "unregistered heuristic disguised as a static rule",
         {},
         review_only=False,
@@ -134,7 +132,6 @@ def test_registered_proof_with_malformed_payload_fails_closed():
     finding = _violation(
         item,
         "gold_rejected_by_evaluator",
-        1.0,
         "claims an execution proof without replay hashes",
         {
             "evidence_level": "executed_harness",
@@ -160,7 +157,6 @@ def test_workspace_evidence_shape_without_live_replay_cannot_confirm():
     finding = _violation(
         item,
         "artifact_data_gap",
-        1.0,
         "forged unresolved manifest payload",
         {
             "unresolved_manifest_entries": [{"filename": "ghost.txt"}],
@@ -197,7 +193,6 @@ def test_workspace_file_replay_without_runtime_trust_roots_cannot_confirm():
     finding = _violation(
         item,
         "artifact_data_gap",
-        1.0,
         "forged replay over an untrusted host path",
         {
             "unresolved_manifest_entries": [
@@ -219,7 +214,6 @@ def test_forged_arithmetic_replay_is_independently_recomputed():
     finding = _violation(
         item,
         "wrong_gold_answer",
-        1.0,
         "forged arithmetic replay",
         {
             "gold": "5",
@@ -248,7 +242,6 @@ def test_forged_evaluator_rejection_is_independently_replayed():
     finding = _violation(
         item,
         "gold_rejected_by_evaluator",
-        1.0,
         "forged rejection",
         {
             "gold": item.gold,
@@ -277,7 +270,6 @@ def test_forged_contract_mismatch_is_independently_recomputed():
     finding = _violation(
         item,
         "output_evaluator_contract_mismatch",
-        1.0,
         "forged mismatch",
         {
             "output_contract": item.output_contract,
@@ -305,7 +297,6 @@ def test_forged_executable_check_is_recomputed_from_live_raw_record():
     finding = _violation(
         item,
         "invalid_executable_evidence",
-        1.0,
         "forged failed check",
         {
             "source_path": "executable_checks",
@@ -329,7 +320,6 @@ def test_forged_duplicate_payload_cannot_confirm_against_unique_live_rows():
     finding = _violation(
         items[0],
         "duplicate_item_id",
-        1.0,
         "forged duplicate group",
         {
             "item_id": "a",
@@ -360,7 +350,6 @@ def test_forged_conflicting_oracle_group_cannot_confirm():
     finding = _violation(
         items[0],
         "conflicting_duplicate_oracle",
-        1.0,
         "forged oracle conflict",
         {
             "item_ids": ["a", "b"],
@@ -398,7 +387,7 @@ def test_multifield_mapping_dependency_blocks_workspace_visibility_promotion():
     )
 
     finding = _violation(
-        item, "solution_leak", 1.0, "visibility replay",
+        item, "solution_leak", "visibility replay",
         {
             "evidence_level": "workspace_runner_visibility_replay",
             "proof_schema_version": "1.0",

@@ -46,7 +46,6 @@ class FindingChecker(Checker):
             _violation(
                 item,
                 "missing_task",
-                1.0,
                 "synthetic finding",
                 method="static_rule",
             )
@@ -126,7 +125,6 @@ class OneRowDatasetChecker(DatasetChecker):
         yield _violation(
             items[0],
             "duplicate_task",
-            0.9,
             "synthetic dataset finding",
             method="dataset_duplicate_scan",
         )
@@ -139,7 +137,6 @@ class CrossRowFindingChecker:
         finding = _violation(
             item,
             "duplicate_task",
-            0.9,
             "stale worker-local finding",
             review_only=True,
             method="dataset_duplicate_scan",
@@ -166,7 +163,6 @@ class UnknownDatasetTargetChecker(DatasetChecker):
         yield _violation(
             items[0],
             "duplicate_task",
-            0.9,
             "finding targets a non-existent row",
             {"target_row_uids": ["not-a-live-row"]},
             review_only=True,

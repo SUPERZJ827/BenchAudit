@@ -288,10 +288,13 @@ def write_markdown_report(path: Path, report: dict[str, Any]) -> None:
         lines.append("")
         for v in item_violations:
             mark = v.get("evidence_tier") or ("review" if v["review_only"] else "confirmed")
+            # Deterministic detectors report no confidence; printing a stand-in
+            # would read as a score they never produced.
+            score = v.get("confidence")
+            suffix = "" if score is None else f" (confidence={score:.2f})"
             lines.append(
                 f"- `{v['defect_type']}` / `{v['artifact']}` / `{v['detection_method']}` / "
-                f"`{v['severity']}` / {mark} "
-                f"(confidence={v['confidence']:.2f})"
+                f"`{v['severity']}` / {mark}{suffix}"
             )
             lines.append(f"  - {v['message']}")
             if v.get("promotion_reason"):
