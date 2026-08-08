@@ -15,9 +15,35 @@ def normalize_text(value: Any) -> str:
     return text
 
 
+def _drop_formatting_punctuation(text: str) -> str:
+    """Remove punctuation that is formatting, keep punctuation that is value.
+
+    The SQuAD recipe this follows deletes every punctuation mark, which suits
+    text spans and corrupts numbers: "-5" becomes "5", "0.46" becomes "046".
+    A minus sign before a number and a point or hyphen between digits are part
+    of the answer; the same characters between letters are not, and are dropped
+    exactly as before so "e-mail" and "state-of-the-art" read unchanged.
+    """
+
+    kept: list[str] = []
+    for index, char in enumerate(text):
+        if char not in string.punctuation:
+            kept.append(char)
+            continue
+        previous = text[index - 1] if index else ""
+        following = text[index + 1] if index + 1 < len(text) else ""
+        if char in ".-" and previous.isdigit() and following.isdigit():
+            kept.append(char)
+        elif char == "-" and following.isdigit() and not (
+            previous.isdigit() or previous.isalpha()
+        ):
+            kept.append(char)
+    return "".join(kept)
+
+
 def normalize_loose(value: Any) -> str:
     text = normalize_text(value)
-    text = text.translate(str.maketrans("", "", string.punctuation))
+    text = _drop_formatting_punctuation(text)
     text = re.sub(r"\b(the|a|an)\b", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
