@@ -9,12 +9,13 @@ from typing import Any, Iterable
 from .evaluators import (
     item_scoring,
     answer_contract,
+    CARDINALITY_ALTERNATIVES,
+    MULTI_VALUE_CARDINALITIES,
     answer_variants,
     choice_label_to_index,
     evaluate_answer,
     infer_evaluator_type,
     normalize_choice_for_duplicate,
-    normalize_loose,
     parse_number,
     scores_a_scalar_answer,
     scoring_comparison,
@@ -432,7 +433,7 @@ class EvaluatorChecker(Checker):
         )
         inferred = (
             contract["cardinality"]
-            if contract["cardinality"] in {"set", "compound"}
+            if contract["cardinality"] in MULTI_VALUE_CARDINALITIES
             else contract["kind"]
         )
         evaluator_missing = item.evaluator in (None, "", [], {})
@@ -448,7 +449,12 @@ class EvaluatorChecker(Checker):
             severity = (
                 "major"
                 if is_agent_contract
-                else ("minor" if inferred in {"choice", "numeric", "normalized_exact"} else "major")
+                else (
+                    "minor"
+                    if inferred in {"choice", "numeric", "normalized_exact",
+                                    CARDINALITY_ALTERNATIVES}
+                    else "major"
+                )
             )
             yield _violation(
                 item,
@@ -473,6 +479,7 @@ class EvaluatorChecker(Checker):
             item.choices,
             item.evaluator,
             item.output_contract,
+            item_scoring(item),
         ):
             if not evaluate_answer(variant, item.gold, item.choices, item.evaluator, scoring=item_scoring(item)):
                 rejected.append({"variant_description": description, "variant": variant})

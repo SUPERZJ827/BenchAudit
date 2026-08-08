@@ -89,7 +89,18 @@ _SCORING_COMPARISON_KINDS = {
     "structured_match": "normalized_exact",
 }
 
-_SET_COMPARISONS = frozenset({"any_of_accepted"})
+# Several acceptable wordings of one answer, as against an answer that is
+# itself several values.  Both arrive as a list of strings; only a profile's
+# verdict tells them apart, and it asserts this one only where some record
+# really carries more than one value.  Conflating them scored "any of these"
+# as "all of these", so answering correctly failed and reciting every wording
+# passed.
+CARDINALITY_ALTERNATIVES = "alternatives"
+_ALTERNATIVE_COMPARISONS = frozenset({"any_of_accepted"})
+
+# Cardinalities that describe the answer rather than how one value is compared,
+# so they name the contract in place of its comparison kind.
+MULTI_VALUE_CARDINALITIES = frozenset({"set", "compound", CARDINALITY_ALTERNATIVES})
 
 # Comparisons that judge something other than a reference answer: a test suite
 # passing, criteria being graded, an end state being inspected.  A benchmark
@@ -183,8 +194,8 @@ def answer_contract(
     if any(token in combined for token in ("set", "list", "multi", "multiple", "all answers", "denotation")):
         if cardinality != "compound":
             cardinality = "set"
-    if comparison in _SET_COMPARISONS and cardinality != "compound":
-        cardinality = "set"
+    if comparison in _ALTERNATIVE_COMPARISONS and cardinality != "compound":
+        cardinality = CARDINALITY_ALTERNATIVES
     if comparison in _SCORING_COMPARISON_KINDS and not choices:
         kind = _SCORING_COMPARISON_KINDS[comparison]
         basis = CONTRACT_BASIS_PROFILE
@@ -229,7 +240,7 @@ def answer_contract(
 
 def infer_evaluator_type(gold: Any, choices: list[Any] | None, evaluator: Any = None) -> str:
     contract = answer_contract(gold, choices, evaluator)
-    if contract["cardinality"] in {"set", "compound"}:
+    if contract["cardinality"] in MULTI_VALUE_CARDINALITIES:
         return contract["cardinality"]
     return contract["kind"]
 
@@ -281,7 +292,12 @@ def evaluate_answer(
 ) -> bool:
     contract = answer_contract(gold, choices, evaluator, scoring=scoring)
     kind = contract["kind"]
-    if contract["cardinality"] == "set":
+    if contract["cardinality"] == CARDINALITY_ALTERNATIVES:
+        accepted = any(
+            _evaluate_single_answer(prediction, value, kind, choices)
+            for value in answer_values(gold)
+        )
+    elif contract["cardinality"] == "set":
         accepted = _evaluate_answer_set(
             prediction, answer_values(gold), kind, choices, evaluator
         )
@@ -346,11 +362,17 @@ def answer_variants(
     choices: list[Any] | None = None,
     evaluator: Any = None,
     output_contract: Any = None,
+    scoring: Any = None,
 ) -> list[tuple[str, Any]]:
     variants: list[tuple[str, Any]] = []
     if gold is None:
         return variants
-    contract = answer_contract(gold, choices, evaluator, output_contract)
+    contract = answer_contract(gold, choices, evaluator, output_contract, scoring)
+    if contract["cardinality"] == CARDINALITY_ALTERNATIVES:
+        # Reordering alternatives leaves every one of them acceptable, and
+        # joining them makes a wrong answer.  Neither is the rephrasing these
+        # variants exist to try.
+        return variants
     if contract["cardinality"] == "set":
         values = [str(value).strip() for value in answer_values(gold)]
         if len(values) > 1:

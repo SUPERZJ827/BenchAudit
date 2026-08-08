@@ -28,10 +28,12 @@ def test_the_label_still_decides_when_no_profile_exists():
     assert answer_contract("1500", None, {"type": "numeric_exact_match"})["kind"] == "numeric"
 
 
-def test_several_accepted_answers_are_recognised_as_a_set():
+def test_several_accepted_answers_are_alternatives_not_a_set():
+    """"Any of these will do" is the opposite of "all of these are required",
+    and this test previously asked for the latter."""
     contract = answer_contract(["a", "b"], None, None,
                                scoring={"comparison": "any_of_accepted"})
-    assert contract["cardinality"] == "set"
+    assert contract["cardinality"] == "alternatives"
 
 
 def test_an_unrecognised_verdict_falls_back_rather_than_deciding():

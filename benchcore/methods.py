@@ -13,6 +13,7 @@ from .evaluators import (
     scores_a_scalar_answer,
     item_scoring,
     CHOICE_LABELS,
+    MULTI_VALUE_CARDINALITIES,
     answer_contract,
     answer_variants,
     choice_label_to_index,
@@ -78,7 +79,7 @@ class MetamorphicAnswerChecker(Checker):
         )
         kind = (
             contract["cardinality"]
-            if contract["cardinality"] in {"set", "compound"}
+            if contract["cardinality"] in MULTI_VALUE_CARDINALITIES
             else contract["kind"]
         )
         expected_variants = _semantics_preserving_variants(item, kind)
@@ -604,10 +605,13 @@ def _semantics_preserving_variants(item: BenchmarkItem, kind: str) -> list[tuple
                 ("case_change", text.swapcase()),
             ]
         )
-    elif kind == "set":
-        variants.extend(answer_variants(item.gold, item.choices, item.evaluator, item.output_contract))
-    elif kind == "compound":
-        variants.extend(answer_variants(item.gold, item.choices, item.evaluator, item.output_contract))
+    elif kind in MULTI_VALUE_CARDINALITIES:
+        variants.extend(
+            answer_variants(
+                item.gold, item.choices, item.evaluator, item.output_contract,
+                item_scoring(item),
+            )
+        )
     if kind != "set":
         variants.extend((f"declared_alias:{idx}", alias) for idx, alias in enumerate(item.aliases))
     return _deduplicate_variants(variants)
