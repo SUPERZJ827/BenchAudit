@@ -6,10 +6,17 @@ is a semantic question that keyword tables never answer completely.  A model
 answers it well, but a model answers it slightly differently each time, and an
 audit whose field mapping moves between runs cannot be compared with itself.
 
-So the answer is derived once per distinct schema and stored.  The lookup is
-pure code: the fingerprint is computed from the data and matched exactly, and
-the stored table is never shown to a model.  Prompt size therefore does not
-grow with the number of benchmarks profiled.
+So the answer is derived once per distinct schema and stored against the prompt
+that asked for it.  The lookup is pure code: the fingerprint is computed from
+the data and matched exactly, and the stored table is never shown to a model.
+Prompt size therefore does not grow with the number of benchmarks profiled.
+
+Deriving it is where the care goes.  A model asked the same question twice
+answers differently, and measurement here found worse than that: five identical
+calls agreed with each other and disagreed with five made an hour before, so
+repetition alone confirms nothing.  Three things guard the answer -- a claim
+the rows do not show is dropped, votes are taken over different records, and a
+dimension the votes split on is left unstated rather than reported as settled.
 
 Matching is exact rather than approximate on purpose.  A miss costs one small
 call; a loose match risks reading one benchmark with another's assumptions,
@@ -23,6 +30,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+
+from .evaluators import parse_number
 
 PROFILE_SCHEMA_VERSION = "benchaudit-benchmark-profile-v1"
 
@@ -88,11 +97,22 @@ class BenchmarkProfile:
     provenance: str = "llm_inferred"
     model: str | None = None
     first_seen: str | None = None
+    # Dimensions this profile declines to state, and why: the votes disagreed,
+    # or the rows do not show what the model claimed.  Each one has fallen back
+    # to its escape value, so the reason is the only record that a judgement
+    # was attempted and withheld.
+    disputed: dict[str, str] = field(default_factory=dict)
+    # Which prompt produced it.  Constructed in code it is the current one;
+    # loaded from disk it is whatever was recorded, and a row written before
+    # this field existed reads as unknown rather than as current.
+    prompt_fingerprint: str = field(default_factory=lambda: PROMPT_FINGERPRINT)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": PROFILE_SCHEMA_VERSION,
             "fingerprint": self.fingerprint,
+            "prompt_fingerprint": self.prompt_fingerprint,
+            "disputed": self.disputed,
             "field_names": list(self.field_names),
             "field_roles": self.field_roles,
             "task_shape": self.task_shape,
@@ -119,6 +139,8 @@ class BenchmarkProfile:
             provenance=str(payload.get("provenance") or "llm_inferred"),
             model=payload.get("model"),
             first_seen=payload.get("first_seen"),
+            disputed=dict(payload.get("disputed") or {}),
+            prompt_fingerprint=str(payload.get("prompt_fingerprint") or ""),
         )
 
 
@@ -127,11 +149,16 @@ class BenchmarkProfileStore:
 
     Append-only: a fingerprint already present is never silently overwritten,
     so an audit cannot change how earlier audits read the same schema.
+
+    An entry is the answer to a particular question, so the prompt that asked
+    it is part of its key.  Rewriting the prompt therefore retires the answers
+    to the old one instead of leaving them authoritative indefinitely, while
+    the retired rows stay on disk for anyone reading back an earlier audit.
     """
 
     def __init__(self, path: Path | str) -> None:
         self.path = Path(path)
-        self._entries: dict[str, BenchmarkProfile] = {}
+        self._entries: dict[tuple[str, str], BenchmarkProfile] = {}
         self._load()
 
     def _load(self) -> None:
@@ -147,23 +174,26 @@ class BenchmarkProfileStore:
             except (json.JSONDecodeError, KeyError, TypeError):
                 # A malformed row must not silently change how data is read.
                 continue
-            self._entries.setdefault(profile.fingerprint, profile)
+            self._entries.setdefault(
+                (profile.fingerprint, profile.prompt_fingerprint), profile
+            )
 
     def get(self, fingerprint: str) -> BenchmarkProfile | None:
-        return self._entries.get(fingerprint)
+        return self._entries.get((fingerprint, PROMPT_FINGERPRINT))
 
     def lookup(self, rows: Iterable[Mapping[str, Any]]) -> tuple[str, BenchmarkProfile | None]:
         """The fingerprint for these rows and its profile when already known."""
 
         fingerprint = schema_fingerprint(rows)
-        return fingerprint, self._entries.get(fingerprint)
+        return fingerprint, self.get(fingerprint)
 
     def put(self, profile: BenchmarkProfile) -> bool:
         """Store a newly derived profile.  Returns False if one already exists."""
 
-        if profile.fingerprint in self._entries:
+        key = (profile.fingerprint, profile.prompt_fingerprint)
+        if key in self._entries:
             return False
-        self._entries[profile.fingerprint] = profile
+        self._entries[key] = profile
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(
@@ -232,6 +262,13 @@ Rules:
   written grading criteria.
 - Describe components as structural facts, not as the name of a known benchmark.
 - Do not state a scoring implementation that the data does not show."""
+
+# A stored profile answers the question this prompt asks.  Rewriting the prompt
+# asks a different question, so answers to the old one stop being served rather
+# than staying authoritative forever.
+PROMPT_FINGERPRINT = hashlib.sha256(
+    PROFILE_SYSTEM_PROMPT.encode("utf-8")
+).hexdigest()[:12]
 
 MAX_PROFILE_PROMPT_CHARS = 12000
 # Question-answering roles plus the roles an artifact-producing benchmark
@@ -320,11 +357,20 @@ def task_is_a_question(item: Any) -> bool | None:
     return shape in ANSWER_BEARING_SHAPES
 
 
-def _bounded_sample(rows: list[Mapping[str, Any]], *, limit: int = 3) -> list[dict[str, Any]]:
-    """A few rows with long values clipped, so the prompt stays bounded."""
+def _bounded_sample(
+    rows: list[Mapping[str, Any]], *, limit: int = 3, offset: int = 0
+) -> list[dict[str, Any]]:
+    """A few rows with long values clipped, so the prompt stays bounded.
 
+    ``offset`` walks the window along the file and wraps, so successive votes
+    can be shown different records.
+    """
+
+    if not rows:
+        return []
+    picked = [rows[(offset + index) % len(rows)] for index in range(min(limit, len(rows)))]
     sample: list[dict[str, Any]] = []
-    for row in rows[:limit]:
+    for row in picked:
         clipped: dict[str, Any] = {}
         for key, value in row.items():
             if isinstance(value, list):
@@ -337,12 +383,15 @@ def _bounded_sample(rows: list[Mapping[str, Any]], *, limit: int = 3) -> list[di
     return sample
 
 
-def build_profile_prompt(rows: list[Mapping[str, Any]]) -> str:
+def build_profile_prompt(rows: list[Mapping[str, Any]], *, sample_offset: int = 0) -> str:
+    """The field list and a few rows.  The field list never moves with the
+    offset: every vote must choose roles from the same set of names."""
+
     shape = schema_shape(rows)
     payload = {
         "field_names": sorted(shape),
         "value_shapes": shape,
-        "sample_rows": _bounded_sample(rows),
+        "sample_rows": _bounded_sample(rows, offset=sample_offset),
     }
     return json.dumps(payload, ensure_ascii=False, indent=1)[:MAX_PROFILE_PROMPT_CHARS]
 
@@ -367,6 +416,115 @@ def _validated_roles(raw: Any, known_fields: set[str]) -> dict[str, Any]:
     return roles
 
 
+def _one_of(value: Any, allowed: frozenset[str], fallback: str) -> str:
+    """An unrecognised value falls back rather than being trusted."""
+
+    text = str(value or "")
+    return text if text in allowed else fallback
+
+
+def _parse_response(response: Any, known: set[str]) -> dict[str, Any] | None:
+    """One vote, reduced to the vocabulary.  ``None`` when it says nothing."""
+
+    if not isinstance(response, Mapping):
+        return None
+    roles = _validated_roles(response.get("field_roles"), known)
+    if not any(roles.get(key) for key in _ROLE_KEYS):
+        return None
+    raw_scoring = response.get("scoring")
+    scoring = raw_scoring if isinstance(raw_scoring, Mapping) else {}
+    return {
+        "field_roles": roles,
+        "task_shape": _one_of(response.get("task_shape"), TASK_SHAPES, "other"),
+        "answer_cardinality": _one_of(
+            response.get("answer_cardinality"), ANSWER_CARDINALITIES, "not_applicable"
+        ),
+        "modality": _one_of(response.get("modality"), MODALITIES, "other"),
+        "comparison": _one_of(scoring.get("comparison"), SCORING_COMPARISONS, "other"),
+        "why": str(scoring.get("why") or "")[:200],
+        "components": tuple(
+            str(entry)[:200]
+            for entry in (response.get("components") or [])
+            if isinstance(entry, (str, int, float))
+        )[:12],
+    }
+
+
+def _agreed(
+    votes: list[dict[str, Any]],
+    key: str,
+    fallback: str,
+    disputed: dict[str, str],
+    label: str | None = None,
+) -> str:
+    """The value every vote gave, or the fallback with the split recorded."""
+
+    answers = {str(vote[key]) for vote in votes}
+    if len(answers) == 1:
+        return answers.pop()
+    disputed[label or key] = "votes split between " + ", ".join(sorted(answers))
+    return fallback
+
+
+def _agreed_roles(votes: list[dict[str, Any]], disputed: dict[str, str]) -> dict[str, Any]:
+    """Roles every vote bound the same way.  A contested role is left unbound:
+    the caller then keeps its own inference, where a wrong binding would
+    silently redirect every later check to the wrong field."""
+
+    roles: dict[str, Any] = {}
+    for role in _ROLE_KEYS:
+        answers = {vote["field_roles"].get(role) for vote in votes}
+        if len(answers) == 1:
+            roles[role] = answers.pop()
+            continue
+        roles[role] = None
+        named = sorted(str(answer) for answer in answers)
+        disputed[f"field_roles.{role}"] = "votes split between " + ", ".join(named)
+    return roles
+
+
+def _is_number(value: Any) -> bool:
+    return not isinstance(value, (list, dict)) and parse_number(value) is not None
+
+
+def _unsupported(comparison: str, rows: list[Mapping[str, Any]], roles: Mapping[str, Any]) -> str:
+    """Why the rows do not show this way of deciding correctness, or "".
+
+    A model asked what a benchmark's scoring is will name one whether or not
+    the records show it, and the answer moves between runs.  These few checks
+    are what the data can settle on its own; a comparison they contradict falls
+    back to the deterministic contract rather than overriding it.
+    """
+
+    if comparison == "rubric_graded" and not roles.get("rubric"):
+        return "no field was identified as holding grading criteria"
+    gold_field = roles.get("gold")
+    if not gold_field:
+        return ""
+    golds = [
+        row.get(gold_field)
+        for row in rows[:20]
+        if isinstance(row, Mapping) and row.get(gold_field) not in (None, "", [])
+    ]
+    if not golds:
+        return ""
+    if comparison == "exact_match" and all(_is_number(gold) for gold in golds):
+        return (
+            "every recorded answer is a number, and the rows show no requirement "
+            "to match one character for character"
+        )
+    if comparison == "numeric_tolerance" and not any(_is_number(gold) for gold in golds):
+        return "no recorded answer is a number"
+    if comparison == "any_of_accepted" and not any(
+        isinstance(gold, list) and len(gold) > 1 for gold in golds
+    ):
+        return "every record carries a single answer rather than alternatives"
+    return ""
+
+
+PROFILE_VOTES = 3
+
+
 def derive_profile(
     rows: list[Mapping[str, Any]],
     client: Any,
@@ -374,8 +532,16 @@ def derive_profile(
     fingerprint: str | None = None,
     model: str | None = None,
     today: str | None = None,
+    votes: int = PROFILE_VOTES,
 ) -> BenchmarkProfile | None:
     """Ask a model how this benchmark should be read.  ``None`` when unusable.
+
+    Asked once, the answer moves: measured on one schema, five identical calls
+    agreed with each other and disagreed with five made an hour earlier, and
+    the value that changed decided whether 26 findings were reported or 2.  So
+    the question is put several times over different records -- repeating an
+    identical call reproduces the correlated answer rather than testing it --
+    and a dimension the votes split on is not stated at all.
 
     Returning ``None`` rather than a partial guess matters: a profile is used
     to decide which field every later check reads, so an unusable answer must
@@ -384,51 +550,52 @@ def derive_profile(
 
     shape = schema_shape(rows)
     known = set(shape)
-    try:
-        response = client.chat_json(PROFILE_SYSTEM_PROMPT, build_profile_prompt(rows))
-    except (RuntimeError, ValueError):
-        return None
-    if not isinstance(response, Mapping):
+    parsed: list[dict[str, Any]] = []
+    for index in range(max(1, votes)):
+        try:
+            response = client.chat_json(
+                PROFILE_SYSTEM_PROMPT,
+                build_profile_prompt(rows, sample_offset=index * 3),
+            )
+        except (RuntimeError, ValueError):
+            continue
+        vote = _parse_response(response, known)
+        if vote is not None:
+            parsed.append(vote)
+    if not parsed:
         return None
 
-    roles = _validated_roles(response.get("field_roles"), known)
+    disputed: dict[str, str] = {}
+    if len(parsed) < max(1, votes):
+        disputed["votes"] = f"{len(parsed)} of {max(1, votes)} votes were usable"
+    roles = _agreed_roles(parsed, disputed)
     if not any(roles.get(key) for key in _ROLE_KEYS):
         return None
 
-    def _one_of(value: Any, allowed: frozenset[str], fallback: str) -> str:
-        """An unrecognised value falls back rather than being trusted."""
-        text = str(value or "")
-        return text if text in allowed else fallback
+    comparison = _agreed(parsed, "comparison", "other", disputed, "scoring.comparison")
+    unsupported = _unsupported(comparison, rows, roles) if comparison != "other" else ""
+    if unsupported:
+        disputed["scoring.comparison"] = (
+            f"the rows do not support {comparison}: {unsupported}"
+        )
+        comparison = "other"
+    why = "" if "scoring.comparison" in disputed else parsed[0]["why"]
 
-    raw_scoring = response.get("scoring")
-    scoring: dict[str, Any] = {"comparison": "other", "why": ""}
-    if isinstance(raw_scoring, Mapping):
-        scoring = {
-            "comparison": _one_of(
-                raw_scoring.get("comparison"), SCORING_COMPARISONS, "other"
-            ),
-            "why": str(raw_scoring.get("why") or "")[:200],
-        }
-
-    components = tuple(
-        str(entry)[:200]
-        for entry in (response.get("components") or [])
-        if isinstance(entry, (str, int, float))
-    )[:12]
     return BenchmarkProfile(
         fingerprint=fingerprint or schema_fingerprint(rows),
         field_names=tuple(sorted(known)),
         field_roles=roles,
-        task_shape=_one_of(response.get("task_shape"), TASK_SHAPES, "other"),
-        answer_cardinality=_one_of(
-            response.get("answer_cardinality"), ANSWER_CARDINALITIES, "not_applicable"
+        task_shape=_agreed(parsed, "task_shape", "other", disputed),
+        answer_cardinality=_agreed(
+            parsed, "answer_cardinality", "not_applicable", disputed
         ),
-        modality=_one_of(response.get("modality"), MODALITIES, "other"),
-        scoring=scoring,
-        components=components,
+        modality=_agreed(parsed, "modality", "other", disputed),
+        scoring={"comparison": comparison, "why": why},
+        components=parsed[0]["components"],
         provenance="llm_inferred",
         model=model,
         first_seen=today,
+        disputed=disputed,
     )
 
 

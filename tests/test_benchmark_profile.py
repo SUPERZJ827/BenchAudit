@@ -205,10 +205,11 @@ def test_second_dataset_with_the_same_schema_costs_no_call(tmp_path):
     store = BenchmarkProfileStore(tmp_path / "profiles.jsonl")
     client = _Client(GOOD)
     _, first = profile_benchmark(ROWS, store, client)
+    after_deriving = client.calls
     other = [dict(row, question="different wording entirely") for row in ROWS]
     _, second = profile_benchmark(other, store, client)
     assert (first, second) == ("derived", "cache_hit")
-    assert client.calls == 1
+    assert client.calls == after_deriving
 
 
 def test_derivation_failure_leaves_the_table_untouched(tmp_path):

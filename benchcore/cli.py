@@ -837,6 +837,10 @@ def _apply_benchmark_profile(
         "modality": profile.modality,
         "scoring": profile.scoring,
         "components": list(profile.components),
+        # Dimensions the profile declined to state.  Without this a value that
+        # fell back reads the same as one nobody contested.
+        "disputed": dict(profile.disputed),
+        "prompt_fingerprint": profile.prompt_fingerprint,
     })
 
     filled: dict[str, str] = {}

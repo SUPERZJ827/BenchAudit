@@ -74,6 +74,27 @@ def test_profile_fills_roles_inference_could_not_resolve(tmp_path):
     assert meta["roles_filled"] == {"task": "problem_text", "gold": "expected_result"}
 
 
+def test_a_dimension_the_profile_withheld_is_reported(tmp_path):
+    """A dimension that fell back is indistinguishable from one nobody
+    contested unless the run says which it was."""
+    path = tmp_path / "profiles.jsonl"
+    store = BenchmarkProfileStore(path)
+    fingerprint, _ = store.lookup(ODD_ROWS)
+    store.put(
+        BenchmarkProfile(
+            fingerprint=fingerprint,
+            field_names=("uid", "problem_text", "expected_result"),
+            field_roles={"task": "problem_text", "gold": "expected_result"},
+            scoring={"comparison": "other"},
+            disputed={"scoring.comparison": "votes split between exact_match, other"},
+        )
+    )
+    _, meta = _apply_benchmark_profile(_args(path), ODD_ROWS, load_mapping(None, ODD_ROWS))
+    assert meta["disputed"] == {
+        "scoring.comparison": "votes split between exact_match, other"
+    }
+
+
 def test_profile_does_not_override_a_resolved_role(tmp_path):
     path = tmp_path / "profiles.jsonl"
     rows = [{"id": "1", "task": "q", "gold": "5"}]
