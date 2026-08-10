@@ -142,20 +142,6 @@ def test_absent_store_and_client_changes_nothing(tmp_path):
     assert meta["status"] == "no_client"
 
 
-def test_profiling_is_declared_in_the_egress_manifest():
-    """Profiling transmits a sample before any checker runs."""
-    args = _egress_args(no_benchmark_profile=False)
-    manifest = _remote_egress_manifest(
-        args, use_grounded_rubric=False, use_rubric_contract=False,
-        use_rubric_coverage=False,
-    )
-    assert any(entry["checker"] == "benchmark_schema_profile" for entry in manifest)
-
-
-def test_no_profiling_means_no_egress_entry():
-    args = _egress_args(no_benchmark_profile=True)
-    manifest = _remote_egress_manifest(
-        args, use_grounded_rubric=False, use_rubric_contract=False,
-        use_rubric_coverage=False,
-    )
-    assert not any(entry["checker"] == "benchmark_schema_profile" for entry in manifest)
+# Whether profiling is declared in the egress manifest, and whether it may run
+# at all, are covered in test_profile_egress_consent.py against the decision
+# that now makes the call: whether the schema is already in the store.

@@ -793,7 +793,34 @@ def _profile_client(args: argparse.Namespace) -> LLMClient | None:
         return None
     if getattr(args, "llm_cache", None):
         config = replace(config, cache_path=args.llm_cache)
+    if getattr(args, "llm_dry_run", False):
+        config = replace(config, dry_run=True)
     return LLMClient(config)
+
+
+def _profile_store(args: argparse.Namespace) -> BenchmarkProfileStore:
+    return BenchmarkProfileStore(
+        Path(getattr(args, "benchmark_profiles", None) or DEFAULT_PROFILE_STORE)
+    )
+
+
+def _profile_would_derive(args: argparse.Namespace, source_rows: list[dict]) -> bool:
+    """Whether profiling this schema would have to send it to a model.
+
+    Profiling runs before any checker, so this is what the egress gate needs to
+    know before deciding.  A schema already in the store is answered from disk
+    and sends nothing, which is the common case and must not require consent to
+    transmit data that never moves.
+    """
+
+    if getattr(args, "no_benchmark_profile", False):
+        return False
+    if not getattr(args, "llm_config", None):
+        return False
+    if getattr(args, "llm_dry_run", False):
+        return False
+    _, cached = _profile_store(args).lookup(source_rows)
+    return cached is None
 
 
 def _apply_benchmark_profile(
@@ -809,10 +836,11 @@ def _apply_benchmark_profile(
     would change what every later check reads on the strength of one call.
     """
 
-    store = BenchmarkProfileStore(
-        Path(getattr(args, "benchmark_profiles", None) or DEFAULT_PROFILE_STORE)
-    )
-    client = _profile_client(args)
+    store = _profile_store(args)
+    # A stored answer needs no model, so none is built: a hit must not depend on
+    # a reachable provider or a loadable config.
+    _, cached = store.lookup(source_rows)
+    client = None if cached is not None else _profile_client(args)
     profile, status = profile_benchmark(
         source_rows,
         store,
@@ -885,6 +913,43 @@ def run_audit(args: argparse.Namespace) -> int:
     adapter_metadata = None
     benchmark_profile_metadata: dict | None = None
     profiled_benchmark = None
+    # Consent is settled before anything is sent.  Schema profiling is the
+    # first thing that can transmit rows, and it runs below, so a gate placed
+    # after it would report the refusal with the data already gone.
+    # Auto-selection never silently opts into paid LLM calls. An explicitly
+    # requested workspace profile preserves the established rich-audit default.
+    explicit_workspace = args.profile == "workspacebench"
+    use_grounded_rubric = args.grounded_rubric_audit or explicit_workspace
+    use_rubric_contract = args.rubric_contract_audit or explicit_workspace
+    use_rubric_coverage = args.rubric_coverage_audit
+    execution_available = execution_runner is not None
+    llm_requested = bool(
+        args.llm_audit
+        or args.swe_leak_llm_confirm
+        or args.cross_artifact_audit
+        or use_grounded_rubric
+        or use_rubric_contract
+        or use_rubric_coverage
+        or args.workspace_rubric_grounding_audit
+        or args.value_recompute_audit
+        or args.execution_evaluator_audit
+    )
+    remote_egress_manifest = _remote_egress_manifest(
+        args,
+        use_grounded_rubric=use_grounded_rubric,
+        use_rubric_contract=use_rubric_contract,
+        use_rubric_coverage=use_rubric_coverage,
+        profile_would_derive=_profile_would_derive(args, source_rows),
+    )
+    remote_egress_metadata = _enforce_remote_egress_policy(
+        args,
+        remote_egress_manifest,
+    )
+    if llm_requested and not remote_egress_manifest:
+        raise RuntimeError(
+            "internal safety invariant failed: an LLM-backed checker has no declared "
+            "remote-data egress capability"
+        )
     if args.adapter_spec or args.adapter_registry:
         profile = build_schema_profile(source_rows, max_examples_per_path=0)
         if args.adapter_spec:
@@ -1012,39 +1077,6 @@ def run_audit(args: argparse.Namespace) -> int:
             "validated_proofs": len(visibility_index),
             "online_reverified": args.workspace_runner_visibility_online_reverify,
         }
-    # Auto-selection never silently opts into paid LLM calls. An explicitly
-    # requested workspace profile preserves the established rich-audit default.
-    explicit_workspace = args.profile == "workspacebench"
-    use_grounded_rubric = args.grounded_rubric_audit or explicit_workspace
-    use_rubric_contract = args.rubric_contract_audit or explicit_workspace
-    use_rubric_coverage = args.rubric_coverage_audit
-    execution_available = execution_runner is not None
-    llm_requested = bool(
-        args.llm_audit
-        or args.swe_leak_llm_confirm
-        or args.cross_artifact_audit
-        or use_grounded_rubric
-        or use_rubric_contract
-        or use_rubric_coverage
-        or args.workspace_rubric_grounding_audit
-        or args.value_recompute_audit
-        or args.execution_evaluator_audit
-    )
-    remote_egress_manifest = _remote_egress_manifest(
-        args,
-        use_grounded_rubric=use_grounded_rubric,
-        use_rubric_contract=use_rubric_contract,
-        use_rubric_coverage=use_rubric_coverage,
-    )
-    remote_egress_metadata = _enforce_remote_egress_policy(
-        args,
-        remote_egress_manifest,
-    )
-    if llm_requested and not remote_egress_manifest:
-        raise RuntimeError(
-            "internal safety invariant failed: an LLM-backed checker has no declared "
-            "remote-data egress capability"
-        )
     audit_plan = build_audit_plan(
         benchmark_package,
         items=items,
@@ -1328,6 +1360,7 @@ def _remote_egress_manifest(
     use_grounded_rubric: bool,
     use_rubric_contract: bool,
     use_rubric_coverage: bool,
+    profile_would_derive: bool,
 ) -> list[dict[str, object]]:
     """Declare every benchmark payload an enabled LLM checker may transmit.
 
@@ -1351,8 +1384,10 @@ def _remote_egress_manifest(
         })
 
     # Schema profiling sends a bounded sample before any checker runs, so it
-    # must appear here for consent to stay fail-closed.
-    if getattr(args, "llm_config", None) and not getattr(args, "no_benchmark_profile", False):
+    # must appear here for consent to stay fail-closed.  Whether it appears is
+    # decided the same way as every other entry -- by whether that checker will
+    # run -- and a schema already in the store is answered from disk.
+    if profile_would_derive:
         add(
             "benchmark_schema_profile",
             ("field_names", "value_shapes", "bounded_row_sample"),
