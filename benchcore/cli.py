@@ -819,6 +819,12 @@ def _profile_would_derive(args: argparse.Namespace, source_rows: list[dict]) -> 
         return False
     if getattr(args, "llm_dry_run", False):
         return False
+    # A profile refines an inferred mapping.  A declared mapping and an adapter
+    # both supply one, taking the branch that never reaches the profiler.
+    if getattr(args, "mapping", None):
+        return False
+    if getattr(args, "adapter_spec", None) or getattr(args, "adapter_registry", None):
+        return False
     _, cached = _profile_store(args).lookup(source_rows)
     return cached is None
 

@@ -39,6 +39,22 @@ def test_choices_present_is_not_a_guess():
     assert contract["basis"] != CONTRACT_BASIS_GUESS
 
 
+def test_a_profile_agreeing_that_the_answer_is_a_choice_is_the_basis():
+    """Comparing choices by their position is stricter than anything a profile
+    can name, so the option set keeps deciding how -- but a profile that
+    independently read these rows as multiple choice is why, and recording the
+    label instead understates what the run rested on."""
+    contract = answer_contract("A", ["A", "B"], None,
+                               scoring={"comparison": "exact_match"})
+    assert contract["kind"] == "choice"
+    assert contract["basis"] == CONTRACT_BASIS_PROFILE
+
+
+def test_an_unprofiled_option_set_is_still_the_adapter_label():
+    contract = answer_contract("A", ["A", "B"], None)
+    assert contract["basis"] == CONTRACT_BASIS_LABEL
+
+
 def test_recording_the_basis_changes_no_decision():
     for gold, choices, evaluator, scoring in (
         ("1500", None, {"type": "exact_match"}, None),

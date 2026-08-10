@@ -40,6 +40,9 @@ def _args(store_path, **overrides):
         llm_config="cfg.json",
         llm_cache=None,
         llm_dry_run=False,
+        mapping=None,
+        adapter_spec=None,
+        adapter_registry=None,
     )
     base.update(overrides)
     return argparse.Namespace(**base)
@@ -105,6 +108,19 @@ def test_without_a_configured_model_nothing_can_be_sent(tmp_path):
 def test_a_dry_run_sends_nothing(tmp_path):
     """--llm-dry-run exists to make a run cost nothing; profiling ignored it."""
     args = _args(tmp_path / "profiles.jsonl", llm_dry_run=True)
+    assert _profile_would_derive(args, ROWS) is False
+
+
+def test_an_explicit_mapping_leaves_nothing_to_profile(tmp_path):
+    """A profile refines an inferred mapping; a declared one is not inferred,
+    so the profiler never runs and nothing can be sent."""
+    args = _args(tmp_path / "profiles.jsonl", mapping="mapping.json")
+    assert _profile_would_derive(args, ROWS) is False
+
+
+def test_an_adapter_leaves_nothing_to_profile(tmp_path):
+    """An adapter supplies the mapping, taking the same branch past profiling."""
+    args = _args(tmp_path / "profiles.jsonl", adapter_spec="spec.json")
     assert _profile_would_derive(args, ROWS) is False
 
 

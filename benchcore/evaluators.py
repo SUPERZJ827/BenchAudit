@@ -226,8 +226,12 @@ def answer_contract(
         kind = _SCORING_COMPARISON_KINDS[comparison]
         basis = CONTRACT_BASIS_PROFILE
     elif choices:
+        # Position-matching an option set is stricter than any comparison a
+        # profile can name, so the options keep deciding how.  But where a
+        # profile independently read these rows and named one, that is what the
+        # run rested on, and recording the label understates it.
         kind = "choice"
-        basis = CONTRACT_BASIS_LABEL
+        basis = CONTRACT_BASIS_PROFILE if comparison else CONTRACT_BASIS_LABEL
     elif "ratio" in evaluator_text:
         kind = "ratio"
     elif "numeric" in evaluator_text or "number" in evaluator_text:
