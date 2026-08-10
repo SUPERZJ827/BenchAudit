@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+import json
 
 import pytest
 
@@ -26,6 +27,10 @@ def integration_results():
         pytest.skip("external SQLBench/DBCode collection is unavailable")
     return {
         "modora": mod.analyze_modora(modora),
+        "modora_defects": mod.load_modora_defect_receipt(
+            ROOT / "reports" / "modora_defect_mining_20260810" / "receipt.json",
+            mod.MODORA_DEFECT_RECEIPT_SHA256,
+        ),
         "sql_dialect": mod.analyze_sql_dialect(
             collection / "SQLBench/SQL_Dialect_Translation/scores/sqlglot_syntax_validation"
         ),
@@ -52,6 +57,64 @@ def test_csv_bool_fails_closed():
     assert mod.csv_bool("", "false") is None
     with pytest.raises(ValueError):
         mod.csv_bool("maybe", "true")
+
+
+def test_modora_defect_receipt_is_hash_bound_and_fails_closed(tmp_path):
+    receipt = {
+        "schema_version": "modora-defect-mining-receipt-v2",
+        "rule_version": "modora-defect-mining-v2",
+        "anchors": {"constructive": True},
+        "input_sha256": mod.MODORA_SHA256,
+        "summary": {
+            "hard_record_inconsistency_items": 11,
+            "invisible_gold_items": 4,
+            "fact_convergence_hypothesis_items": 6,
+        },
+    }
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(receipt, sort_keys=True), encoding="utf-8")
+    expected = mod.sha256_file(path)
+    loaded = mod.load_modora_defect_receipt(path, expected)
+    assert loaded["summary"] == {
+        "fact_convergence_hypothesis_items": 6,
+        "hard_record_inconsistency_items": 11,
+        "invisible_gold_items": 4,
+    }
+    path.write_text(json.dumps({**receipt, "tampered": True}), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="hash mismatch"):
+        mod.load_modora_defect_receipt(path, expected)
+    with pytest.raises(RuntimeError, match="missing"):
+        mod.load_modora_defect_receipt(tmp_path / "missing.json", expected)
+
+
+def test_cross_report_findings_are_derived_from_inputs():
+    assert "11 条相同" in mod.render_modora_defect_finding(
+        {
+            "hard_record_inconsistency_items": 11,
+            "invisible_gold_items": 4,
+            "fact_convergence_hypothesis_items": 6,
+        }
+    )
+    assert "4 条 U+200B" in mod.render_modora_defect_finding(
+        {
+            "hard_record_inconsistency_items": 11,
+            "invisible_gold_items": 4,
+            "fact_convergence_hypothesis_items": 6,
+        }
+    )
+    assert "6 条需原 PDF" in mod.render_modora_defect_finding(
+        {
+            "hard_record_inconsistency_items": 11,
+            "invisible_gold_items": 4,
+            "fact_convergence_hypothesis_items": 6,
+        }
+    )
+    finding = mod.render_sqlite_code_agent_finding(
+        {"sqlite_code_agent_scored": 7, "sqlite_code_agent_pass": 2}
+    )
+    assert "7 条已评分任务" in finding
+    assert "2/7 PASS" in finding
+    assert "attempt-level" in finding
 
 
 def test_portuguese_score_parser_keeps_metric_contracts_separate(tmp_path):

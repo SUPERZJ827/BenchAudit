@@ -43,6 +43,9 @@ MODORA_SHA256 = {
     "resudop.jsonl": "b9f3c2c6bfe7065ea5f29a7165afee193e5a64f75d11fc09532a62690ef1f036",
     "reszendb.jsonl": "6645dc5df7fb29883331720732dfaeb826dc203bdfd1da74e2ee0761c6b7b60a",
 }
+MODORA_DEFECT_RECEIPT_SHA256 = (
+    "d91f471330eecf1849dff6b88b43e3092360196dd21040600cafd443cdfcaad2"
+)
 SCORE_LINE = re.compile(r"^(?:Pred|Match|Exec)\s+(OK|Fail)\b")
 
 
@@ -83,6 +86,54 @@ def rate(numerator: int, denominator: int) -> float | None:
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def load_modora_defect_receipt(
+    path: Path, expected_sha256: str
+) -> dict[str, Any]:
+    if not path.is_file():
+        raise RuntimeError(f"MoDora defect receipt missing: {path}")
+    actual_sha256 = sha256_file(path)
+    if actual_sha256 != expected_sha256:
+        raise RuntimeError(
+            "MoDora defect receipt hash mismatch: "
+            f"expected {expected_sha256}, got {actual_sha256}"
+        )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"invalid MoDora defect receipt: {path}") from exc
+    if payload.get("schema_version") != "modora-defect-mining-receipt-v2":
+        raise RuntimeError("unexpected MoDora defect receipt schema")
+    if payload.get("rule_version") != "modora-defect-mining-v2":
+        raise RuntimeError("unexpected MoDora defect rule version")
+    anchors = payload.get("anchors")
+    if not isinstance(anchors, dict) or not anchors or not all(
+        value is True for value in anchors.values()
+    ):
+        raise RuntimeError("MoDora defect receipt anchors are not all true")
+    if payload.get("input_sha256") != MODORA_SHA256:
+        raise RuntimeError("MoDora defect receipt input hashes differ")
+    source_summary = payload.get("summary")
+    if not isinstance(source_summary, dict):
+        raise RuntimeError("MoDora defect receipt summary missing")
+    claim_fields = {
+        "hard_record_inconsistency_items",
+        "invisible_gold_items",
+        "fact_convergence_hypothesis_items",
+    }
+    summary = {}
+    for field in sorted(claim_fields):
+        value = source_summary.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise RuntimeError(f"invalid MoDora defect summary field: {field}")
+        summary[field] = value
+    return {
+        "summary": summary,
+        "receipt_sha256": actual_sha256,
+        "schema_version": payload["schema_version"],
+        "rule_version": payload["rule_version"],
+    }
 
 
 def analyze_modora(root: Path) -> dict[str, Any]:
@@ -591,6 +642,18 @@ def analyze_dbcode(root: Path) -> dict[str, Any]:
         and row["func_value"] is not None
     ]
     full_func = Counter((row["success_value"], row["func_value"]) for row in sqlite_direct)
+    sqlite_code_agent_groups = [
+        row
+        for row in group_rows
+        if row["database"] == "sqlite"
+        and row["harness"] == "code_agent"
+        and row["variant"] == "agent_variants"
+    ]
+    if len(sqlite_code_agent_groups) != 1:
+        raise RuntimeError(
+            "expected exactly one SQLite CodeAgent aggregate score group"
+        )
+    sqlite_code_agent = sqlite_code_agent_groups[0]
 
     trace_rows = []
     for database, dirname in database_dirs.items():
@@ -647,6 +710,10 @@ def analyze_dbcode(root: Path) -> dict[str, Any]:
             "sqlite_direct_func_pass_full_fail": full_func[(False, True)],
             "sqlite_direct_both_pass": full_func[(True, True)],
             "sqlite_direct_full_pass_func_fail": full_func[(True, False)],
+            "sqlite_code_agent_records": sqlite_code_agent["records"],
+            "sqlite_code_agent_scored": sqlite_code_agent["scored"],
+            "sqlite_code_agent_pass": sqlite_code_agent["pass"],
+            "sqlite_code_agent_fail": sqlite_code_agent["fail"],
             "trajectory_files_with_success": len(trace_rows),
         },
     }
@@ -703,6 +770,10 @@ def verify_collection(root: Path) -> dict[str, Any]:
 
 def validate_anchors(results: Mapping[str, Any]) -> dict[str, bool]:
     return {
+        "modora_defect_receipt_hash_bound": results["modora_defects"][
+            "receipt_sha256"
+        ]
+        == MODORA_DEFECT_RECEIPT_SHA256,
         "modora_items_1065": results["modora"]["summary"]["items"] == 1065,
         "modora_oracle_914": results["modora"]["summary"]["oracle_union_positive"]
         == 914,
@@ -744,6 +815,25 @@ def validate_anchors(results: Mapping[str, Any]) -> dict[str, bool]:
     }
 
 
+def render_modora_defect_finding(summary: Mapping[str, Any]) -> str:
+    return (
+        f"- MoDora 已有 {summary['hard_record_inconsistency_items']} 条相同 "
+        f"prediction 的 T/F 冲突、{summary['invisible_gold_items']} 条 U+200B gold、"
+        f"{summary['fact_convergence_hypothesis_items']} 条需原 PDF 的收敛假设；"
+        "数字来自哈希绑定的独立 V2 receipt。"
+    )
+
+
+def render_sqlite_code_agent_finding(summary: Mapping[str, Any]) -> str:
+    return (
+        f"- SQLite CodeAgent 的 aggregate benchmark outcome 在 "
+        f"{summary['sqlite_code_agent_scored']} 条已评分任务上为 "
+        f"{summary['sqlite_code_agent_pass']}/{summary['sqlite_code_agent_scored']} PASS；"
+        "trajectory 中的 attempt-level `success` 是不同合同，不能引用为"
+        "“CodeAgent 全败”或与最终 benchmark outcome 混用。"
+    )
+
+
 def render_findings(results: Mapping[str, Any]) -> str:
     m = results["modora"]["summary"]
     sql = results["sql_dialect"]["summary"]
@@ -751,6 +841,7 @@ def render_findings(results: Mapping[str, Any]) -> str:
     pt = results["portuguese"]["summary"]
     db = results["dbcode"]
     integrity = results["integrity"]["summary"]
+    modora_defects = results["modora_defects"]["summary"]
     method_map = {row["method"]: row for row in results["modora"]["method_rows"]}
     sql_models = {row["model"]: row for row in results["sql_dialect"]["model_rows"]}
     context = {
@@ -829,9 +920,9 @@ def render_findings(results: Mapping[str, Any]) -> str:
             "",
             "## 二、异常与审计资产",
             "",
-            "- MoDora 已有 9 条相同 prediction 的 T/F 冲突、3 条 U+200B gold、5 条需原 PDF 的收敛假设；详见独立 V2 报告。",
+            render_modora_defect_finding(modora_defects),
             "- SQL dialect 的 all-model non-valid 与 reference non-valid 高度重叠，是很强的 evaluator/reference 审计候选池。",
-            "- SQLite trajectory 保存了尝试级 `success`，但 aggregate CodeAgent 四任务结果为 0/4；trajectory success 与最终 benchmark outcome 不能混用。",
+            render_sqlite_code_agent_finding(db["summary"]),
             f"- 外部 collection manifest 的 {integrity['manifest_entries']} 个条目全部通过 size/SHA-256；另有 {integrity['unmanifested_files']} 个未进 manifest 的文件：`{integrity['unmanifested_paths']}`。",
             "",
             "## 三、不能做出的结论",
@@ -874,6 +965,18 @@ def main() -> int:
         default=Path("docs/research/本地全部外部实验数据系统挖掘_PROTOCOL_20260810.md"),
     )
     parser.add_argument(
+        "--protocol-addendum",
+        type=Path,
+        default=Path(
+            "docs/research/本地全部外部实验数据系统挖掘_HARDENING_ADDENDUM_20260810.md"
+        ),
+    )
+    parser.add_argument(
+        "--modora-defect-receipt",
+        type=Path,
+        default=Path("reports/modora_defect_mining_20260810/receipt.json"),
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("reports/all_external_experiment_mining_20260810"),
@@ -882,6 +985,9 @@ def main() -> int:
     collection = args.collection_root
     results = {
         "modora": analyze_modora(args.modora_root),
+        "modora_defects": load_modora_defect_receipt(
+            args.modora_defect_receipt, MODORA_DEFECT_RECEIPT_SHA256
+        ),
         "sql_dialect": analyze_sql_dialect(
             collection / "SQLBench/SQL_Dialect_Translation/scores/sqlglot_syntax_validation"
         ),
@@ -926,6 +1032,18 @@ def main() -> int:
         "schema_version": "all-external-experiment-mining-v1",
         "script": {"path": str(Path(__file__).resolve()), "sha256": sha256_file(Path(__file__).resolve())},
         "protocol": {"path": str(args.protocol), "sha256": sha256_file(args.protocol)},
+        "protocol_addendum": {
+            "path": str(args.protocol_addendum),
+            "sha256": sha256_file(args.protocol_addendum),
+        },
+        "upstream": {
+            "modora_defect_mining_receipt": {
+                "path": str(args.modora_defect_receipt),
+                "sha256": results["modora_defects"]["receipt_sha256"],
+                "schema_version": results["modora_defects"]["schema_version"],
+                "rule_version": results["modora_defects"]["rule_version"],
+            }
+        },
         "inputs": {
             "modora_root": str(args.modora_root.resolve()),
             "modora_sha256": results["modora"]["input_sha256"],
