@@ -93,6 +93,26 @@ def _arithmetic_replay(violation: Violation, item: BenchmarkItem | None) -> bool
     )
 
 
+def _oracle_character_integrity_replay(
+    violation: Violation, item: BenchmarkItem | None,
+) -> bool:
+    if item is None:
+        return False
+    from .oracle_text import (
+        ORACLE_CHARACTER_INTEGRITY_CONTRACT,
+        unexpected_oracle_characters,
+    )
+
+    replayed = unexpected_oracle_characters(item.gold)
+    return bool(
+        replayed
+        and violation.evidence.get("gold") == item.gold
+        and violation.evidence.get("unexpected_characters") == replayed
+        and violation.evidence.get("character_integrity_contract")
+        == ORACLE_CHARACTER_INTEGRITY_CONTRACT
+    )
+
+
 
 # An evaluator claim is only about the benchmark when the benchmark's own
 # scoring is available to run.  For most benchmarks it is not: `item.evaluator`
@@ -449,6 +469,10 @@ def _dataset_conflicting_oracle_live(
     items: list[BenchmarkItem],
 ) -> bool:
     from .methods import _item_signature, _stable_value
+    from .oracle_text import (
+        DUPLICATE_ORACLE_COMPARISON_CONTRACT,
+        duplicate_oracle_comparison_value,
+    )
 
     if violation.row_uid is None:
         return False
@@ -462,14 +486,25 @@ def _dataset_conflicting_oracle_live(
     group = [item for item in items if _item_signature(item) == signature]
     expected_uids = [item.row_uid for item in group]
     expected_golds = sorted({_stable_value(item.gold) for item in group})
+    expected_comparison_golds = sorted({
+        duplicate_oracle_comparison_value(item.gold) for item in group
+    })
     return bool(
         len(group) > 1
         and len(expected_golds) > 1
+        # Raw bytes/JSON values differing is not sufficient to prove that the
+        # oracles contradict one another.  Surface-only variants remain a
+        # review finding even when the complete dataset replay is authentic.
+        and len(expected_comparison_golds) > 1
         and all(uid is not None for uid in expected_uids)
         and violation.item_id == source.item_id
         and violation.evidence.get("item_ids") == [item.item_id for item in group]
         and violation.evidence.get("target_row_uids") == expected_uids
         and violation.evidence.get("gold_values") == expected_golds
+        and violation.evidence.get("comparison_values")
+        == expected_comparison_golds
+        and violation.evidence.get("comparison_contract")
+        == DUPLICATE_ORACLE_COMPARISON_CONTRACT
     )
 
 
@@ -567,6 +602,11 @@ OBJECTIVE_PROOF_VALIDATORS: dict[
     ("static_rule", "canonical_task_absence", "missing_task"): _task_absent,
     ("static_rule", "choice_gold_domain_replay", "invalid_choice_gold"): _invalid_choice_gold,
     ("static_rule", "safe_arithmetic_replay", "wrong_gold_answer"): _arithmetic_replay,
+    (
+        "static_rule",
+        "oracle_unicode_integrity_replay",
+        "unexpected_invisible_or_control_gold",
+    ): _oracle_character_integrity_replay,
     ("static_rule", "declared_alias_replay", "overstrict_evaluator"): _declared_evaluator_replay,
     ("evaluator_replay", "declared_evaluator_replay", "gold_rejected_by_evaluator"): _declared_evaluator_replay,
     ("cross_artifact_consistency", "answer_contract_static_consistency", "output_evaluator_contract_mismatch"): _contract_replay,
@@ -633,6 +673,11 @@ PROOF_FIELD_DEPENDENCIES: dict[tuple[str, str, str], tuple[str, ...]] = {
     ("static_rule", "canonical_task_absence", "missing_task"): ("task",),
     ("static_rule", "choice_gold_domain_replay", "invalid_choice_gold"): ("choices", "gold"),
     ("static_rule", "safe_arithmetic_replay", "wrong_gold_answer"): ("task", "gold"),
+    (
+        "static_rule",
+        "oracle_unicode_integrity_replay",
+        "unexpected_invisible_or_control_gold",
+    ): ("gold",),
     ("static_rule", "declared_alias_replay", "overstrict_evaluator"): ("gold", "aliases", "evaluator"),
     ("evaluator_replay", "declared_evaluator_replay", "gold_rejected_by_evaluator"): ("gold", "evaluator"),
     ("cross_artifact_consistency", "answer_contract_static_consistency", "output_evaluator_contract_mismatch"): ("output_contract", "evaluator"),

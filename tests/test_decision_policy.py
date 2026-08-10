@@ -33,6 +33,16 @@ def test_declared_constant_change_changes_the_hash(monkeypatch):
     assert dp.decision_policy_sha256() != base
 
 
+def test_oracle_text_contract_change_changes_the_hash(monkeypatch):
+    base = dp.decision_policy_sha256()
+    monkeypatch.setattr(
+        dp,
+        "DUPLICATE_ORACLE_TERMINAL_SENTENCE_PUNCTUATION",
+        dp.DUPLICATE_ORACLE_TERMINAL_SENTENCE_PUNCTUATION + ",",
+    )
+    assert dp.decision_policy_sha256() != base
+
+
 def test_snapshot_carries_policy_and_hash():
     snap = dp.decision_policy_snapshot()
     assert snap["sha256"] == dp.decision_policy_sha256(snap["policy"])
