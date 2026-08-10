@@ -320,7 +320,12 @@ class OutputContractChecker(Checker):
                 repair="Define an approximation rule, rounding target, or numeric tolerance.",
                 method="cross_artifact_consistency",
             )
-        if gold_num is not None and re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", task, re.I):
+        # Only where a contract exists: what an absent one omits is unbounded,
+        # and its absence is already reported above by the check that looks for
+        # it.  On a benchmark with no contract field this said the same thing
+        # about units on every record that happened to mention one.
+        declares_output = item.output_contract not in (None, "", [], {})
+        if declares_output and gold_num is not None and re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", task, re.I):
             if (
                 not _question_requests_unit_answer(task)
                 and not re.search(r"\b(dollar|usd|yuan|rmb|percent|%|meter|mile|hour|minute|kg|pound)\b", _text(item.output_contract), re.I)
