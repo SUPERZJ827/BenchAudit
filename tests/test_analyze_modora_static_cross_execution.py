@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +17,14 @@ assert SPEC is not None and SPEC.loader is not None
 mod = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = mod
 SPEC.loader.exec_module(mod)
+
+
+def _v1_code_snapshot_is_present() -> bool:
+    return all(
+        (ROOT / relative).is_file()
+        and mod.sha256_file(ROOT / relative) == expected
+        for relative, expected in mod.FROZEN_CODE_SHA256.items()
+    )
 
 
 def test_phi_handles_perfect_inverse_and_undefined_vectors():
@@ -83,14 +92,18 @@ def test_contingency_is_exhaustive_and_mutually_exclusive():
 def test_frozen_receipt_hash_mismatch_fails_closed(tmp_path):
     receipt = tmp_path / "receipt.json"
     receipt.write_text("{}", encoding="utf-8")
-    with pytest.raises(RuntimeError, match="receipt hash mismatch"):
-        mod.verify_frozen_inputs(ROOT, receipt)
+    # Isolate the receipt gate: this continuation branch intentionally carries
+    # production V2 code, while the V1 script keeps its historical code hashes.
+    with patch.dict(mod.FROZEN_CODE_SHA256, {}, clear=True):
+        with pytest.raises(RuntimeError, match="receipt hash mismatch"):
+            mod.verify_frozen_inputs(ROOT, receipt)
 
 
 @pytest.mark.skipif(
     not (ROOT / "data/MoDora/resmodora.jsonl").is_file()
-    or not (ROOT / "reports/modora_defect_mining_20260810/receipt.json").is_file(),
-    reason="external MoDora inputs and report receipt are not tracked in git",
+    or not (ROOT / "reports/modora_defect_mining_20260810/receipt.json").is_file()
+    or not _v1_code_snapshot_is_present(),
+    reason="external inputs or the historical V1 production-code snapshot are absent",
 )
 def test_real_data_analysis_anchors():
     miner = mod.load_module(
