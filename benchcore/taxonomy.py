@@ -121,6 +121,13 @@ DEFECTS: dict[str, DefectInfo] = {
         "critical",
         "Executable or independently derived evidence disagrees with the gold answer.",
     ),
+    "unexpected_invisible_or_control_gold": DefectInfo(
+        "oracle_ground_truth",
+        "malformed",
+        "unexpected_invisible_or_control_gold",
+        "major",
+        "Gold answer contains an unexpected Unicode format or control character.",
+    ),
     "invalid_choice_gold": DefectInfo(
         "oracle_ground_truth",
         "incorrect",

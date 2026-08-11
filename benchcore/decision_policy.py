@@ -18,7 +18,7 @@ import json
 from typing import Any
 
 
-POLICY_SCHEMA_VERSION = "benchaudit-decision-policy-v1"
+POLICY_SCHEMA_VERSION = "benchaudit-decision-policy-v2"
 
 # --- comparison / tier assignment -------------------------------------------
 
@@ -37,6 +37,7 @@ STRONG_METHODS = frozenset({
 
 STRONG_DEFECTS = frozenset({
     "wrong_gold_answer",
+    "unexpected_invisible_or_control_gold",
     "invalid_choice_gold",
     "missing_oracle",
     "duplicate_choices",
@@ -69,6 +70,22 @@ STRONG_SIGNAL_MIN_CONFIDENCE = 0.6
 
 # Distinct detection methods needed to treat a finding as corroborated.
 CORROBORATION_MIN_METHODS = 2
+
+# --- objective oracle text contracts ---------------------------------------
+#
+# These constants change which deterministic findings can reach confirmed and
+# therefore belong to the hashed decision surface, not in an implementation
+# helper.  The duplicate contract is intentionally narrow: terminal sentence
+# marks and complete numerically equivalent scalars are downgraded;
+# answer-bearing punctuation in non-numeric strings remains material.
+DUPLICATE_ORACLE_COMPARISON_CONTRACT = (
+    "nfkc-casefold-whitespace-terminal-sentence-punctuation-numeric-v2"
+)
+DUPLICATE_ORACLE_TERMINAL_SENTENCE_PUNCTUATION = ".!?。！？"
+
+ORACLE_CHARACTER_INTEGRITY_CONTRACT = "unicode-cf-cc-except-tab-newline-cr-v1"
+ORACLE_UNEXPECTED_UNICODE_CATEGORIES = ("Cf", "Cc")
+ORACLE_ALLOWED_CONTROL_CHARACTERS = "\t\n\r"
 
 # --- LLM auditor cascade gates ----------------------------------------------
 
@@ -155,6 +172,17 @@ def decision_policy(
         "nonmaterial_methods": sorted(NONMATERIAL_METHODS),
         "strong_signal_min_confidence": STRONG_SIGNAL_MIN_CONFIDENCE,
         "corroboration_min_methods": CORROBORATION_MIN_METHODS,
+        "duplicate_oracle_comparison_contract": (
+            DUPLICATE_ORACLE_COMPARISON_CONTRACT
+        ),
+        "duplicate_oracle_terminal_sentence_punctuation": (
+            DUPLICATE_ORACLE_TERMINAL_SENTENCE_PUNCTUATION
+        ),
+        "oracle_character_integrity_contract": ORACLE_CHARACTER_INTEGRITY_CONTRACT,
+        "oracle_unexpected_unicode_categories": list(
+            ORACLE_UNEXPECTED_UNICODE_CATEGORIES
+        ),
+        "oracle_allowed_control_characters": ORACLE_ALLOWED_CONTROL_CHARACTERS,
         "blind_solve_min_confidence": BLIND_SOLVE_MIN_CONFIDENCE,
         "option_evidence_min_confidence": OPTION_EVIDENCE_MIN_CONFIDENCE,
         "llm_confirm_threshold": (

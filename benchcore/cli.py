@@ -67,6 +67,7 @@ from .investigator import (
     write_investigation_json,
     write_investigation_markdown,
 )
+from .input_domain import enforce_audit_input_domain
 from .methods import DEFAULT_DATASET_CHECKERS, DEFAULT_METHOD_CHECKERS
 from .defect_injection import MUTATION_OPERATORS, inject_defects, score_injected_report
 from .evaluator_execution import ExecutionEvaluatorAuditChecker
@@ -911,9 +912,14 @@ def _apply_benchmark_profile(
 def run_audit(args: argparse.Namespace) -> int:
     run_started = time.monotonic()
     started_at = datetime.now(timezone.utc)
-    execution_runner, allow_unsafe_local, execution_metadata = _execution_backend(args)
     input_path = Path(args.input)
     source_rows = load_rows(input_path)
+    # The audit command accepts benchmark definitions.  Refuse a narrowly
+    # recognized per-method result export before profile lookup, remote egress,
+    # checker construction, execution-backend setup, or report creation.  This
+    # is an explicit input-domain error, never a silent checker skip.
+    enforce_audit_input_domain(source_rows)
+    execution_runner, allow_unsafe_local, execution_metadata = _execution_backend(args)
     if args.mapping and (args.adapter_spec or args.adapter_registry):
         raise ValueError("--mapping cannot be combined with an adapter")
     adapter_metadata = None

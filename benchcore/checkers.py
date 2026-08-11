@@ -26,6 +26,10 @@ from .schema import BenchmarkItem, Violation
 from .taxonomy import DEFECTS
 from .promotion import enforce_promotion_policy
 from .coverage import AuditEligibility
+from .oracle_text import (
+    ORACLE_CHARACTER_INTEGRITY_CONTRACT,
+    unexpected_oracle_characters,
+)
 
 
 REFERENCE_PATTERNS = {
@@ -372,6 +376,24 @@ class OracleChecker(Checker):
                 repair="Add gold answer, target state, reference solution, or accepted alternatives.",
             )
             return
+        unexpected_characters = unexpected_oracle_characters(item.gold)
+        if unexpected_characters:
+            yield _violation(
+                item,
+                "unexpected_invisible_or_control_gold",
+                "Gold answer contains unexpected invisible or control characters.",
+                {
+                    "gold": item.gold,
+                    "unexpected_characters": unexpected_characters,
+                    "character_integrity_contract": ORACLE_CHARACTER_INTEGRITY_CONTRACT,
+                    "evidence_level": "oracle_unicode_integrity_replay",
+                    "proof_schema_version": "1.0",
+                },
+                repair=(
+                    "Remove unintended format/control characters or document why "
+                    "they are required by the scoring contract."
+                ),
+            )
         if item.choices:
             idx = choice_label_to_index(item.gold, item.choices)
             if idx is None:

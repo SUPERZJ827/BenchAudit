@@ -24,6 +24,10 @@ from .evaluators import (
 )
 from .schema import BenchmarkItem, Violation
 from .coverage import AuditEligibility
+from .oracle_text import (
+    DUPLICATE_ORACLE_COMPARISON_CONTRACT,
+    duplicate_oracle_comparison_value,
+)
 
 
 class EvaluatorReplayChecker(Checker):
@@ -490,19 +494,36 @@ class DuplicateConflictChecker(DatasetChecker):
             if len(group) <= 1:
                 continue
             golds = {_stable_value(item.gold) for item in group}
+            comparison_golds = {
+                duplicate_oracle_comparison_value(item.gold) for item in group
+            }
             ids = [item.item_id for item in group]
             if len(golds) > 1:
+                surface_only = len(comparison_golds) == 1
                 yield _violation(
                     group[0],
                     "conflicting_duplicate_oracle",
-                    "Equivalent task records declare conflicting gold answers.",
+                    (
+                        "Equivalent task records use gold values that differ only "
+                        "in conservative surface formatting."
+                        if surface_only else
+                        "Equivalent task records declare conflicting gold answers."
+                    ),
                     {
                         "item_ids": ids,
                         "target_row_uids": [item.row_uid for item in group],
                         "gold_values": sorted(golds),
-                        "evidence_level": "canonical_record_oracle_conflict",
+                        "comparison_values": sorted(comparison_golds),
+                        "comparison_contract": DUPLICATE_ORACLE_COMPARISON_CONTRACT,
+                        "evidence_level": (
+                            "canonical_record_oracle_surface_difference"
+                            if surface_only else
+                            "canonical_record_oracle_conflict"
+                        ),
                         "proof_schema_version": "1.0",
                     },
+                    severity="review" if surface_only else None,
+                    review_only=surface_only,
                     repair="Reconcile the conflicting gold answers or separate genuinely different task contexts.",
                     method="dataset_duplicate_scan",
                 )
