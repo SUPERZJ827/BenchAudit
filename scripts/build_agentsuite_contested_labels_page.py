@@ -257,7 +257,7 @@ def main() -> int:
             '<p class="standfirst">作者判定「无问题」，但五次独立审计反复指出同样的毛病</p>'
             '<p class="meta">2026-08-17 · 证据取自冻结运行 R1–R5 · '
             '标签源 <code>pipeline/human_labelled_ground_truth/ACEBench.csv</code></p>'
-            '</header>\n<main>\n' + "\n".join(body) + '\n</main>\n</div>\n')
+            '</header>\n<main>\n' + "\n".join(body) + '\n</main>\n</div>\n</body>\n</html>\n')
     OUT.write_text(page, encoding="utf-8")
     print(f"written {OUT} ({OUT.stat().st_size} bytes)")
     return 0
