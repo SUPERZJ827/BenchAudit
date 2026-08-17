@@ -191,11 +191,13 @@ def main() -> int:
     for name, arm in arms.items():
         summary = arm["summary"]
         low, high = summary["range"]["tp"]
+        # An even number of repeats gives a half-integer median; rounding it to
+        # an integer here silently misreports the arm.
         print(
             f"{name:<{width}}{'单跑中位(n=' + str(summary['runs']) + ')':<16}"
-            f"{summary['median']['tp']:>4.0f}{summary['median']['fp']:>4.0f}"
+            f"{summary['median']['tp']:>4g}{summary['median']['fp']:>4g}"
             f"{summary['median']['precision']:>8.3f}{summary['median']['recall']:>8.3f}"
-            f"{summary['median']['f1']:>8.3f}   TP 全距 {high - low:.0f}"
+            f"{summary['median']['f1']:>8.3f}   TP 全距 {high - low:g}"
         )
         union = arm[f"vote_k{args.vote_k}"]
         print(

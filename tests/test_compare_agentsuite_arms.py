@@ -89,3 +89,12 @@ def test_parse_arm_requires_a_name_and_at_least_one_report() -> None:
         except SystemExit:
             continue
         raise AssertionError(f"expected SystemExit for {bad!r}")
+
+
+def test_median_of_an_even_number_of_runs_is_not_rounded() -> None:
+    per_run = [{"tp": 35, "fp": 7, "precision": 0.8, "recall": 0.6, "f1": 0.7},
+               {"tp": 38, "fp": 5, "precision": 0.8, "recall": 0.6, "f1": 0.7},
+               {"tp": 39, "fp": 7, "precision": 0.8, "recall": 0.6, "f1": 0.7},
+               {"tp": 41, "fp": 5, "precision": 0.8, "recall": 0.6, "f1": 0.7}]
+    assert MODULE.summarise(per_run)["median"]["tp"] == 38.5
+    assert MODULE.summarise(per_run)["median"]["fp"] == 6
