@@ -594,6 +594,7 @@ class CrossArtifactConsistencyChecker(Checker):
         client: LLMClient,
         *,
         review_threshold: float = 0.45,
+        task_chars: int = 6000,
         context_chars: int = 9000,
         solver_instruction_chars: int = 6000,
         rubric_chars: int = 3500,
@@ -603,6 +604,7 @@ class CrossArtifactConsistencyChecker(Checker):
     ) -> None:
         self.client = client
         self.review_threshold = review_threshold
+        self.task_chars = task_chars
         self.context_chars = context_chars
         self.solver_instruction_chars = solver_instruction_chars
         self.rubric_chars = rubric_chars
@@ -619,7 +621,7 @@ class CrossArtifactConsistencyChecker(Checker):
             return []
         enforce_context_path_policy(item, root, allowed_roots=self.allowed_roots)
         prompt = USER_PROMPT.format(
-            task=preview(item.task or "(missing task)", 1800),
+            task=preview(item.task or "(missing task)", self.task_chars),
             context=build_context_preview(
                 item,
                 root,
@@ -2127,7 +2129,15 @@ def format_reference(item: BenchmarkItem) -> str:
     raw = item.raw or {}
     for key in ("patch", "reference_solution", "solution", "gold_patch", "test_patch"):
         if key in raw and raw[key] not in (None, ""):
-            parts.append(f"{key}:\n{preview(raw[key], 1200)}")
+            label = key
+            if isinstance(raw[key], (dict, list)):
+                # Structured references are shown in our normalized form, which
+                # is rarely the literal string a solver is told to emit.  Left
+                # unlabelled, the difference reads as a contradiction between the
+                # reference and the solver instructions, and an auditor that
+                # checks output contracts reports it every time.
+                label = f"{key} (normalized structure, not the solver's output format)"
+            parts.append(f"{label}:\n{preview(raw[key], 1200)}")
     return "\n\n".join(parts)
 
 

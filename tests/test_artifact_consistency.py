@@ -970,3 +970,36 @@ def test_rubric_coverage_checker_ignores_covered_task():
     client = FakeLLMClient([[{"status": "covered", "confidence": 0.92}]])
 
     assert list(RubricCoverageChecker(client).check(item)) == []
+
+
+def test_structured_reference_is_labelled_as_a_normalized_form() -> None:
+    from benchcore.artifact_consistency import format_reference
+    from benchcore.schema import BenchmarkItem
+
+    item = BenchmarkItem(
+        item_id="i", raw={"reference_solution": {"Tool": {"a": 1}}}, context={},
+    )
+    rendered = format_reference(item)
+    # Without the label the dict reads as a violation of a solver instruction
+    # that demands a different literal output format.
+    assert "normalized structure, not the solver's output format" in rendered
+    assert "Tool" in rendered
+
+
+def test_a_string_reference_keeps_its_bare_label() -> None:
+    from benchcore.artifact_consistency import format_reference
+    from benchcore.schema import BenchmarkItem
+
+    item = BenchmarkItem(item_id="i", raw={"patch": "diff --git a b"}, context={})
+    rendered = format_reference(item)
+    assert rendered.startswith("patch:")
+    assert "normalized structure" not in rendered
+
+
+def test_task_budget_is_configurable_and_no_longer_the_smallest() -> None:
+    from benchcore.artifact_consistency import CrossArtifactConsistencyChecker
+
+    checker = CrossArtifactConsistencyChecker(client=None)
+    assert checker.task_chars == 6000
+    assert checker.task_chars > checker.reference_chars
+    assert CrossArtifactConsistencyChecker(client=None, task_chars=100).task_chars == 100
