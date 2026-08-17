@@ -69,9 +69,20 @@ WITHDRAWN = ("normal_atom_object_deep::38", "已撤回：这条是我们判断�
 
 CONTROLS = [
     ("normal_single_turn_single_function::9",
-     "标答编造 <code>sourceId: \"1\"</code> 与 <code>accessProtocol: \"HTTPS\"</code>，题面均未提供。"),
+     "标答编造 <code>sourceId: \"1\"</code> 与 <code>accessProtocol: \"HTTPS\"</code>，题面均未提供。",
+     """<b>我们检出了，但只在第五跑。</b>前四次独立运行全部漏检，R5 才报出，理由与作者一致：
+标答的 <code>sourceId</code> 与 <code>accessProtocol</code> 在题面中没有任何来源。
+这条与 <code>normal_single_turn_single_function::91</code> 的 <code>siteId</code> 是同一机制，
+但那一条被作者标为无问题。"""),
     ("normal_atom_enum::22",
-     "标答填入用户未要求的可选参数 <code>outputDetail: \"Summary\"</code>。"),
+     "标答填入用户未要求的可选参数 <code>outputDetail: \"Summary\"</code>。",
+     """<b>我们从未因为真正的原因报出这一条。</b>
+在全部有效运行（V2、A0/A1/A2、challenger、prompt A/B、thinking 五跑）中，它<b>一次都没有被报出</b>。
+唯一一次被标记发生在<b>已作废的 V1 运行</b>，而那次给出的理由是
+“the reference solution references a non-existent function”“no such function exists in the provided context”——
+这三条理由全部错误：该函数确实存在于工具列表中，模型之所以看不到它，是 V1 上下文截断缺陷所致，
+也正是 V1 被作废的原因。
+按题目级计分那次算命中，按理由核对则是<b>用错误的理由碰对了题号</b>。"""),
 ]
 
 PAIRS = [
@@ -136,7 +147,7 @@ def main() -> int:
                     else (f"{confs[0]:.2f}" if confs else "—"))
             h.append(f'<span class="chip chip--meta">{len(runs)}/5 跑报出 · 置信度 {span}</span>')
         if not runs:
-            h.append('<span class="chip chip--miss">我们五跑均未报出</span>')
+            h.append('<span class="chip chip--miss">有效运行中从未报出</span>')
         h.append(f'<span class="chip chip--meta">{"在 COBA 候选清单内（人工 KEEP）" if off else "不在 COBA 候选清单内"}</span>')
         h.append("</div></header>")
 
@@ -157,8 +168,10 @@ def main() -> int:
                  f'<pre class="code"><code>{j(item.get("reference_solution"))}</code></pre></div>')
 
         cls = "finding" + (" finding--withdrawn" if kind == "withdrawn" else "")
-        h.append(f'<div class="{cls}"><div class="label label--flag">'
-                 f'{"复核结论" if kind=="withdrawn" else "我们的异议"}</div>'
+        label = {"withdrawn": "复核结论", "control": "机制与我们的检出状态"}.get(kind, "我们的异议")
+        if kind == "control":
+            cls = "finding finding--control"
+        h.append(f'<div class="{cls}"><div class="label label--flag">{label}</div>'
                  f'<p class="finding__headline">{headline}</p>'
                  f'<div class="finding__body">{body.strip()}</div></div>')
 
@@ -211,8 +224,8 @@ def main() -> int:
 
     body.append('<section><h2>对照：作者判定「有问题」的同机制条目</h2>'
                 '<p>这两条的缺陷机制与上面若干条相同，但被标为缺陷，并附有作者写下的理由。</p>')
-    for short, headline in CONTROLS:
-        body.append(card(short, headline, "", "control"))
+    for short, headline, note in CONTROLS:
+        body.append(card(short, headline, note, "control"))
     body.append('</section>')
 
     body.append('<section><h2>我们撤回的一条</h2>')
@@ -234,7 +247,10 @@ def main() -> int:
                 '进入过并被人工判为 KEEP。</p></section>')
 
     css = CSS
-    page = (f'<title>ACEBench 标注争议</title>\n<style>{css}</style>\n'
+    page = ('<!doctype html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+            '<title>ACEBench 标注争议</title>\n'
+            f'<style>{css}</style>\n</head>\n<body>\n'
             '<div class="page">\n<header class="masthead">'
             '<p class="eyebrow">AgentSuite · ACEBench 102 条人工核验子集</p>'
             '<h1>标答里的六处争议</h1>'
@@ -341,6 +357,8 @@ tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
 .code code{background:none;padding:0;font-size:inherit}
 .finding{background:var(--brass-soft);border:1px solid var(--brass);border-radius:6px;
   padding:1rem 1.15rem}
+.finding--control{background:var(--petrol-soft);border-color:var(--petrol)}
+.finding--control .label--flag{color:var(--petrol)}
 .finding--withdrawn{background:var(--surface-2);border-color:var(--rule-strong)}
 .finding--withdrawn .label--flag{color:var(--muted)}
 .finding__headline{font-family:var(--serif);font-size:1.08rem;font-weight:600;margin:0 0 .5rem;
