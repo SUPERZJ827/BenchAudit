@@ -1,0 +1,16 @@
+{
+  "model": "google/gemini-2.5-pro",
+  "base_url": "https://openrouter.ai/api/v1",
+  "api_key_env": "OPENROUTER_API_KEY",
+  "temperature": 0.0,
+  "timeout": 300,
+  "max_tokens": 32000,
+  "max_retries": 1,
+  "n_votes": 1,
+  "vote_temperature": 0.3,
+  "thinking": "enabled",
+  "thinking_style": "openrouter",
+  "max_api_attempts": 110,
+  "observed_token_stop": 6000000,
+  "dry_run": false
+}

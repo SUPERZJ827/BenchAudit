@@ -32,6 +32,11 @@ class LLMConfig:
     # unknown request field.  Constrained schema projection normally benefits
     # from the cheaper, less verbose non-thinking mode.
     thinking: str | None = None
+    # Providers spell the toggle differently: DeepSeek takes ``thinking``,
+    # OpenRouter takes ``reasoning``.  Sending the wrong one is silently ignored,
+    # which would leave a run comparing a reasoning model against a non-reasoning
+    # one without any error to notice.
+    thinking_style: str = "deepseek"
     max_api_attempts: int | None = None
     # Soft stop based on usage already reported by the provider.  It is not a
     # hard reservation: one in-flight request may cross it, and providers that
@@ -56,6 +61,9 @@ def load_llm_config(path: str | None = None) -> LLMConfig:
     thinking = data.get("thinking")
     if thinking not in {None, "enabled", "disabled"}:
         raise ValueError("thinking must be 'enabled', 'disabled', or omitted")
+    thinking_style = data.get("thinking_style", "deepseek")
+    if thinking_style not in {"deepseek", "openrouter"}:
+        raise ValueError("thinking_style must be 'deepseek' or 'openrouter'")
     max_api_attempts = _optional_positive_int(
         data.get("max_api_attempts"), name="max_api_attempts"
     )
@@ -75,6 +83,7 @@ def load_llm_config(path: str | None = None) -> LLMConfig:
         n_votes=max(1, int(data.get("n_votes", 1))),
         vote_temperature=float(data.get("vote_temperature", 0.3)),
         thinking=thinking,
+        thinking_style=thinking_style,
         max_api_attempts=max_api_attempts,
         observed_token_stop=observed_token_stop,
     )
@@ -180,8 +189,7 @@ class LLMClient:
             "max_tokens": self.config.max_tokens,
             "response_format": {"type": "json_object"},
         }
-        if self.config.thinking is not None:
-            body["thinking"] = {"type": self.config.thinking}
+        self._apply_thinking(body)
         invalid_responses = []
         for attempt in range(self.config.max_retries):
             raw = self._post_chat_completions(body, api_key)
@@ -345,8 +353,7 @@ class LLMClient:
             "max_tokens": self.config.max_tokens,
             "response_format": {"type": "json_object"},
         }
-        if self.config.thinking is not None:
-            body["thinking"] = {"type": self.config.thinking}
+        self._apply_thinking(body)
         invalid_responses: list[dict[str, Any]] = []
         for attempt in range(self.config.max_retries):
             raw = self._post_chat_completions(body, api_key)
@@ -457,6 +464,22 @@ class LLMClient:
             if self._inflight.get(key) is flight:
                 del self._inflight[key]
 
+    def _apply_thinking(self, body: dict[str, Any]) -> None:
+        if self.config.thinking is None:
+            return
+        if self.config.thinking_style == "openrouter":
+            body["reasoning"] = {"enabled": self.config.thinking == "enabled"}
+        else:
+            body["thinking"] = {"type": self.config.thinking}
+
+    def _thinking_key_fields(self) -> dict[str, Any]:
+        """Only a non-default style enters the key, so every cache written before
+        this field existed keeps hashing to exactly the same value."""
+        fields: dict[str, Any] = {"thinking": self.config.thinking}
+        if self.config.thinking_style != "deepseek":
+            fields["thinking_style"] = self.config.thinking_style
+        return fields
+
     def _cache_key(self, system: str, user: str) -> str:
         payload = json.dumps(
             {
@@ -466,7 +489,7 @@ class LLMClient:
                 "max_tokens": self.config.max_tokens,
                 "dry_run": self.config.dry_run,
                 "response_format": "json_object",
-                "thinking": self.config.thinking,
+                **self._thinking_key_fields(),
                 "system": system,
                 "user": user,
             },

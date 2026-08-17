@@ -64,6 +64,7 @@ def main() -> int:
     by_run: dict[str, set[str]] = {}
     route_by_id: dict[str, str] = {}
     usage: dict[str, Any] = {}
+    operational_failures: dict[str, list[str]] = {}
     locks: dict[str, str] = {}
 
     # Prediction locks for every arm are written before truth is read below.
@@ -77,8 +78,15 @@ def main() -> int:
             rows = read_jsonl(prediction_path)
             if sha256_file(prediction_path) != receipt.get("predictions_sha256"):
                 raise SystemExit(f"{run}: prediction hash mismatch")
-            if len(rows) != 102 or receipt.get("operational_failures") != 0:
-                raise SystemExit(f"{run}: incomplete run or operational failures")
+            if len(rows) != 102:
+                raise SystemExit(f"{run}: incomplete run")
+            failed_ids = sorted(
+                str(row["item_id"])
+                for row in rows
+                if row.get("operational_error") is not None
+            )
+            if int(receipt.get("operational_failures", -1)) != len(failed_ids):
+                raise SystemExit(f"{run}: operational-failure count mismatch")
             if receipt.get("arm") != arm or receipt.get("dry_run"):
                 raise SystemExit(f"{run}: wrong arm or dry-run artifact")
             by_run[run] = {str(row["item_id"]) for row in rows if row.get("candidate") is True}
@@ -87,6 +95,7 @@ def main() -> int:
                 if old != row["route"]:
                     raise SystemExit(f"{run}: route drift for {row['item_id']}")
             usage[run] = receipt["llm_usage"]
+            operational_failures[run] = failed_ids
             lock = {
                 "schema_version": 1,
                 "status": "PREDICTIONS_LOCKED_BEFORE_DEV_LABEL_JOIN",
@@ -123,7 +132,14 @@ def main() -> int:
                 by_route[route] = metrics(predicted & route_ids, positive & route_ids, route_ids)
             else:
                 by_route[route] = {"items": 0, "not_estimable": True}
-        results[run] = {"overall": overall, "by_route": by_route, "llm_usage": usage[run], "prediction_lock_sha256": locks[run]}
+        results[run] = {
+            "overall": overall,
+            "by_route": by_route,
+            "llm_usage": usage[run],
+            "operational_failure_count": len(operational_failures[run]),
+            "operational_failure_ids": operational_failures[run],
+            "prediction_lock_sha256": locks[run],
+        }
 
     summary: dict[str, Any] = {}
     for arm in ARMS:
@@ -136,6 +152,12 @@ def main() -> int:
             "median_precision": median([row["metrics"]["precision"] for row in arm_rows]),
             "median_recall": median([row["metrics"]["recall"] for row in arm_rows]),
             "median_f1": median([row["metrics"]["f1"] for row in arm_rows]),
+            "median_operational_failures": median([
+                results[run]["operational_failure_count"] for run in arm_runs
+            ]),
+            "total_operational_failures": sum(
+                results[run]["operational_failure_count"] for run in arm_runs
+            ),
             "pairwise_candidate_jaccard": {
                 f"r{left}_r{right}": jaccard(candidates[f"{arm}_r{left}"], candidates[f"{arm}_r{right}"])
                 for left, right in combinations((1, 2, 3), 2)
@@ -156,8 +178,18 @@ def main() -> int:
     f1_drop = 0.0
     if advantaged == "specialized":
         f1_drop = max(0.0, g_f1 - s_f1)
+        operational_failure_increase = (
+            summary["specialized"]["median_operational_failures"]
+            > summary["generic"]["median_operational_failures"]
+        )
     elif advantaged == "generic":
         f1_drop = max(0.0, s_f1 - g_f1)
+        operational_failure_increase = (
+            summary["generic"]["median_operational_failures"]
+            > summary["specialized"]["median_operational_failures"]
+        )
+    else:
+        operational_failure_increase = False
 
     output = {
         "schema_version": 1,
@@ -170,7 +202,13 @@ def main() -> int:
             "paired_tp_differences_specialized_minus_generic": pair_directions,
             "advantaged_arm": advantaged,
             "direction_consistent_across_paired_repeats": consistent,
-            "predeclared_meaningful_gate_passed": abs(s_tp - g_tp) >= 5 and consistent and f1_drop <= 0.02,
+            "predeclared_meaningful_gate_passed": (
+                abs(s_tp - g_tp) >= 5
+                and consistent
+                and f1_drop <= 0.02
+                and not operational_failure_increase
+            ),
+            "advantaged_arm_operational_failure_increase": operational_failure_increase,
             "agentsuite_reported_reference": {"precision": 0.865, "recall": 0.882, "f1": 0.874},
         },
         "truth_sha256": sha256_file(args.truth),

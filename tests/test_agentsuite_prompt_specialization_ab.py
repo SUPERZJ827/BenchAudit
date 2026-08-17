@@ -7,10 +7,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/run_agentsuite_prompt_specialization_ab.py"
+SCORER = ROOT / "scripts/score_agentsuite_prompt_specialization_ab.py"
 
 
 def load_script():
     spec = importlib.util.spec_from_file_location("prompt_ab", SCRIPT)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_scorer():
+    spec = importlib.util.spec_from_file_location("prompt_ab_scorer", SCORER)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -68,3 +77,9 @@ def test_numeric_suffix_ground_truth_normalization_matches_upstream() -> None:
         {"tool": {"x": 2}},
         {"tool": {"x": 3}},
     ]
+
+
+def test_metrics_treat_operational_failure_as_no_positive_prediction() -> None:
+    scorer = load_scorer()
+    result = scorer.metrics({"a"}, {"a", "b"}, {"a", "b", "c"})
+    assert result["confusion_matrix"] == {"tp": 1, "fp": 0, "fn": 1, "tn": 1}
