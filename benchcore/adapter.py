@@ -16,6 +16,7 @@ def canonicalize_item(item: BenchmarkItem, mapping: FieldMapping) -> dict[str, A
         "choices": item.choices,
         "gold": item.gold,
         "aliases": item.aliases,
+        "solver_instructions": item.solver_instructions,
         "output_contract": item.output_contract,
         "evaluator": item.evaluator,
         "metadata": item.metadata,
@@ -30,6 +31,7 @@ def artifact_coverage(item: BenchmarkItem) -> dict[str, bool]:
         "task_specification": bool(item.task),
         "context_attachment": bool(item.context),
         "expected_output": bool(item.output_contract or item.choices),
+        "solver_instructions": bool(item.solver_instructions),
         "oracle_ground_truth": item.gold not in (None, ""),
         "evaluator": bool(item.evaluator or item.choices),
     }
@@ -43,4 +45,3 @@ def write_canonical_jsonl(path: str, records: list[dict[str, Any]]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         for record in records:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
-

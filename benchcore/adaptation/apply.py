@@ -162,6 +162,9 @@ def mapping_for_adapted_rows(spec: AdapterSpec) -> FieldMapping:
         choices="choices" if "choices" in targets else None,
         gold="gold" if "gold" in targets else None,
         aliases="aliases" if "aliases" in targets else None,
+        solver_instructions=(
+            "solver_instructions" if "solver_instructions" in targets else None
+        ),
         output_contract=(
             "output_contract" if "output_contract" in targets else None
         ),

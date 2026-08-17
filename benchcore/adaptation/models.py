@@ -22,6 +22,7 @@ CORE_TARGETS = frozenset({
     "choices",
     "gold",
     "aliases",
+    "solver_instructions",
     "output_contract",
     "evaluator",
     "metadata",

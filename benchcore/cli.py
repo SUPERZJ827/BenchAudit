@@ -32,6 +32,7 @@ from .artifact_consistency import (
     RubricCoverageChecker,
     RubricOutputContractConsistencyChecker,
 )
+from .reference_schema import ReferenceSchemaChecker
 from .auditor import audit_items_with_ledger
 from .decision_policy import (
     CASCADE_MODES,
@@ -206,6 +207,19 @@ def main(argv: list[str] | None = None) -> int:
         "--cross-artifact-audit",
         action="store_true",
         help="Enable LLM cross-artifact consistency audit over task/context/reference/evaluator",
+    )
+    audit_parser.add_argument(
+        "--reference-provenance-audit",
+        action="store_true",
+        help=(
+            "Extend cross-artifact audit with fail-closed reference-value "
+            "provenance classification; requires --cross-artifact-audit"
+        ),
+    )
+    audit_parser.add_argument(
+        "--reference-schema-audit",
+        action="store_true",
+        help="Validate structured reference calls against declared function schemas",
     )
     audit_parser.add_argument(
         "--value-recompute-audit",
@@ -1254,9 +1268,14 @@ def run_audit(args: argparse.Namespace) -> int:
             CrossArtifactConsistencyChecker(
                 client,
                 review_threshold=args.llm_review_threshold,
+                provenance_mode=args.reference_provenance_audit,
                 allowed_roots=workspace_allowed_roots,
             )
         )
+    elif args.reference_provenance_audit:
+        raise ValueError("--reference-provenance-audit requires --cross-artifact-audit")
+    if args.reference_schema_audit:
+        checkers.append(ReferenceSchemaChecker())
     if use_grounded_rubric:
         checkers.append(
             GroundedRubricConsistencyChecker(

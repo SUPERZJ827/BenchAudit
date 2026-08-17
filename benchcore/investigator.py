@@ -384,6 +384,7 @@ def load_report_items(input_path: Path, report: dict[str, Any]) -> ReportItemInd
         choices=mapping_data.get("choices"),
         gold=mapping_data.get("gold"),
         aliases=mapping_data.get("aliases"),
+        solver_instructions=mapping_data.get("solver_instructions"),
         output_contract=mapping_data.get("output_contract"),
         evaluator=mapping_data.get("evaluator"),
         metadata=list(mapping_data.get("metadata") or []),

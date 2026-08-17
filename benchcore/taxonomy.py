@@ -240,6 +240,20 @@ DEFECTS: dict[str, DefectInfo] = {
         "major",
         "Reference solution or gold artifact appears misaligned with the task specification.",
     ),
+    "reference_value_ungrounded": DefectInfo(
+        "oracle_ground_truth",
+        "unsupported",
+        "reference_value_ungrounded",
+        "review",
+        "A concrete reference value may lack an allowed source under an explicit closed-world solver rule.",
+    ),
+    "reference_schema_mismatch": DefectInfo(
+        "oracle_ground_truth",
+        "malformed",
+        "reference_schema_mismatch",
+        "major",
+        "A structured reference call violates its declared function schema.",
+    ),
     "duplicate_item_id": DefectInfo(
         "task_specification",
         "inconsistent",

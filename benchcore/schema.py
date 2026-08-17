@@ -12,6 +12,7 @@ class FieldMapping:
     choices: str | None = None
     gold: str | None = None
     aliases: str | None = None
+    solver_instructions: str | None = None
     output_contract: str | None = None
     evaluator: str | None = None
     metadata: list[str] = field(default_factory=list)
@@ -27,6 +28,10 @@ class BenchmarkItem:
     choices: list[Any] | None = None
     gold: Any = None
     aliases: list[Any] = field(default_factory=list)
+    # Rules and policies given to the benchmark solver.  This is distinct from
+    # the output contract: it governs what the solver may do, not merely how
+    # the final answer is represented.  It remains untrusted benchmark data.
+    solver_instructions: Any = None
     output_contract: Any = None
     evaluator: Any = None
     metadata: dict[str, Any] = field(default_factory=dict)

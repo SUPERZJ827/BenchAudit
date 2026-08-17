@@ -53,6 +53,13 @@ GOLD_FIELDS = (
     "reference_solution",
 )
 ALIAS_FIELDS = ("aliases", "accepted_answers", "acceptable_answers", "equivalent_outputs")
+SOLVER_INSTRUCTION_FIELDS = (
+    "solver_instructions",
+    "agent_system_prompt",
+    "solver_system_prompt",
+    "task_policy",
+    "agent_policy",
+)
 OUTPUT_FIELDS = (
     "output_contract",
     "expected_output",
@@ -287,6 +294,9 @@ def infer_mapping(rows: list[dict[str, Any]]) -> FieldMapping:
         "choices": _select_field(rows, _candidate_paths(rows, CHOICE_FIELDS), _is_listish),
         "gold": _select_field(rows, _candidate_paths(rows, GOLD_FIELDS), _any_nonempty),
         "aliases": _select_field(rows, _candidate_paths(rows, ALIAS_FIELDS), _is_listish),
+        "solver_instructions": _select_field(
+            rows, _candidate_paths(rows, SOLVER_INSTRUCTION_FIELDS), _any_nonempty,
+        ),
         "output_contract": _select_field(
             rows, _candidate_paths(rows, OUTPUT_FIELDS), _any_nonempty,
         ),
@@ -301,6 +311,7 @@ def infer_mapping(rows: list[dict[str, Any]]) -> FieldMapping:
         choices=selectors["choices"][0],
         gold=selectors["gold"][0],
         aliases=selectors["aliases"][0],
+        solver_instructions=selectors["solver_instructions"][0],
         output_contract=selectors["output_contract"][0],
         evaluator=selectors["evaluator"][0],
         metadata=_present_many(METADATA_FIELDS, rows),
@@ -320,6 +331,7 @@ def mapping_from_dict(data: dict[str, Any]) -> FieldMapping:
         choices=data.get("choices"),
         gold=data.get("gold"),
         aliases=data.get("aliases"),
+        solver_instructions=data.get("solver_instructions"),
         output_contract=data.get("output_contract"),
         evaluator=data.get("evaluator"),
         metadata=list(data.get("metadata", [])),

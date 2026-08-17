@@ -156,6 +156,7 @@ def _mapping_provenance_for_row(
         "choices": mapping.choices,
         "gold": mapping.gold,
         "aliases": mapping.aliases,
+        "solver_instructions": mapping.solver_instructions,
         "output_contract": mapping.output_contract,
         "evaluator": mapping.evaluator,
     }
@@ -232,6 +233,9 @@ def build_items(
         _, choices, _ = _mapped_value(row, mapping, "choices")
         _, gold, _ = _mapped_value(row, mapping, "gold")
         _, aliases, _ = _mapped_value(row, mapping, "aliases")
+        _, solver_instructions, _ = _mapped_value(
+            row, mapping, "solver_instructions"
+        )
         _, output_contract, _ = _mapped_value(row, mapping, "output_contract")
         _, evaluator, _ = _mapped_value(row, mapping, "evaluator")
         items.append(
@@ -243,6 +247,7 @@ def build_items(
                 choices=_as_list(choices) or None,
                 gold=gold,
                 aliases=_as_list(aliases),
+                solver_instructions=solver_instructions,
                 output_contract=output_contract,
                 evaluator=evaluator,
                 metadata=metadata,

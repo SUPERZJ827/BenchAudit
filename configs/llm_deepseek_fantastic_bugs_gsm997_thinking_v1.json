@@ -1,0 +1,15 @@
+{
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "api_key_env": "DEEPSEEK_API_KEY",
+  "temperature": 0.0,
+  "timeout": 120,
+  "max_tokens": 32000,
+  "max_retries": 3,
+  "n_votes": 1,
+  "vote_temperature": 0.3,
+  "thinking": "enabled",
+  "max_api_attempts": 8000,
+  "observed_token_stop": 18000000,
+  "dry_run": false
+}
