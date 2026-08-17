@@ -211,6 +211,72 @@ def main() -> int:
                 '“我们的异议”是对五次运行判词的人工整合，原始判词可在每条末尾展开核对。</p>')
     body.append('</section>')
 
+    body.append('<section class="census"><h2>评测器根本不检查数值和布尔参数</h2>'
+                '<div class="claim"><div class="label label--petrol">机械证据 · confirmed 级 · 无模型判断参与</div>'
+                '<p class="claim__headline">把纬度 34.0522 改成 1033.0522，官方评测器判为正确。</p>'
+                '<div class="claim__body">对 99 条可执行条目的 331 个顶层参数逐个做定向变异后重放官方 '
+                '<code>normal_checker</code>，发现数值型与布尔型参数的取值<b>完全不参与比较</b>。'
+                '这不是逐条的标注问题，而是评测器层面的缺陷，影响整个题型，也影响 ACEBench 全集。</div></div>'
+                '<h3>实测</h3>'
+                '<div class="tablewrap"><table><thead><tr><th scope="col">条目</th><th scope="col">参数</th>'
+                '<th scope="col">改动</th><th scope="col">评测器</th></tr></thead><tbody>'
+                '<tr><td><code>normal_atom_number::16</code></td><td><code>latitude</code></td>'
+                '<td>34.0522 → 1033.0522（不存在的纬度）</td><td class="verdict-ok">接受</td></tr>'
+                '<tr><td><code>normal_atom_number::16</code></td><td><code>longitude</code></td>'
+                '<td>-118.2437 → 880.7563</td><td class="verdict-ok">接受</td></tr>'
+                '<tr><td><code>normal_atom_number::35</code></td><td><code>targetYear</code></td>'
+                '<td>2024 → 3023</td><td class="verdict-ok">接受</td></tr>'
+                '<tr><td><code>normal_atom_number::4</code></td><td><code>patternId</code></td>'
+                '<td>303 → 1302</td><td class="verdict-ok">接受</td></tr>'
+                '<tr><td><code>normal_atom_bool::2</code></td><td><code>include_case_studies</code></td>'
+                '<td>True → False</td><td class="verdict-ok">接受</td></tr>'
+                '</tbody></table></div>'
+                '<h3>按参数类型的普查结果</h3>'
+                '<div class="tablewrap"><table><thead><tr><th scope="col">值类型</th><th scope="col">参数数</th>'
+                '<th scope="col">改值后仍被接受</th><th scope="col">读法</th></tr></thead><tbody>'
+                '<tr><th scope="row"><code>int</code></th><td>16</td><td>16 / 16</td><td>取值不被检查</td></tr>'
+                '<tr><th scope="row"><code>bool</code></th><td>5</td><td>5 / 5</td><td>取值不被检查</td></tr>'
+                '<tr><th scope="row"><code>float</code></th><td>2</td><td>2 / 2</td><td>取值不被检查</td></tr>'
+                '<tr><th scope="row"><code>str</code></th><td>181</td><td>138 / 181</td>'
+                '<td>追加后缀多数仍通过，疑为包含式匹配</td></tr>'
+                '<tr><th scope="row"><code>dict</code></th><td>78</td><td>0 / 78</td><td>确实被检查</td></tr>'
+                '<tr><th scope="row"><code>list</code></th><td>48</td><td>0 / 48</td><td>确实被检查</td></tr>'
+                '</tbody></table></div>'
+                '<h3>受影响的题型</h3>'
+                '<p>16 条已探测条目至少含一个取值不被检查的数值或布尔参数，'
+                '其中 <b>10 条被人工标注为“无问题”</b>——标注者审过这些题，没有发现这一点，'
+                '因为这个缺陷在标答里看不出来，只有<b>执行评测器</b>才会暴露。</p>'
+                '<div class="tablewrap"><table><thead><tr><th scope="col">题型</th>'
+                '<th scope="col">受影响条目</th><th scope="col">占该题型</th></tr></thead><tbody>'
+                '<tr><th scope="row"><code>normal_atom_number</code></th><td>16 / 35 / 4 / 44 / 46 / 5</td>'
+                '<td class="verdict-bad">6 / 6 = 100%</td></tr>'
+                '<tr><th scope="row"><code>normal_atom_bool</code></th><td>2 / 33</td>'
+                '<td class="verdict-bad">2 / 2 = 100%</td></tr>'
+                '<tr><th scope="row"><code>normal_similar_api</code></th><td>0 / 17 / 47</td><td>3 条</td></tr>'
+                '<tr><th scope="row"><code>normal_preference</code></th><td>38 / 44</td><td>2 条</td></tr>'
+                '<tr><th scope="row">其余三个题型</th><td>各 1 条</td><td>3 条</td></tr>'
+                '</tbody></table></div>'
+                '<p><b>这两个题型存在的全部目的就是考数值参数和布尔参数。</b>'
+                '一个模型只要调对函数、参数类型正确，数值和布尔值随便填都算全对。</p>'
+                '<h3>两个独立方法互证</h3>'
+                '<p>今天的变异探测是从<b>行为侧</b>观察。而 8 月 17 日的 evaluator route 指纹早已从'
+                '<b>代码路径侧</b>记录了同一件事，只是当时没有读出它的含义：</p>'
+                '<pre class="code"><code>181 个 str    →  type_checker → string_checker:normal   有值比较\n'
+                ' 78 个 dict   →  type_checker → dict_checker           有值比较\n'
+                ' 18 个 number →  type_checker                          ← 只比较类型\n'
+                '  5 个 bool   →  type_checker                          ← 只比较类型</code></pre>'
+                '<p>数值与布尔参数的比较调用链止于 <code>type_checker</code>，没有任何值比较环节。</p>'
+                '<h3>顺带确认的一件事</h3>'
+                '<p>同一次普查里，<b>64 个可选参数省略后 100% 被接受，零例外</b>。'
+                '这在全 benchmark 范围上证实了本页上方三条争议条目'
+                '（<code>::22</code>、<code>::24</code>、<code>::49_0</code>）的性质：'
+                '标答多填可选参数不会让任何解题者失分，属于外观问题而非评分缺陷。</p>'
+                '<p class="note">范围限制：普查覆盖 99 条可执行条目的<b>顶层</b>参数；'
+                '3 条因评测器加载失败未覆盖，嵌套对象内部的参数也未逐层展开。'
+                '产物见 <code>reports/agentsuite_acebench_tolerance_census_20260817/</code>，'
+                '可由 <code>scripts/census_agentsuite_acebench_tolerance.py</code> 复算。</p>'
+                '</section>')
+
     body.append('<section class="pairs"><h2>三组同机制、相反标签</h2>'
                 '<p>最值得注意的不是单条判断分歧，而是<b>同一种缺陷机制在不同条目上得到了相反的标注</b>。</p>'
                 '<div class="tablewrap"><table><thead><tr><th scope="col">缺陷机制</th>'
@@ -254,7 +320,7 @@ def main() -> int:
             '<div class="page">\n<header class="masthead">'
             '<p class="eyebrow">AgentSuite · ACEBench 102 条人工核验子集</p>'
             '<h1>标答里的六处争议</h1>'
-            '<p class="standfirst">作者判定「无问题」，但五次独立审计反复指出同样的毛病</p>'
+            '<p class="standfirst">作者判定「无问题」的六条标答，以及一个连标注者都没看到的评测器盲区</p>'
             '<p class="meta">2026-08-17 · 证据取自冻结运行 R1–R5 · '
             '标签源 <code>pipeline/human_labelled_ground_truth/ACEBench.csv</code></p>'
             '</header>\n<main>\n' + "\n".join(body) + '\n</main>\n</div>\n</body>\n</html>\n')
@@ -384,6 +450,15 @@ tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
 .conf{color:var(--muted);font-variant-numeric:tabular-nums}
 .caveat{border-top:1px solid var(--rule);padding-top:2rem}
 .caveat p{color:var(--ink-2);font-size:.925rem}
+h3{font-family:var(--serif);font-size:1.12rem;margin:.6rem 0 0;font-weight:600}
+.claim{background:var(--petrol-soft);border:1px solid var(--petrol);border-radius:6px;padding:1rem 1.15rem}
+.label--petrol{color:var(--petrol)}
+.claim__headline{font-family:var(--serif);font-size:1.15rem;font-weight:600;margin:0 0 .5rem;
+  color:var(--ink);text-wrap:balance}
+.claim__body{font-size:.925rem;line-height:1.7;color:var(--ink-2)}
+.verdict-ok{color:var(--brass);font-weight:600;white-space:nowrap}
+.verdict-bad{color:var(--petrol);font-weight:600;white-space:nowrap}
+.census td code,.census th code{font-size:.8rem}
 .warn{border-left:3px solid var(--brass);padding-left:1rem}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 """
