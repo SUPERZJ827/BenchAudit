@@ -13,6 +13,7 @@ from .evaluators import (
     scores_a_scalar_answer,
     item_scoring,
     CHOICE_LABELS,
+    CONTRACT_BASIS_PROFILE,
     MULTI_VALUE_CARDINALITIES,
     answer_contract,
     answer_variants,
@@ -45,7 +46,17 @@ class EvaluatorReplayChecker(Checker):
     def check(self, item: BenchmarkItem, root: Path | None = None) -> Iterable[Violation]:
         if item.gold in (None, "") or item.evaluator in (None, "", [], {}):
             return []
-        if not evaluate_answer(item.gold, item.gold, item.choices, item.evaluator, scoring=item_scoring(item)):
+        scoring = item_scoring(item)
+        if not evaluate_answer(item.gold, item.gold, item.choices, item.evaluator, scoring=scoring):
+            # Which source decided the comparison decides how loudly this reads.
+            # A profile derived the comparison from the benchmark's own rows, so
+            # the rejection is a claim about the benchmark.  Any other basis is
+            # a string our adapter wrote or a shape we guessed, and a severity
+            # of its own making would overstate what was observed.
+            basis = answer_contract(
+                item.gold, item.choices, item.evaluator, scoring=scoring
+            )["basis"]
+            grounded = basis == CONTRACT_BASIS_PROFILE
             yield _violation(
                 item,
                 "gold_rejected_by_evaluator",
@@ -54,9 +65,11 @@ class EvaluatorReplayChecker(Checker):
                     "gold": item.gold,
                     "choices": item.choices,
                     "evaluator": item.evaluator,
+                    "contract_basis": basis,
                     "evidence_level": "declared_evaluator_replay",
                     "proof_schema_version": "1.0",
                 },
+                severity=None if grounded else "review",
                 repair="Fix the gold representation or evaluator parsing contract.",
                 method="evaluator_replay",
             )
