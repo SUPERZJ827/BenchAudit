@@ -76,6 +76,18 @@ def main() -> int:
     L.append("五个实验臂全部在同一批 102 条上测量，用同一个计分口径。COBA 一臂是我们本地复现其公开 pipeline 得到的逐条预测，不是引用其论文报告值。")
     L.append("")
 
+    L.append("## 怎么读下面的表")
+    L.append("")
+    L.append("**两把尺子。** 原 AgentSuite 标签认定 102 条里有 51 条缺陷。变异探针又机械证明了另外 12 条也有缺陷"
+             "（把纬度 34.0522 改成 1033.0522，官方评测器照样判对，说明这些参数的取值根本不参与比较），"
+             "而这 12 条人工都标为无问题。把它们计入后得到 63 个阳性，即“机械修正标签”。"
+             "设两把尺子是因为：只用原标签时，一个系统发现了那 12 条真缺陷反而会被记成假阳。"
+             "修正口径只存在于本地，不能与任何已发表数字并列。")
+    L.append("")
+    L.append("**两个 F1。** 同一臂重复跑 N 次：单跑中位 F1 是每次各算一个 F1 取中位数，回答“只跑一次大概拿到什么”；"
+             "并集 F1 是 N 次结果合并、任意一次报过即算报出，回答“愿意跑 N 次最多拿到什么”。"
+             "并集召回必然更高，假阳也会累加。COBA 一栏没有并集，因为只跑了一次。")
+    L.append("")
     for label, positive in (("原 AgentSuite 标签", pos), ("机械修正标签（+12 条 evaluator 缺陷）", corrected)):
         L.append(f"## 口径一：{label}" if positive is pos else f"## 口径二：{label}")
         L.append("")
@@ -103,15 +115,37 @@ def main() -> int:
     for i in (1, 2, 3):
         p, c = tokens(GEM / f"run_r{i}/report.json")
         gp += p; gc += c
-    L.append(f"| DeepSeek + 通用（修复后） | deepseek-v4-flash thinking | 输入 {tp_//6:,} / 输出 {tc_//6:,} token | 单价待核 | 否 |")
+    idle = tp_/6/1e6*1.5 + tc_/6/1e6*4.5
+    coba102 = coba_cost/1023*102*7.2
+    L.append(f"| DeepSeek + 通用（修复后） | deepseek-v4-flash thinking | 输入 {tp_//6:,} / 输出 {tc_//6:,} token | **{idle:.2f} 元**（空闲时段） | 否 |")
     L.append(f"| Gemini + 通用 | gemini-2.5-pro | 输入 {gp//3:,} / 输出 {gc//3:,} token | 约 ${(gp/3/1e6*1.25 + gc/3/1e6*10):.2f} | 否 |")
-    L.append(f"| COBA 完整 pipeline | gemini-2.5-pro | 1023 条全量 | **${coba_cost}**（合 102 条 ${coba_cost/1023*102:.2f}） | **是** |")
+    L.append(f"| COBA 完整 pipeline | gemini-2.5-pro | 1023 条全量 | **${coba_cost}** = {coba_cost*7.2:.0f} 元（合 102 条 {coba102:.2f} 元） | **是** |")
     L.append("")
-    L.append("COBA 的轨迹成本不在上表内：其 pipeline 以模型轨迹为输入，AgentSuite 公开了 30 个模型 × 1023 条轨迹，"
-             "这笔生成费用由其他人支付且未计入审计成本。我们的审计不需要任何模型跑过该 benchmark。")
+    L.append("DeepSeek V4 Flash 按官方价目：输入未命中 1.5 元/M（空闲时段）、输出 4.5 元/M（空闲时段），高峰时段翻倍。"
+             "我们六跑均在空闲时段、每跑全新缓存（`cache_hits=0`），故输入全部按未命中计价。美元按 7.2 折算，仅用于对照。")
     L.append("")
-    L.append("我们的输出 token（每跑约 44.5 万）多于 Gemini（约 21 万），成本优势来自单价而非用量。"
-             "并集口径的分数是按跑数成比例花钱换来的：六跑并集 = 六倍单跑成本。")
+    L.append("| 对比 | 我们 | COBA | 比值 |")
+    L.append("|---|---:|---:|---|")
+    L.append(f"| 102 条单跑 | {idle:.2f} 元 | {coba102:.2f} 元 | 我们便宜 **{coba102/idle:.1f}×** |")
+    L.append(f"| 我们六跑并集 vs 其单跑 | {idle*6:.2f} 元 | {coba102:.2f} 元 | 仅贵 **{idle*6/coba102:.2f}×** |")
+    L.append(f"| 1023 条全量单跑 | {idle*1023/102:.0f} 元 | {coba_cost*7.2:.0f} 元 | 我们便宜 **{coba_cost*7.2/(idle*1023/102):.1f}×** |")
+    L.append("")
+    L.append(f"因此“并集要六倍成本”是有误导性的表述：六倍的是一个便宜五倍的基数。实际账面是——"
+             f"我们跑六次 {idle*6:.2f} 元得到 F1 .907，COBA 跑一次 {coba102:.2f} 元得到 .863，多花约两成钱多拿 4.4 个点。"
+             f"真正的论点不是“我们会用并集”，而是同等预算下我们能跑更多次：COBA 若也跑六次需约 {coba102*6:.0f} 元。")
+    L.append("")
+    L.append("### 轨迹成本：不在上表内，但确实存在")
+    L.append("")
+    L.append("COBA 的 pipeline 以模型轨迹为输入，不能脱离轨迹运行。AgentSuite 公开了 30 个模型 × 1023 条轨迹，"
+             "我们下载是免费的，但这笔生成费用由他人支付，且未计入其审计成本。")
+    L.append("")
+    L.append("量级估算（**估算，非实测**）：轨迹文件的 `system` 字段为空，只存了用户消息与助手回复，"
+             "因此生成时的真实输入远大于存档内容——它还包含 ACEBench 约 9,000 字符的 agent system prompt 与全部工具 schema。"
+             "按我们实测同类 prompt 的 Gemini 用量（约 3,000 输入 token/条）与其 `sampling_params.max_tokens=1200` 推算，"
+             "1023 条约需 3.1M 输入 + 至多 1.2M 输出，按 $1.25/M 与 $10/M 计约 **$16**，"
+             "与运行一次 COBA 审计本身（$17.62）同一量级。按 30 个模型计则是数十倍。")
+    L.append("")
+    L.append("我们的审计不需要任何模型跑过该 benchmark，这一项为零。")
     L.append("")
 
     ours = set().union(*arms["DeepSeek + 通用 prompt（修复后）"])
@@ -167,8 +201,9 @@ def main() -> int:
 
     L.append("## 我们的不足")
     L.append("")
-    L.append("1. **单跑落后。**原标签口径下 COBA 单跑 F1 .863，我们修复后单跑中位 .846。超过它的 .907 是六跑并集，"
-             "即六倍成本换来的，而并集是 COBA 同样可以使用的通用手段。")
+    L.append("1. **单跑落后。**原标签口径下 COBA 单跑 F1 .863，我们修复后单跑中位 .846。"
+             "超过它的 .907 来自六跑并集，而并集是 COBA 同样可以使用的通用手段——"
+             "只是在同等预算下我们能跑更多次（见成本一节）。")
     L.append("2. **prompt 更弱。**同模型同输入下，AgentSuite 的专用 prompt 中位 TP 45、我们的通用 prompt 41，"
              "三次配对差 +4/+6/+4 方向一致。我们的优势从来不在 prompt 上。")
     L.append("3. **换更强模型没有直接收益。**Gemini + 我们的 prompt 单跑中位 F1 低于 DeepSeek；"
