@@ -24,3 +24,16 @@ IEEE-conference-template-062824/
 data/
 dataagnet/
 图片和附件/
+
+# Only documents that explain the code or the repository are published.
+# Reports, summaries and analyses stay local: they quote benchmark content, name
+# specific annotation defects in third-party datasets, and carry comparisons
+# against other groups' systems. Code, scripts and tests remain tracked so the
+# work is still reproducible.
+/*.md
+!/README.md
+!/CLAUDE.md
+!/DESIGN.md
+!/EXPERIMENT_ENV.md
+docs/
+scratchpad/*.md
