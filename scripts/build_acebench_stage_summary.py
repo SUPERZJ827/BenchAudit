@@ -52,6 +52,17 @@ def main() -> int:
     pro = sem(REPO / "reports/agentsuite_acebench_102_deepseek_pro_20260818/run_r1/report.json")
     pr = metrics(pro, pos, scope)
     prc = metrics(pro, corrected, scope)
+    manual = {"agentsuite-ace::" + x for x in (
+        "normal_single_turn_single_function::59", "normal_single_turn_single_function::91",
+        "normal_multi_turn_user_switch::11_1", "normal_single_turn_parallel_function::1",
+        "normal_preference::34", "normal_atom_bool::33",
+        "normal_single_turn_parallel_function::14", "normal_atom_bool::35")}
+    full = corrected | manual
+    fu = metrics(union, full, scope)
+    fpro = metrics(pro, full, scope)
+    fcb = metrics(coba_pred & scope, full, scope)
+    fmed = [st.median([x[k] for x in [metrics(r, full, scope) for r in runs]]) for k in range(5)]
+    cmed = [st.median([x[k] for x in [metrics(r, corrected, scope) for r in runs]]) for k in range(5)]
     tin = tout = 0
     for i in range(1, 7):
         llm = json.loads((POST_TOK / f"run_r{i}/report.json").read_text(encoding="utf-8"))["run_metadata"]["llm"]
@@ -126,14 +137,44 @@ def main() -> int:
       f"COBA 的 {cb[4]:.3f}，花费 6.53 元不到其 {coba102:.2f} 元的六成。"
       "但两者都只跑了一次，谁的跑间波动更大都未测量。")
     a("")
-    a("机械修正标签口径（把 12 条可执行证明的 evaluator 缺陷计入阳性，共 63 个阳性；该口径只存在于本地，"
-      "没有对应的已发表数字）：")
+    a("### 三种参照标签下的结果")
     a("")
-    a("| | COBA 本地复现 | Pro 单跑 | Flash 六跑并集 |")
+    a("参照标签本身在这 102 条上有疏漏，因此同一批预测在不同尺子下排名不同。三种尺子依次是：")
+    a("")
+    a(f"- **原标签**（{len(pos)} 阳性）：AgentSuite 的人工标注，唯一有对应已发表数字、且我们未参与构造的尺子；")
+    a(f"- **机械修正**（{len(corrected)} 阳性）：加上变异探针对全部 102 条统一扫描所证明的 "
+      f"{len(corrected - pos)} 条 evaluator 缺陷；")
+    a(f"- **机械+人工核验**（{len(full)} 阳性）：再加上逐条读原始题面、标答与 schema 后确认的 "
+      f"{len(full - corrected)} 条标注疏漏。")
+    a("")
+    a("| 臂 | 原标签 | 机械修正 | 机械+人工核验 |")
     a("|---|---:|---:|---:|")
-    a(f"| Precision | {cbc[2]:.3f} | {prc[2]:.3f} | {uc[2]:.3f} |")
-    a(f"| Recall | {cbc[3]:.3f} | {prc[3]:.3f} | {uc[3]:.3f} |")
-    a(f"| F1 | {cbc[4]:.3f} | {prc[4]:.3f} | **{uc[4]:.3f}** |")
+    a(f"| COBA 单跑 | {cb[4]:.3f} | **{cbc[4]:.3f}** | {fcb[4]:.3f} |")
+    a(f"| Pro 单跑 | {pr[4]:.3f} | {prc[4]:.3f} | **{fpro[4]:.3f}** |")
+    a(f"| Flash 六跑并集 | **{u[4]:.3f}** | **{uc[4]:.3f}** | **{fu[4]:.3f}** |")
+    a(f"| Flash 单跑中位 | {med[4]:.3f} | {cmed[4]:.3f} | {fmed[4]:.3f} |")
+    a("")
+    a("假阳数随尺子的变化最能说明问题：")
+    a("")
+    a("| 臂 | 原标签 FP | 机械修正 FP | 机械+人工核验 FP |")
+    a("|---|---:|---:|---:|")
+    a(f"| COBA 单跑 | {cb[1]} | {cbc[1]} | **{fcb[1]}** |")
+    a(f"| Pro 单跑 | {pr[1]} | {prc[1]} | **{fpro[1]}** |")
+    a(f"| Flash 六跑并集 | {u[1]} | {uc[1]} | **{fu[1]}** |")
+    a("")
+    a("**三个系统的假阳几乎全部消失。**它们被记为错误的判断，绝大多数是参照标签漏标所致，"
+      "而不是系统判断有误。这个结论不依赖于谁的分数更高。")
+    a("")
+    a("排名在三种尺子下并不一致：机械修正口径下 COBA 高于 Pro，全口径下则相反。"
+      "原因是机械修正只认变异探针证明的 12 条，而 COBA 的 7 个假阳中有 3 条落在其中、"
+      "Pro 的 8 个中只有 1 条落在其中，该口径因此结构性地偏向 COBA。"
+      "补上人工核验后 Pro 独有的两条真疏漏才被计入，差距随之翻转。")
+    a("")
+    a("两条限制必须同时记住：三个臂的假阳虽已全部有定性（COBA 独有的那条由变异探针机械证明，"
+      "不存在只审我们、不审它的问题），但**三臂都未报出的 45 条阴性从未被核验**，"
+      "那里若仍有漏标会同时压低所有臂的召回；而且全口径下精度几乎都是 1.000，"
+      "F1 的差异已完全由召回决定，这把尺子对精度不再有区分力。"
+      "因此主结论仍以原标签为准，后两种口径作为“参照标签有疏漏”的证据链。")
     a("")
     a("### 复现细节")
     a("")
