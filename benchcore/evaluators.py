@@ -66,6 +66,11 @@ def normalize_choice_for_duplicate(value: Any) -> str:
 def parse_number(value: Any) -> float | None:
     if value is None:
         return None
+    if isinstance(value, dict):
+        # A structured reference is not a numeric answer.  Stringifying one and
+        # taking its first digits reported a date inside a function argument as
+        # the answer, which then typed the whole item as a numeric task.
+        return None
     text = str(value).replace(",", "")
     match = re.search(r"[-+]?\d+(?:\.\d+)?", text)
     if not match:
