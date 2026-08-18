@@ -19,7 +19,7 @@ VERDICT = {
     "normal_single_turn_parallel_function::1": ("标注疏漏", "标答把账户余额当成存款金额；省略该参数会被 evaluator 拒绝。"),
     "normal_preference::34": ("标注疏漏", "profile 记录了两项饮食偏好，标答只保留一项，而该字段无 enum 限制、本可同时表达。"),
     "normal_atom_bool::33": ("标注疏漏", "标答填入用户从未提及的三个开关，且与用户给出的数据方向相反；这三个参数的取值 evaluator 根本不检查。"),
-    "normal_atom_object_deep::38": ("我们误报（事实错误）", "我们的判词称『题面未给出该罚金数值』，但题面原文写着 R789/R321/R654 『require a 5 days advance notice **without penalty**』——`penalty: 0` 有直接来源。这不是判断分歧，是我们读漏了题面。"),
+    "normal_atom_object_deep::38": ("我们误报", "此条经过两次更正，最终判定的理由与最初记录的都不同。`sameDay.penalty` 在 schema 中是**必填**字段，解题者没有不填的选项；用户明确说 R789/R321/R654『same-day cancellation is not allowed』，使 `0` 成为唯一站得住的填法；变异探针进一步显示 evaluator 根本不检查该字段（`10 → 1009` 仍被接受），填什么都不影响任何解题者的得分。需要澄清的是，用户那句『5 days advance notice without penalty』复述的是 schema 中 `daysInAdvance` 的定义（『Minimum number of days in advance required to cancel without penalty』），并不是在陈述 same-day 罚金——所以我们原判词『该值无来源』本身没说错，错的是把『无来源』直接当成了缺陷。正确判据应为：无来源的值只有在**没有唯一站得住的填法**时才构成缺陷。"),
     "normal_multi_turn_user_adjust::37_2": ("我们误报", "比较操作本身对称，且前文先出现 Alice。模型自己在同一跑里也写了『reference is otherwise aligned』，属低置信度犹豫。"),
 }
 ORDER = list(VERDICT)
