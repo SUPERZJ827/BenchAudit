@@ -15,6 +15,8 @@ OUT = REPO / "docs/research/ACEBENCH_全臂对比矩阵_20260818.md"
 PILOT = REPO / "reports/agentsuite_acebench_102_deepseek_thinking_pilot_20260816"
 KSCAN = REPO / "reports/agentsuite_acebench_102_thinking_k_scan_20260817"
 POST = REPO / "reports/agentsuite_acebench_102_deepseek_postfix_20260818"
+GOLD_PLAIN = REPO / "reports/agentsuite_acebench_102_deepseek_gold_oracle_20260818"
+GOLD_LABELLED = REPO / "reports/agentsuite_acebench_102_deepseek_gold_labeled_20260818"
 GEM = REPO / "reports/agentsuite_acebench_102_gemini_generic_20260817"
 AB = REPO / "reports/agentsuite_acebench_102_prompt_specialization_thinking_ab_20260817"
 
@@ -59,6 +61,8 @@ def main() -> int:
         "DeepSeek + 通用 prompt（修复前）": [candidates(p / "report.json") for p in
             (PILOT / "run", PILOT / "run_r2", PILOT / "run_r3", KSCAN / "run_r4", KSCAN / "run_r5", KSCAN / "run_r6")],
         "DeepSeek + 通用 prompt（修复后）": [candidates(POST / f"run_r{i}/report.json") for i in range(1, 7)],
+        "DeepSeek + 通用（开 ORACLE，标注缺失）": [candidates(GOLD_PLAIN / f"run_r{i}/report.json") for i in range(1, 7)],
+        "DeepSeek + 通用（开 ORACLE，标注完整）": [candidates(GOLD_LABELLED / f"run_r{i}/report.json") for i in range(1, 7)],
         "DeepSeek + AgentSuite 专用 prompt": [set(ab[f"specialized_r{i}"]["overall"]["tp_ids"])
             | set(ab[f"specialized_r{i}"]["overall"]["fp_ids"]) for i in (1, 2, 3)],
         "Gemini 2.5 Pro + 通用 prompt": [candidates(GEM / f"run_r{i}/report.json") for i in (1, 2, 3)],

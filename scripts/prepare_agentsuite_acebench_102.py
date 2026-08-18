@@ -310,6 +310,7 @@ def main() -> int:
             "involved_classes",
             "milestones"
         ],
+        "gold": "reference_solution",
         "output_contract": "output_contract",
         "solver_instructions": "solver_instructions",
         "evaluator": "evaluator",

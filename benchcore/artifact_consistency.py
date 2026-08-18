@@ -2125,10 +2125,21 @@ def parse_maybe_json(value: Any) -> Any:
 def format_reference(item: BenchmarkItem) -> str:
     parts: list[str] = []
     if item.gold not in (None, ""):
-        parts.append("GOLD / REFERENCE:\n" + preview(item.gold, 1800))
+        label = "GOLD / REFERENCE"
+        if isinstance(item.gold, (dict, list)):
+            # Same disclaimer the raw-field branch carries.  Without it an
+            # auditor reads the normalized rendering as the literal string the
+            # solver was told to emit, and reports the mismatch every time.
+            label += " (normalized structure, not the solver's output format)"
+        parts.append(f"{label}:\n" + preview(item.gold, 1800))
     raw = item.raw or {}
     for key in ("patch", "reference_solution", "solution", "gold_patch", "test_patch"):
         if key in raw and raw[key] not in (None, ""):
+            if raw[key] == item.gold:
+                # Already shown above as the gold answer.  A mapping that points
+                # gold at one of these fields would otherwise print the same
+                # reference twice, which reads as two separate artifacts.
+                continue
             label = key
             if isinstance(raw[key], (dict, list)):
                 # Structured references are shown in our normalized form, which

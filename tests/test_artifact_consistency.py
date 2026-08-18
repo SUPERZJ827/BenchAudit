@@ -1003,3 +1003,34 @@ def test_task_budget_is_configurable_and_no_longer_the_smallest() -> None:
     assert checker.task_chars == 6000
     assert checker.task_chars > checker.reference_chars
     assert CrossArtifactConsistencyChecker(client=None, task_chars=100).task_chars == 100
+
+
+def test_reference_is_not_printed_twice_when_gold_points_at_it() -> None:
+    from benchcore.artifact_consistency import format_reference
+    from benchcore.schema import BenchmarkItem
+
+    call = {"Tool": {"a": 1}}
+    item = BenchmarkItem(item_id="i", raw={"reference_solution": call}, gold=call, context={})
+    rendered = format_reference(item)
+    assert rendered.count('"Tool"') == 1
+    assert rendered.startswith("GOLD / REFERENCE")
+
+
+def test_a_differing_raw_reference_is_still_shown_alongside_gold() -> None:
+    from benchcore.artifact_consistency import format_reference
+    from benchcore.schema import BenchmarkItem
+
+    item = BenchmarkItem(item_id="i", raw={"patch": "diff --git a b"}, gold="42", context={})
+    rendered = format_reference(item)
+    assert "GOLD / REFERENCE:" in rendered and "patch:" in rendered
+
+
+def test_structured_gold_carries_the_same_disclaimer_as_a_raw_reference() -> None:
+    from benchcore.artifact_consistency import format_reference
+    from benchcore.schema import BenchmarkItem
+
+    structured = BenchmarkItem(item_id="i", raw={}, gold={"Tool": {"a": 1}}, context={})
+    scalar = BenchmarkItem(item_id="j", raw={}, gold="42", context={})
+    assert "normalized structure, not the solver's output format" in format_reference(structured)
+    assert "normalized structure" not in format_reference(scalar)
+    assert format_reference(scalar).startswith("GOLD / REFERENCE:")
