@@ -5,6 +5,8 @@ import json
 import re
 import threading
 from pathlib import Path
+
+from .coverage import AuditEligibility
 from typing import Any, Iterable, Mapping
 
 from .checkers import Checker, _violation
@@ -568,6 +570,18 @@ class BaseLLMAuditor(Checker):
         self._thread_state = threading.local()
         self.last_error = None
 
+    def audit_eligibility(self, item: BenchmarkItem, root: Path | None = None) -> AuditEligibility:
+        """Declare the precondition each subclass already enforces inside check().
+
+        A gate that lives only in check() returns no findings and the ledger
+        records `completed_no_finding`, which reads as "examined and found
+        nothing". Declaring the precondition here makes the ledger say
+        `ineligible` instead, so coverage is not overstated.
+        """
+        if not item.task:
+            return AuditEligibility.not_applicable("task text is absent")
+        return AuditEligibility.applicable("task text is present")
+
     @property
     def last_error(self) -> str | None:
         return getattr(self._thread_state, "last_error", None)
@@ -605,6 +619,13 @@ class BaseLLMAuditor(Checker):
 
 
 class GoldLLMAuditor(BaseLLMAuditor):
+    def audit_eligibility(self, item: BenchmarkItem, root: Path | None = None) -> AuditEligibility:
+        if not item.task:
+            return AuditEligibility.not_applicable("task text is absent")
+        if item.gold in (None, ""):
+            return AuditEligibility.not_applicable("no scalar gold answer to audit")
+        return AuditEligibility.applicable("task and gold answer are both present")
+
     name = "llm_gold_audit"
     prompt = GOLD_SYSTEM_PROMPT
 
@@ -635,6 +656,13 @@ class GoldLLMAuditor(BaseLLMAuditor):
 
 
 class EvidenceGoldLLMAuditor(BaseLLMAuditor):
+    def audit_eligibility(self, item: BenchmarkItem, root: Path | None = None) -> AuditEligibility:
+        if not item.task:
+            return AuditEligibility.not_applicable("task text is absent")
+        if item.gold in (None, ""):
+            return AuditEligibility.not_applicable("no scalar gold answer to audit")
+        return AuditEligibility.applicable("task and gold answer are both present")
+
     """Blind solve first, then use adversarial evidence only when risk warrants it."""
 
     name = "llm_gold_audit"
@@ -876,6 +904,12 @@ class QuestionClarityLLMAuditor(BaseLLMAuditor):
 
 
 class AnswerMultiplicityLLMAuditor(BaseLLMAuditor):
+    def audit_eligibility(self, item: BenchmarkItem, root: Path | None = None) -> AuditEligibility:
+        if len(declared_accepted_answers(item)) < 2:
+            return AuditEligibility.not_applicable(
+                "fewer than two declared accepted answers to compare")
+        return AuditEligibility.applicable("the benchmark declares several accepted answers")
+
     """Classify the relationship between several declared accepted answers.
 
     A benchmark that ships more than one accepted answer is stating a fact
@@ -926,6 +960,13 @@ class AnswerMultiplicityLLMAuditor(BaseLLMAuditor):
 
 
 class OptionSetLLMAuditor(BaseLLMAuditor):
+    def audit_eligibility(self, item: BenchmarkItem, root: Path | None = None) -> AuditEligibility:
+        if not item.task:
+            return AuditEligibility.not_applicable("task text is absent")
+        if not item.choices:
+            return AuditEligibility.not_applicable("no declared choice set to audit")
+        return AuditEligibility.applicable("task and choice set are both present")
+
     name = "llm_option_set"
     prompt = OPTION_SYSTEM_PROMPT
 

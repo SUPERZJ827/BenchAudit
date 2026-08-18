@@ -77,6 +77,19 @@ def main() -> int:
     a("")
     a(f"**51 条人工标注的缺陷中找回 {u[0]} 条，召回 {u[3]:.1%}。**")
     a("")
+    a("换用更贵的 DeepSeek V4 Pro（同 prompt、同输入，逐条 cache key 验证 prompt 完全一致）单跑一次：")
+    a("")
+    a("| 配置 | 跑数 | TP | FP | F1 | 费用 | 耗时 |")
+    a("|---|---:|---:|---:|---:|---:|---:|")
+    a(f"| Flash 单跑中位 | 6 | {med[0]:g} | {med[1]:g} | {med[4]:.3f} | 2.49 元 | 543 秒 |")
+    a("| **Pro 单跑** | 1 | **47** | 8 | **0.887** | 6.53 元 | 810 秒 |")
+    a(f"| Flash 六跑并集 | 6 | {u[0]} | {u[1]} | {u[4]:.3f} | 14.96 元 | — |")
+    a("")
+    a("Pro 的 47 高于 Flash 六跑的最高值 44，超出其波动区间（38–44），因此这不是采样噪声。"
+      "**一次 Pro 调用约等于三次 Flash 并集**（6.53 元对 7.47 元，F1 0.887 对 0.891），"
+      "但只需一次调用，省去多跑口径的解释负担。Pro 未找到任何 Flash 六跑全漏的条目，"
+      "也漏掉了 Flash 抓到的 2 个真阳——它不是能力更强，而是单次采样更接近多次并集。")
+    a("")
     a(f"并集的 {u[1]} 个假阳已逐条核验：**6 条是人工标注的疏漏**（其中 3 条有可执行的机械证据），"
       f"**2 条是我们的误报**。漏检 {len(pos - union)} 条。")
     a("")
@@ -218,6 +231,37 @@ def main() -> int:
     a("修掉该函数并把 `gold` 映射回来后：新解封的五项能力**六跑累计产出 0 条 finding**，"
       "而仅剩的 2 条漏检也毫无变化。**补齐能力覆盖率不会自动改善检测效果。**")
     a("")
+    a("### 全部 36 个检查器的实际状态")
+    a("")
+    a("把仓库中所有 `Checker` 实现与一次真实运行交叉比对：")
+    a("")
+    a("| 状态 | 数量 |")
+    a("|---|---:|")
+    a("| 产出 finding | **1**（`cross_artifact_consistency`，143 条，占全部产出） |")
+    a("| 执行但零产出 | 5 |")
+    a("| 逐条判定不适用 | 8 |")
+    a("| 构件缺失 | 2 |")
+    a("| 仅“选中”未执行 | 3 |")
+    a("| **未进入计划** | **17** |")
+    a("")
+    a("那 17 项分三类：11 个 LLM auditor 需要 `--llm-audit`，而我们从未传过该开关，"
+      "它们**从头到尾没有被创建**，谈不上判断数据集是否适合；"
+      "2 个是我们本轮新建、唯一产出过 `confirmed` 级证据的检查器"
+      "（`reference_schema_validation` 需专用开关，`reference_evaluator_mutation` 尚未接入 CLI）；"
+      "其余 4 个面向别的数据集类型。")
+    a("")
+    a("静态读取那 11 个 auditor 的内部闸门可知，若打开 `--llm-audit`：4 个会因缺少 "
+      "`gold` 或 `choices` 立即空转，6 个会真正发起调用，而后者多为标量答案设计，"
+      "在函数调用数据集上很可能批量误报。因此并未打开。")
+    a("")
+    a("### 一个已修复的账本失真")
+    a("")
+    a("这 11 个 auditor 中有 10 个未实现 `audit_eligibility`，继承了基类默认的“恒适用”，"
+      "真实前提写在 `check()` 第一行。若被启用，覆盖账本会记录 `completed_no_finding=102`"
+      "（读作“检查了全部 102 条，未发现问题”），而实际上它们进门即返回、一条都没看。"
+      "已为基类与四个前提更强的子类补上 `audit_eligibility`，"
+      "现在缺少 `gold`/`choices`/别名的条目会被如实记为 `ineligible`。")
+    a("")
 
     a("## 六、剩余缺口")
     a("")
@@ -248,6 +292,8 @@ def main() -> int:
     a("| 多跑并集规律与运行独立性 | `AGENTSUITE_ACEBENCH_多跑并集K扫描与运行独立性核查_20260817.md` | `compare_agentsuite_arms.py` |")
     a("| 争议条目原始证据 | `ACEBench_102_争议条目完整证据卷_20260817.md`、`acebench_contested_labels.html` | `dump_agentsuite_acebench_evidence.py` |")
     a("| 轨迹分歧信号 | 本文第六节 | `derive_agentsuite_trajectory_signals.py` |")
+    a("| 全量 1023 条评测器缺陷 | `ACEBENCH_全量评测器缺陷_20260818.md` | `census_agentsuite_acebench_tolerance.py --all-items` |")
+    a("| 36 个检查器的实际状态 | 本文第五节 | `audit_acebench_capability_coverage.py` |")
     a("| COBA 本地复现 | `AgentSuite-main/coba_repro_20260818/receipt.json` | `AgentSuite-main/coba_repro_20260818/run_repro.sh` |")
     a("")
     OUT.write_text("\n".join(L) + "\n", encoding="utf-8")
