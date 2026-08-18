@@ -21,6 +21,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import argparse
 import json
 import sys
 from collections import Counter
@@ -32,6 +33,10 @@ ACE = Path("/home/zhoujun/llmdata/AgentSuite-main/ACEBench")
 AUDIT = REPO / "reports/agentsuite_acebench_102_v2_20260816/materialized/audit_input.jsonl"
 TRUTH = REPO / "reports/agentsuite_acebench_102_v2_20260816/materialized/sealed_truth.jsonl"
 OUT = REPO / "reports/agentsuite_acebench_tolerance_census_20260817"
+
+
+class EvaluatorCrash(RuntimeError):
+    """The benchmark's own evaluator raised instead of returning a verdict."""
 
 
 def load_probe_module():
@@ -71,6 +76,11 @@ def alternative(value: Any, spec: dict[str, Any] | None) -> Any:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--all-items", action="store_true",
+                        help="scan every item in the ACEBench source rather than the labelled subset")
+    parser.add_argument("--out-dir", type=Path, default=OUT)
+    args = parser.parse_args()
     module = load_probe_module()
     tasks = module.load_rows(ACE / "data_all/data_en", answer=False)
     answers = module.load_rows(ACE / "data_all/data_en/possible_answer", answer=True)
@@ -82,7 +92,10 @@ def main() -> int:
 
     truth = {json.loads(l)["id"]: int(json.loads(l)["is_issue"])
              for l in TRUTH.read_text(encoding="utf-8").splitlines() if l}
-    item_ids = [json.loads(l)["id"] for l in AUDIT.read_text(encoding="utf-8").splitlines() if l]
+    if args.all_items:
+        item_ids = [f"agentsuite-ace::{task}::{tid}" for task, tid in sorted(answers)]
+    else:
+        item_ids = [json.loads(l)["id"] for l in AUDIT.read_text(encoding="utf-8").splitlines() if l]
 
     rows: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
@@ -101,11 +114,21 @@ def main() -> int:
         question = task.get("question") or ""
 
         def evaluate(variant: dict[str, Any]) -> tuple[bool, Any]:
-            verdict = normal_checker(functions, module.normal_model_output(variant),
-                                     reference, question, task_name)
+            # The upstream checker raises on items whose reference names a
+            # function absent from the task's tool list, rather than returning a
+            # verdict.  Record that as an execution error and keep going.
+            try:
+                verdict = normal_checker(functions, module.normal_model_output(variant),
+                                         reference, question, task_name)
+            except Exception as exc:  # noqa: BLE001 - upstream failure is research output
+                raise EvaluatorCrash(f"{type(exc).__name__}: {exc}") from exc
             return bool(verdict.get("valid")), verdict.get("error")
 
-        ok, err = evaluate(copy.deepcopy(reference))
+        try:
+            ok, err = evaluate(copy.deepcopy(reference))
+        except EvaluatorCrash as exc:
+            errors.append({"item": item_id, "stage": "baseline", "error": str(exc)})
+            continue
         if not ok:
             errors.append({"item": item_id, "stage": "baseline", "error": err})
             continue
@@ -121,16 +144,27 @@ def main() -> int:
             for param, value in list(arguments.items()):
                 spec = properties.get(param) if isinstance(properties, dict) else None
                 is_required = param in required
-                row = {"item": item_id, "human_is_issue": truth[item_id],
+                row = {"item": item_id,
                        "call": call_name, "parameter": param, "required": is_required,
-                       "value_type": type(value).__name__}
+                       "value_type": type(value).__name__,
+                       "human_is_issue": truth.get(item_id)}
                 if not is_required:
+                    try:
+                        variant = copy.deepcopy(reference)
+                        variant[call_name].pop(param, None)
+                        row["omit_accepted"], row["omit_error"] = evaluate(variant)
+                    except EvaluatorCrash as exc:
+                        errors.append({"item": item_id, "stage": "omit",
+                                       "parameter": param, "error": str(exc)})
+                        continue
+                try:
                     variant = copy.deepcopy(reference)
-                    variant[call_name].pop(param, None)
-                    row["omit_accepted"], row["omit_error"] = evaluate(variant)
-                variant = copy.deepcopy(reference)
-                variant[call_name][param] = alternative(value, spec)
-                row["substitute_accepted"], row["substitute_error"] = evaluate(variant)
+                    variant[call_name][param] = alternative(value, spec)
+                    row["substitute_accepted"], row["substitute_error"] = evaluate(variant)
+                except EvaluatorCrash as exc:
+                    errors.append({"item": item_id, "stage": "substitute",
+                                   "parameter": param, "error": str(exc)})
+                    continue
                 rows.append(row)
 
     optional = [r for r in rows if not r["required"]]
@@ -153,15 +187,16 @@ def main() -> int:
         "substitution_accepted_items": sorted({r["item"] for r in sub_ok}),
         "value_type_distribution": dict(Counter(r["value_type"] for r in rows)),
     }
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "parameter_probes.jsonl").write_text(
+    OUT_DIR = args.out_dir
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    (OUT_DIR / "parameter_probes.jsonl").write_text(
         "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in rows),
         encoding="utf-8")
-    (OUT / "execution_errors.json").write_text(
+    (OUT_DIR / "execution_errors.json").write_text(
         json.dumps(errors, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    receipt = OUT / "receipt.json"
+    receipt = OUT_DIR / "receipt.json"
     summary["parameter_probes_sha256"] = hashlib.sha256(
-        (OUT / "parameter_probes.jsonl").read_bytes()).hexdigest()
+        (OUT_DIR / "parameter_probes.jsonl").read_bytes()).hexdigest()
     receipt.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in summary.items()
                       if k not in ("omission_rejected_items", "substitution_accepted_items")},
