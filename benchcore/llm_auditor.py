@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import dataclasses
 import json
+import math
 import re
 import threading
 from pathlib import Path
@@ -2108,12 +2110,279 @@ def question_violations(
     )
 
 
+_RATIONALE_NUMBER = r"[-+]?(?:\d[\d,]*(?:\.\d+)?|\.\d+)"
+_RATIONALE_ANSWER_PATTERN = re.compile(
+    rf"\b(?:(?:correct|final|derived)\s+)?answer\s+"
+    r"(?:is|should\s+be|=)\s*(?P<body>[^.!?;\n]{1,120})",
+    re.IGNORECASE,
+)
+_RATIONALE_ASKED_VALUE_PATTERN = re.compile(
+    rf"\b(?:question|task)\s+asks\b[^.!?]{{0,220}}?\bwhich\s+is\s+"
+    rf"(?P<value>{_RATIONALE_NUMBER})",
+    re.IGNORECASE,
+)
+_RATIONALE_DIFFERENCE_PATTERN = re.compile(
+    r"\b(?:final\s+)?difference\s*(?:is|=)\s*(?P<body>[^.!?;\n]{1,120})",
+    re.IGNORECASE,
+)
+_RATIONALE_EQUATION_PATTERN = re.compile(
+    rf"(?P<expression>[-+*/().,\d\s]+?)\s*=\s*"
+    rf"(?P<value>{_RATIONALE_NUMBER})(?![\d.])"
+)
+_RATIONALE_CORRECTION_PATTERN = re.compile(
+    r"\b(?:correction|correct(?:ion|ed)?|wait|should\s+be|not\s+\S+)\b",
+    re.IGNORECASE,
+)
+
+
+def quantity_response_consistency(
+    item: BenchmarkItem,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Compare a quantity response's declared answer with its own final claim.
+
+    The guard is deliberately conservative: it never reads the benchmark gold,
+    and it only rejects a response when a terminal numeric claim can be
+    extracted without semantic guessing.
+    """
+
+    base: dict[str, Any] = {
+        "status": "NOT_IDENTIFIABLE",
+        "derived_value": None,
+        "rationale_final_value": None,
+        "rule": None,
+    }
+    if str(result.get("solution_status", "")) != "solved":
+        return {**base, "reason": "solution_status_not_solved"}
+
+    raw_derived = result.get("derived_answers")
+    if not isinstance(raw_derived, list) or not raw_derived:
+        return {**base, "reason": "derived_answers_not_a_nonempty_list"}
+    parsed_derived = [parse_number(value) for value in raw_derived]
+    if any(value is None or not math.isfinite(value) for value in parsed_derived):
+        return {**base, "reason": "derived_answers_not_fully_numeric"}
+    unique_derived = sorted(set(parsed_derived))
+    if len(unique_derived) != 1:
+        return {**base, "reason": "derived_answers_not_unique"}
+    derived_value = unique_derived[0]
+    base["derived_value"] = derived_value
+
+    rationale = result.get("rationale")
+    if not isinstance(rationale, str) or not rationale.strip():
+        return {**base, "reason": "rationale_missing"}
+
+    claims, invalid_claims = _extract_rationale_final_claims(
+        str(item.task or ""),
+        rationale,
+    )
+    if not claims:
+        reason = (
+            "rationale_claim_arithmetic_invalid"
+            if invalid_claims
+            else "rationale_final_claim_missing"
+        )
+        return {**base, "reason": reason}
+
+    chosen_claim: dict[str, Any] | None = None
+    claim_values = {claim["value"] for claim in claims}
+    if len(claim_values) == 1:
+        chosen_claim = claims[-1]
+    else:
+        correction_positions = [
+            match.start() for match in _RATIONALE_CORRECTION_PATTERN.finditer(rationale)
+        ]
+        if correction_positions:
+            after_correction = [
+                claim for claim in claims if claim["position"] >= correction_positions[-1]
+            ]
+            if len({claim["value"] for claim in after_correction}) == 1:
+                chosen_claim = after_correction[-1]
+        if chosen_claim is None:
+            return {**base, "reason": "rationale_final_claim_not_unique"}
+
+    rationale_value = chosen_claim["value"]
+    status = (
+        "CONSISTENT"
+        if abs(derived_value - rationale_value) <= 1e-9
+        else "INCONSISTENT"
+    )
+    return {
+        "status": status,
+        "derived_value": derived_value,
+        "rationale_final_value": rationale_value,
+        "rule": chosen_claim["rule"],
+        "reason": (
+            "derived_matches_rationale_final_claim"
+            if status == "CONSISTENT"
+            else "quantity_response_internal_inconsistency"
+        ),
+    }
+
+
+def _extract_rationale_final_claims(
+    task: str,
+    rationale: str,
+) -> tuple[list[dict[str, Any]], int]:
+    claims: list[dict[str, Any]] = []
+    invalid_claims = 0
+
+    def add_match(match: re.Match[str], value_text: str, rule: str) -> None:
+        nonlocal invalid_claims
+        value = parse_number(value_text)
+        if value is None or not math.isfinite(value):
+            return
+        clause = _rationale_clause(rationale, match.start(), match.end())
+        if not _claim_arithmetic_is_valid(clause, value):
+            invalid_claims += 1
+            return
+        claims.append(
+            {
+                "position": match.start(),
+                "value": value,
+                "rule": rule,
+            }
+        )
+
+    for match in _RATIONALE_ANSWER_PATTERN.finditer(rationale):
+        value = _answer_claim_value(match.group("body"))
+        if value is not None:
+            add_match(match, value, "explicit_answer")
+    for match in _RATIONALE_ASKED_VALUE_PATTERN.finditer(rationale):
+        add_match(match, match.group("value"), "question_target_which_is")
+
+    asks_for_difference = bool(
+        re.search(r"\b(?:how\s+(?:many|much)\s+more|difference)\b", task, re.IGNORECASE)
+    )
+    if asks_for_difference:
+        for match in _RATIONALE_DIFFERENCE_PATTERN.finditer(rationale):
+            values = re.findall(_RATIONALE_NUMBER, match.group("body"))
+            if values:
+                add_match(match, values[-1], "explicit_requested_difference")
+
+    claims.sort(key=lambda claim: claim["position"])
+    deduplicated = []
+    for claim in claims:
+        if not deduplicated or (
+            claim["position"], claim["value"], claim["rule"]
+        ) != (
+            deduplicated[-1]["position"],
+            deduplicated[-1]["value"],
+            deduplicated[-1]["rule"],
+        ):
+            deduplicated.append(claim)
+    return deduplicated, invalid_claims
+
+
+def _answer_claim_value(body: str) -> str | None:
+    matches = list(re.finditer(_RATIONALE_NUMBER, body))
+    if not matches:
+        return None
+    first = matches[0]
+    remainder = body[first.end() :]
+    if re.match(r"\s*(?:[+*/-]|=)", remainder):
+        return matches[-1].group(0)
+    return first.group(0)
+
+
+def _rationale_clause(text: str, start: int, end: int) -> str:
+    left = max(text.rfind(separator, 0, start) for separator in ".!?;\n")
+    right_candidates = [
+        position
+        for separator in ".!?;\n"
+        if (position := text.find(separator, end)) >= 0
+    ]
+    right = min(right_candidates) if right_candidates else len(text)
+    return text[left + 1 : right]
+
+
+def _claim_arithmetic_is_valid(clause: str, claimed_value: float) -> bool:
+    matching_equations = []
+    for match in _RATIONALE_EQUATION_PATTERN.finditer(clause):
+        equation_value = parse_number(match.group("value"))
+        if equation_value is None or abs(equation_value - claimed_value) > 1e-9:
+            continue
+        expression = match.group("expression").strip()
+        if not re.search(r"[+*/-]", expression):
+            continue
+        matching_equations.append(expression)
+    if not matching_equations:
+        return True
+    return any(
+        (value := _safe_numeric_expression(expression)) is not None
+        and abs(value - claimed_value) <= 1e-9
+        for expression in matching_equations
+    )
+
+
+def _safe_numeric_expression(expression: str) -> float | None:
+    normalized = expression.replace(",", "").strip()
+    try:
+        tree = ast.parse(normalized, mode="eval")
+    except (SyntaxError, ValueError):
+        return None
+
+    def evaluate(node: ast.AST) -> float:
+        if isinstance(node, ast.Expression):
+            return evaluate(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            value = evaluate(node.operand)
+            return value if isinstance(node.op, ast.UAdd) else -value
+        if isinstance(node, ast.BinOp) and isinstance(
+            node.op,
+            (ast.Add, ast.Sub, ast.Mult, ast.Div),
+        ):
+            left = evaluate(node.left)
+            right = evaluate(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if right == 0:
+                raise ValueError("division by zero")
+            return left / right
+        raise ValueError("unsupported arithmetic expression")
+
+    try:
+        value = evaluate(tree)
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return None
+    return value if math.isfinite(value) else None
+
+
+_QUANTITY_DERIVED_ANSWER_CLAIMS = frozenset({"wrong_gold_answer"})
+
+
 def quantity_consistency_violations(
     item: BenchmarkItem,
     result: dict[str, Any],
     confirm_threshold: float,
     review_threshold: float,
 ) -> Iterable[Violation]:
+    response_consistency = quantity_response_consistency(item, result)
+    invalidated_claim_types: frozenset[str] = frozenset()
+    if response_consistency["status"] == "INCONSISTENT":
+        # The contradiction invalidates the structured answer field, not every
+        # independently grounded claim in the response.  In particular,
+        # quantity checks and reference issues remain usable; only the
+        # derived-vs-gold claim directly depends on ``derived_answers``.
+        invalidated_claim_types = _QUANTITY_DERIVED_ANSWER_CLAIMS
+        annotated_result = {
+            **result,
+            "response_consistency": response_consistency,
+            "invalidated_claim_types": sorted(invalidated_claim_types),
+        }
+        observations = item.metadata.get("_llm_observations")
+        if (
+            isinstance(observations, dict)
+            and "llm_quantity_consistency" in observations
+        ):
+            observations["llm_quantity_consistency"] = annotated_result
+        result = annotated_result
+
     violated_checks = []
     nonmaterial_violated_checks = []
     for check in result.get("checks", []):
@@ -2245,6 +2514,7 @@ def quantity_consistency_violations(
         and gold is not None
         and abs(unique_derived[0] - gold) > 1e-9
         and confidence >= review_threshold
+        and "wrong_gold_answer" not in invalidated_claim_types
     ):
         yield _llm_violation(
             item,
